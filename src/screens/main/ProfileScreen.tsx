@@ -1,5 +1,8 @@
 import React from 'react';
-import { View, Text, StyleSheet, SafeAreaView, TouchableOpacity, ScrollView } from 'react-native';
+import { View, Text, StyleSheet, SafeAreaView, TouchableOpacity, ScrollView, Alert } from 'react-native';
+import { useDispatch, useSelector } from 'react-redux';
+import { signOut } from '../../store/slices/authSlice';
+import { RootState, AppDispatch } from '../../store';
 import { COLORS, FONT_SIZES, SPACING } from '../../constants';
 import { formatXP, formatStreak, getStreakEmoji } from '../../utils';
 
@@ -8,17 +11,46 @@ interface Props {
 }
 
 const ProfileScreen: React.FC<Props> = ({ navigation }) => {
-  // Mock user data
-  const user = {
-    name: 'John Doe',
-    email: 'john.doe@example.com',
+  const dispatch = useDispatch<AppDispatch>();
+  const { user, isLoading } = useSelector((state: RootState) => state.auth);
+
+  // Mock user data - in production this would come from Redux store
+  const userData = {
+    name: user?.name || 'John Doe',
+    email: user?.email || 'john.doe@example.com',
     avatar: '👤',
-    level: 1,
-    xp: 0,
-    streak: 0,
-    totalQuestions: 0,
-    correctAnswers: 0,
-    accuracy: 0,
+    level: user?.level || 1,
+    xp: user?.xp || 0,
+    streak: user?.streak || 0,
+    totalQuestions: user?.totalQuestionsAnswered || 0,
+    correctAnswers: user?.correctAnswers || 0,
+    accuracy: user?.totalQuestionsAnswered ? Math.round((user.correctAnswers / user.totalQuestionsAnswered) * 100) : 0,
+  };
+
+  const handleSignOut = () => {
+    Alert.alert(
+      'Sign Out',
+      'Are you sure you want to sign out?',
+      [
+        {
+          text: 'Cancel',
+          style: 'cancel',
+        },
+        {
+          text: 'Sign Out',
+          style: 'destructive',
+          onPress: async () => {
+            try {
+              await dispatch(signOut()).unwrap();
+              // Navigation will be handled automatically by the navigation state listener
+              // since the user will no longer be authenticated
+            } catch (error) {
+              Alert.alert('Error', 'Failed to sign out. Please try again.');
+            }
+          },
+        },
+      ]
+    );
   };
 
   const menuItems = [
@@ -36,10 +68,10 @@ const ProfileScreen: React.FC<Props> = ({ navigation }) => {
         {/* Profile Header */}
         <View style={styles.profileHeader}>
           <View style={styles.avatarContainer}>
-            <Text style={styles.avatar}>{user.avatar}</Text>
+            <Text style={styles.avatar}>{userData.avatar}</Text>
           </View>
-          <Text style={styles.userName}>{user.name}</Text>
-          <Text style={styles.userEmail}>{user.email}</Text>
+          <Text style={styles.userName}>{userData.name}</Text>
+          <Text style={styles.userEmail}>{userData.email}</Text>
 
           <TouchableOpacity style={styles.editProfileButton}>
             <Text style={styles.editProfileText}>Edit Profile</Text>
@@ -52,24 +84,24 @@ const ProfileScreen: React.FC<Props> = ({ navigation }) => {
           
           <View style={styles.statsGrid}>
             <View style={styles.statCard}>
-              <Text style={styles.statValue}>{formatXP(user.xp)}</Text>
+              <Text style={styles.statValue}>{formatXP(userData.xp)}</Text>
               <Text style={styles.statLabel}>Total XP</Text>
             </View>
 
             <View style={styles.statCard}>
-              <Text style={styles.statValue}>Level {user.level}</Text>
+              <Text style={styles.statValue}>Level {userData.level}</Text>
               <Text style={styles.statLabel}>Current Level</Text>
             </View>
 
             <View style={styles.statCard}>
               <Text style={styles.statValue}>
-                {getStreakEmoji(user.streak)} {user.streak}
+                {getStreakEmoji(userData.streak)} {userData.streak}
               </Text>
               <Text style={styles.statLabel}>Day Streak</Text>
             </View>
 
             <View style={styles.statCard}>
-              <Text style={styles.statValue}>{user.accuracy}%</Text>
+              <Text style={styles.statValue}>{userData.accuracy}%</Text>
               <Text style={styles.statLabel}>Accuracy</Text>
             </View>
           </View>
@@ -95,8 +127,14 @@ const ProfileScreen: React.FC<Props> = ({ navigation }) => {
         </View>
 
         {/* Sign Out Button */}
-        <TouchableOpacity style={styles.signOutButton}>
-          <Text style={styles.signOutText}>Sign Out</Text>
+        <TouchableOpacity 
+          style={styles.signOutButton} 
+          onPress={handleSignOut}
+          disabled={isLoading}
+        >
+          <Text style={styles.signOutText}>
+            {isLoading ? 'Signing Out...' : 'Sign Out'}
+          </Text>
         </TouchableOpacity>
       </ScrollView>
     </SafeAreaView>

@@ -12,6 +12,17 @@ module.exports = function(api) {
           whitelist: null,
           safe: false,
           allowUndefined: true,
+          verbose: false,
+        },
+      ],
+      [
+        'module-resolver',
+        {
+          root: ['./src'],
+          extensions: ['.ios.js', '.android.js', '.js', '.ts', '.tsx', '.json'],
+          alias: {
+            '@': './src',
+          },
         },
       ],
     ],

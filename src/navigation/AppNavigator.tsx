@@ -1,8 +1,11 @@
-import React from 'react';
+import React, { useState } from 'react';
 import { NavigationContainer } from '@react-navigation/native';
 import { createStackNavigator } from '@react-navigation/stack';
 import { useSelector } from 'react-redux';
 import { RootState } from '../store';
+
+// Onboarding
+import OnboardingFlow from '../screens/onboarding/OnboardingFlow';
 
 // Auth Screens
 import WelcomeScreen from '../screens/auth/WelcomeScreen';
@@ -20,6 +23,9 @@ import LevelCompletionScreen from '../screens/game/LevelCompletionScreen';
 import SettingsScreen from '../screens/profile/SettingsScreen';
 
 export type RootStackParamList = {
+  // Onboarding
+  Onboarding: undefined;
+  
   // Auth Stack
   Welcome: undefined;
   Login: undefined;
@@ -50,9 +56,20 @@ const Stack = createStackNavigator<RootStackParamList>();
 
 const AppNavigator: React.FC = () => {
   const { isAuthenticated, isLoading } = useSelector((state: RootState) => state.auth);
+  const [showOnboarding, setShowOnboarding] = useState<boolean>(true);
 
+  const handleOnboardingComplete = () => {
+    setShowOnboarding(false);
+  };
+
+  // Show loading while auth state is being determined
   if (isLoading) {
-    return null; // Loading handled by PersistGate
+    return null; // Could add a loading component here
+  }
+
+  // Show onboarding flow
+  if (showOnboarding) {
+    return <OnboardingFlow onComplete={handleOnboardingComplete} />;
   }
 
   return (

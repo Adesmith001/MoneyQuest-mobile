@@ -26,9 +26,14 @@ export const signIn = createAsyncThunk(
 
 export const signUp = createAsyncThunk(
   'auth/signUp',
-  async ({ email, password, name }: { email: string; password: string; name: string }, { rejectWithValue }) => {
+  async ({ email, password, name, phoneNumber }: { 
+    email: string; 
+    password: string; 
+    name: string; 
+    phoneNumber?: string;
+  }, { rejectWithValue }) => {
     try {
-      await AuthService.createAccount(email, password, name);
+      await AuthService.createAccount(email, password, name, phoneNumber);
       const currentUser = await AuthService.getCurrentUser();
       const userDocument = await AuthService.getUserDocument(currentUser.$id);
       return { currentUser, userDocument };
@@ -43,6 +48,18 @@ export const signOut = createAsyncThunk(
   async (_, { rejectWithValue }) => {
     try {
       await AuthService.signOut();
+    } catch (error: any) {
+      return rejectWithValue(error.message);
+    }
+  }
+);
+
+export const signInWithGoogle = createAsyncThunk(
+  'auth/signInWithGoogle',
+  async (_, { rejectWithValue }) => {
+    try {
+      const result = await AuthService.signInWithGoogle();
+      return result;
     } catch (error: any) {
       return rejectWithValue(error.message);
     }
@@ -132,6 +149,23 @@ const authSlice = createSlice({
         state.isAuthenticated = false;
         state.user = null;
         state.error = null;
+      })
+      // Google Sign In
+      .addCase(signInWithGoogle.pending, (state) => {
+        state.isLoading = true;
+        state.error = null;
+      })
+      .addCase(signInWithGoogle.fulfilled, (state, action) => {
+        state.isLoading = false;
+        state.isAuthenticated = true;
+        state.user = action.payload.userDocument;
+        state.error = null;
+      })
+      .addCase(signInWithGoogle.rejected, (state, action) => {
+        state.isLoading = false;
+        state.isAuthenticated = false;
+        state.user = null;
+        state.error = action.payload as string;
       })
       // Get Current User
       .addCase(getCurrentUser.fulfilled, (state, action) => {

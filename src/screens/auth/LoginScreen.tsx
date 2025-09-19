@@ -8,11 +8,12 @@ import {
   SafeAreaView,
   KeyboardAvoidingView,
   Platform,
-  Alert 
+  Alert,
+  Image 
 } from 'react-native';
 import { useDispatch, useSelector } from 'react-redux';
-import { signIn } from '../../store/slices/authSlice';
-import { COLORS, FONT_SIZES, SPACING, BORDER_RADIUS } from '../../constants';
+import { signIn, signInWithGoogle } from '../../store/slices/authSlice';
+import { RootState, AppDispatch } from '../../store';
 
 interface Props {
   navigation: any;
@@ -21,9 +22,8 @@ interface Props {
 const LoginScreen: React.FC<Props> = ({ navigation }) => {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
-  const [isLoading, setIsLoading] = useState(false);
-  
-  const dispatch = useDispatch();
+  const dispatch = useDispatch<AppDispatch>();
+  const { isLoading, error } = useSelector((state: RootState) => state.auth);
 
   const handleLogin = async () => {
     if (!email || !password) {
@@ -31,21 +31,43 @@ const LoginScreen: React.FC<Props> = ({ navigation }) => {
       return;
     }
 
-    setIsLoading(true);
+    if (!email.includes('@')) {
+      Alert.alert('Error', 'Please enter a valid email address');
+      return;
+    }
+
     try {
-      // For now, simulate login
-      console.log('Login with:', email, password);
-      // dispatch(signIn({ email, password }));
+      const result = await dispatch(signIn({ email, password }));
+      if (signIn.fulfilled.match(result)) {
+        // Login successful, navigation will be handled by AppNavigator
+        Alert.alert('Success', 'Login successful!');
+      } else {
+        // Login failed
+        const errorMessage = result.payload as string;
+        Alert.alert('Login Failed', errorMessage || 'Invalid email or password');
+      }
     } catch (error) {
-      Alert.alert('Error', 'Login failed');
-    } finally {
-      setIsLoading(false);
+      Alert.alert('Error', 'An unexpected error occurred');
     }
   };
 
-  const handleSocialLogin = (provider: string) => {
-    console.log(`Login with ${provider}`);
-    // Implement social login logic
+  const handleSocialLogin = async (provider: string) => {
+    if (provider === 'Google') {
+      try {
+        const result = await dispatch(signInWithGoogle());
+        if (signInWithGoogle.fulfilled.match(result)) {
+          Alert.alert('Success', 'Google login successful!');
+        } else {
+          const errorMessage = result.payload as string;
+          Alert.alert('Google Login Failed', errorMessage || 'Failed to login with Google');
+        }
+      } catch (error) {
+        Alert.alert('Error', 'Google login failed');
+      }
+    } else {
+      // Other providers coming soon
+      Alert.alert('Coming Soon', `${provider} login will be available soon!`);
+    }
   };
 
   return (
@@ -55,19 +77,25 @@ const LoginScreen: React.FC<Props> = ({ navigation }) => {
         style={styles.keyboardView}
       >
         <View style={styles.content}>
+          {/* Header */}
           <View style={styles.header}>
-            <Text style={styles.title}>Welcome Back!</Text>
-            <Text style={styles.subtitle}>Sign in to continue your learning journey</Text>
+            <Text style={styles.title}>Money Quest</Text>
           </View>
 
+          {/* Login Title */}
+          <View style={styles.loginHeader}>
+            <Text style={styles.loginTitle}>Log In</Text>
+          </View>
+
+          {/* Form */}
           <View style={styles.form}>
             <View style={styles.inputContainer}>
-              <Text style={styles.label}>Email</Text>
               <TextInput
                 style={styles.input}
                 value={email}
                 onChangeText={setEmail}
-                placeholder="Enter your email"
+                placeholder="Email"
+                placeholderTextColor="#999"
                 keyboardType="email-address"
                 autoCapitalize="none"
                 autoCorrect={false}
@@ -75,12 +103,12 @@ const LoginScreen: React.FC<Props> = ({ navigation }) => {
             </View>
 
             <View style={styles.inputContainer}>
-              <Text style={styles.label}>Password</Text>
               <TextInput
                 style={styles.input}
                 value={password}
                 onChangeText={setPassword}
-                placeholder="Enter your password"
+                placeholder="Password"
+                placeholderTextColor="#999"
                 secureTextEntry
                 autoCapitalize="none"
               />
@@ -90,7 +118,7 @@ const LoginScreen: React.FC<Props> = ({ navigation }) => {
               style={styles.forgotPassword}
               onPress={() => navigation.navigate('ForgotPassword')}
             >
-              <Text style={styles.forgotPasswordText}>Forgot Password?</Text>
+              <Text style={styles.forgotPasswordText}>Forgot password?</Text>
             </TouchableOpacity>
 
             <TouchableOpacity
@@ -99,14 +127,12 @@ const LoginScreen: React.FC<Props> = ({ navigation }) => {
               disabled={isLoading}
             >
               <Text style={styles.loginButtonText}>
-                {isLoading ? 'Signing In...' : 'Sign In'}
+                {isLoading ? 'Logging in...' : 'Log in'}
               </Text>
             </TouchableOpacity>
 
             <View style={styles.divider}>
-              <View style={styles.dividerLine} />
-              <Text style={styles.dividerText}>or continue with</Text>
-              <View style={styles.dividerLine} />
+              <Text style={styles.dividerText}>OR LOGIN WITH</Text>
             </View>
 
             <View style={styles.socialButtons}>
@@ -114,29 +140,30 @@ const LoginScreen: React.FC<Props> = ({ navigation }) => {
                 style={styles.socialButton}
                 onPress={() => handleSocialLogin('Google')}
               >
-                <Text style={styles.socialButtonText}>Google</Text>
+                <Image source={require('../../../assets/google-icon.png')} style={styles.socialIcon} />
               </TouchableOpacity>
 
               <TouchableOpacity
                 style={styles.socialButton}
                 onPress={() => handleSocialLogin('Facebook')}
               >
-                <Text style={styles.socialButtonText}>Facebook</Text>
+                <Image source={require('../../../assets/facebook-icon.png')} style={styles.socialIcon} />
               </TouchableOpacity>
 
               <TouchableOpacity
                 style={styles.socialButton}
                 onPress={() => handleSocialLogin('Twitter')}
               >
-                <Text style={styles.socialButtonText}>Twitter</Text>
+                <Image source={require('../../../assets/twitter-icon.png')} style={styles.socialIcon} />
               </TouchableOpacity>
             </View>
           </View>
 
+          {/* Footer */}
           <View style={styles.footer}>
             <Text style={styles.footerText}>Don't have an account? </Text>
             <TouchableOpacity onPress={() => navigation.navigate('Register')}>
-              <Text style={styles.footerLink}>Sign Up</Text>
+              <Text style={styles.footerLink}>Signup</Text>
             </TouchableOpacity>
           </View>
         </View>
@@ -148,121 +175,114 @@ const LoginScreen: React.FC<Props> = ({ navigation }) => {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: COLORS.background,
+    backgroundColor: "#FFFFFF",
   },
   keyboardView: {
     flex: 1,
   },
   content: {
     flex: 1,
-    paddingHorizontal: SPACING.xl,
-    paddingVertical: SPACING.xxl,
+    paddingHorizontal: 32,
+    justifyContent: 'space-between',
+    paddingTop: 60,
+    paddingBottom: 50,
   },
   header: {
-    alignItems: 'center',
-    marginBottom: SPACING.xxl,
+    alignItems: "center",
+    marginBottom: 40,
   },
   title: {
-    fontSize: FONT_SIZES.xxxl,
-    fontWeight: 'bold',
-    color: COLORS.text,
-    marginBottom: SPACING.sm,
+    fontSize: 20,
+    fontWeight: "bold",
+    color: "#212121",
   },
-  subtitle: {
-    fontSize: FONT_SIZES.md,
-    color: COLORS.textSecondary,
-    textAlign: 'center',
+  loginHeader: {
+    alignItems: "center",
+    marginBottom: 60,
+  },
+  loginTitle: {
+    fontSize: 32,
+    fontWeight: "bold",
+    color: "#212121",
   },
   form: {
     flex: 1,
   },
   inputContainer: {
-    marginBottom: SPACING.lg,
-  },
-  label: {
-    fontSize: FONT_SIZES.md,
-    fontWeight: '500',
-    color: COLORS.text,
-    marginBottom: SPACING.sm,
+    marginBottom: 20,
   },
   input: {
-    borderWidth: 1,
-    borderColor: COLORS.border,
-    borderRadius: BORDER_RADIUS.md,
-    paddingHorizontal: SPACING.md,
-    paddingVertical: SPACING.md,
-    fontSize: FONT_SIZES.md,
-    backgroundColor: COLORS.background,
+    backgroundColor: "#F5F5F5",
+    paddingHorizontal: 20,
+    paddingVertical: 16,
+    borderRadius: 12,
+    fontSize: 16,
+    color: "#212121",
   },
   forgotPassword: {
-    alignSelf: 'flex-end',
-    marginBottom: SPACING.xl,
+    alignSelf: "flex-start",
+    marginBottom: 40,
   },
   forgotPasswordText: {
-    fontSize: FONT_SIZES.sm,
-    color: COLORS.primary,
+    fontSize: 16,
+    color: "#FF8A00",
+    fontWeight: "500",
   },
   loginButton: {
-    backgroundColor: COLORS.primary,
-    paddingVertical: SPACING.lg,
-    borderRadius: BORDER_RADIUS.lg,
-    alignItems: 'center',
-    marginBottom: SPACING.xl,
+    backgroundColor: "#FF5722",
+    paddingVertical: 16,
+    borderRadius: 25,
+    alignItems: "center",
+    marginBottom: 40,
   },
   loginButtonText: {
-    fontSize: FONT_SIZES.lg,
-    fontWeight: '600',
-    color: COLORS.background,
+    color: "#FFFFFF",
+    fontSize: 18,
+    fontWeight: "600",
   },
   disabledButton: {
     opacity: 0.6,
   },
   divider: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    marginBottom: SPACING.xl,
-  },
-  dividerLine: {
-    flex: 1,
-    height: 1,
-    backgroundColor: COLORS.border,
+    alignItems: "center",
+    marginBottom: 30,
   },
   dividerText: {
-    fontSize: FONT_SIZES.sm,
-    color: COLORS.textSecondary,
-    marginHorizontal: SPACING.md,
+    fontSize: 14,
+    color: "#999",
+    fontWeight: "500",
   },
   socialButtons: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    gap: SPACING.sm,
+    flexDirection: "row",
+    justifyContent: "center",
+    gap: 20,
+    marginBottom: 40,
   },
   socialButton: {
-    flex: 1,
-    borderWidth: 1,
-    borderColor: COLORS.border,
-    paddingVertical: SPACING.md,
-    borderRadius: BORDER_RADIUS.md,
-    alignItems: 'center',
+    width: 50,
+    height: 50,
+    borderRadius: 25,
+    backgroundColor: "#F5F5F5",
+    justifyContent: "center",
+    alignItems: "center",
   },
-  socialButtonText: {
-    fontSize: FONT_SIZES.sm,
-    color: COLORS.text,
+  socialIcon: {
+    width: 24,
+    height: 24,
   },
   footer: {
-    flexDirection: 'row',
-    justifyContent: 'center',
-    alignItems: 'center',
-    marginTop: SPACING.xl,
+    flexDirection: "row",
+    justifyContent: "center",
+    alignItems: "center",
   },
   footerText: {
-    fontSize: FONT_SIZES.md,
-    color: COLORS.textSecondary,
+    fontSize: 16,
+    color: "#666",
   },
   footerLink: {
-    fontSize: FONT_SIZES.md,
-    color: COLORS.primary,
-    fontWeight: '600',
+    fontSize: 16,
+    color: "#FF8A00",
+    fontWeight: "600",
   },
 });
 

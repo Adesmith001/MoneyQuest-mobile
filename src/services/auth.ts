@@ -5,12 +5,12 @@ import { User } from '../types';
 
 class AuthService {
   // Create account with email and password
-  async createAccount(email: string, password: string, name: string): Promise<any> {
+  async createAccount(email: string, password: string, name: string, phoneNumber?: string): Promise<any> {
     try {
       const newAccount = await account.create(ID.unique(), email, password, name);
       
       // Create user document in database
-      await this.createUserDocument(newAccount.$id, email, name);
+      await this.createUserDocument(newAccount.$id, email, name, phoneNumber);
       
       return newAccount;
     } catch (error) {
@@ -61,6 +61,7 @@ class AuthService {
         $id: userDoc.$id,
         email: userDoc.email,
         name: userDoc.name,
+        phoneNumber: userDoc.phoneNumber,
         profilePicture: userDoc.profilePicture,
         profilePictureId: userDoc.profilePictureId,
         xp: userDoc.xp || 0,
@@ -83,10 +84,10 @@ class AuthService {
   }
 
   // Create user document in database
-  async createUserDocument(userId: string, email: string, name: string): Promise<void> {
+  async createUserDocument(userId: string, email: string, name: string, phoneNumber?: string): Promise<void> {
     try {
       const currentDate = new Date().toISOString();
-      await databases.createDocument(DB_ID, COLLECTIONS.USERS, userId, {
+      const userData: any = {
         email,
         name,
         xp: 0,
@@ -99,7 +100,13 @@ class AuthService {
         monthlyXP: 0,
         createdAt: currentDate,
         updatedAt: currentDate,
-      });
+      };
+
+      if (phoneNumber) {
+        userData.phoneNumber = phoneNumber;
+      }
+
+      await databases.createDocument(DB_ID, COLLECTIONS.USERS, userId, userData);
     } catch (error) {
       console.error('Create user document error:', error);
       throw error;
@@ -213,11 +220,33 @@ class AuthService {
     }
   }
 
-  // OAuth sign-in methods (TODO: Fix OAuth provider types)
-  async signInWithGoogle(): Promise<void> {
+  // OAuth sign-in methods
+  async signInWithGoogle(): Promise<any> {
     try {
-      // TODO: Use correct OAuth provider enum when available
-      await account.createOAuth2Session('google' as any, 'http://localhost:3000/auth/success', 'http://localhost:3000/auth/failure');
+      // Create OAuth2 session with proper React Native deep links
+      const session = await account.createOAuth2Session(
+        'google' as any,
+        'io.expo.moneyquest://oauth/success', // Success redirect
+        'io.expo.moneyquest://oauth/failure'  // Failure redirect
+      );
+      
+      // After successful OAuth, get current user and create/update user document
+      const currentUser = await this.getCurrentUser();
+      if (currentUser) {
+        // Check if user document exists, if not create one
+        let userDocument = await this.getUserDocument(currentUser.$id);
+        if (!userDocument) {
+          await this.createUserDocument(
+            currentUser.$id, 
+            currentUser.email, 
+            currentUser.name
+          );
+          userDocument = await this.getUserDocument(currentUser.$id);
+        }
+        await this.updateLastLoginDate();
+        return { currentUser, userDocument };
+      }
+      return session;
     } catch (error) {
       console.error('Google sign-in error:', error);
       throw error;
@@ -227,7 +256,11 @@ class AuthService {
   async signInWithFacebook(): Promise<void> {
     try {
       // TODO: Use correct OAuth provider enum when available  
-      await account.createOAuth2Session('facebook' as any, 'http://localhost:3000/auth/success', 'http://localhost:3000/auth/failure');
+      await account.createOAuth2Session(
+        'facebook' as any, 
+        'io.expo.moneyquest://oauth/success', 
+        'io.expo.moneyquest://oauth/failure'
+      );
     } catch (error) {
       console.error('Facebook sign-in error:', error);
       throw error;
@@ -237,7 +270,11 @@ class AuthService {
   async signInWithTwitter(): Promise<void> {
     try {
       // TODO: Use correct OAuth provider enum when available
-      await account.createOAuth2Session('twitter' as any, 'http://localhost:3000/auth/success', 'http://localhost:3000/auth/failure');
+      await account.createOAuth2Session(
+        'twitter' as any, 
+        'io.expo.moneyquest://oauth/success', 
+        'io.expo.moneyquest://oauth/failure'
+      );
     } catch (error) {
       console.error('Twitter sign-in error:', error);
       throw error;

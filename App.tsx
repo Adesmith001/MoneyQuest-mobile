@@ -1,128 +1,79 @@
-import React from 'react';
-import { StyleSheet, Text, View, SafeAreaView, ScrollView, TouchableOpacity } from 'react-native';
+import React, { useEffect } from 'react';
 import { StatusBar } from 'expo-status-bar';
+import { Provider } from 'react-redux';
+import { PersistGate } from 'redux-persist/integration/react';
+import { SafeAreaProvider } from 'react-native-safe-area-context';
+import { View, Text, StyleSheet, ActivityIndicator } from 'react-native';
 
-// Demo screens to showcase the app structure
-const DemoWelcomeScreen = () => (
-  <SafeAreaView style={styles.container}>
-    <View style={styles.welcomeContainer}>
-      <View style={styles.logoContainer}>
-        <Text style={styles.logoIcon}>🏦</Text>
-      </View>
-      <Text style={styles.appName}>Money Quest</Text>
-      <Text style={styles.tagline}>Master your financial future</Text>
-      
-      <View style={styles.buttonContainer}>
-        <TouchableOpacity style={styles.primaryButton}>
-          <Text style={styles.primaryButtonText}>Get Started</Text>
-        </TouchableOpacity>
-        
-        <TouchableOpacity style={styles.secondaryButton}>
-          <Text style={styles.secondaryButtonText}>Already have an account?</Text>
-        </TouchableOpacity>
-      </View>
-      
-      <View style={styles.featuresContainer}>
-        <Text style={styles.featuresTitle}>What you'll get:</Text>
-        <Text style={styles.featureItem}>🎯 Interactive financial lessons</Text>
-        <Text style={styles.featureItem}>🏆 Daily streaks & XP system</Text>
-        <Text style={styles.featureItem}>📊 Monthly leaderboards</Text>
-        <Text style={styles.featureItem}>🔊 Audio questions</Text>
-        <Text style={styles.featureItem}>👥 Social authentication</Text>
-        <Text style={styles.featureItem}>📱 Push notifications</Text>
-      </View>
-    </View>
-  </SafeAreaView>
+import { store, persistor } from './src/store';
+import AppNavigator from './src/navigation/AppNavigator';
+import NotificationService from './src/services/notifications';
+import { COLORS, FONT_SIZES, SPACING } from './src/constants';
+
+// Loading component for PersistGate
+const LoadingComponent = () => (
+  <View style={styles.loadingContainer}>
+    <ActivityIndicator size="large" color={COLORS.primary} />
+    <Text style={styles.loadingText}>Loading MoneyQuest...</Text>
+  </View>
 );
 
 export default function App() {
+  useEffect(() => {
+    // Initialize app services on startup
+    const initializeApp = async () => {
+      try {
+        console.log('🚀 Initializing MoneyQuest app...');
+        
+        // Request notification permissions
+        const permissionGranted = await NotificationService.requestPermissions();
+        
+        if (permissionGranted) {
+          console.log('✅ Notification permissions granted');
+          
+          // Setup notification handlers
+          NotificationService.setupNotificationResponseHandler();
+          
+          // Schedule daily reminders
+          await NotificationService.scheduleDailyReminder();
+          
+          console.log('✅ Notifications setup complete');
+        } else {
+          console.log('⚠️ Notification permissions denied');
+        }
+        
+        console.log('✅ App initialization complete');
+        
+      } catch (error) {
+        console.error('❌ App initialization error:', error);
+      }
+    };
+
+    initializeApp();
+  }, []);
+
   return (
-    <>
-      <StatusBar style="light" />
-      <DemoWelcomeScreen />
-    </>
+    <Provider store={store}>
+      <PersistGate loading={<LoadingComponent />} persistor={persistor}>
+        <SafeAreaProvider>
+          <StatusBar style="auto" />
+          <AppNavigator />
+        </SafeAreaProvider>
+      </PersistGate>
+    </Provider>
   );
 }
 
 const styles = StyleSheet.create({
-  container: {
+  loadingContainer: {
     flex: 1,
-    backgroundColor: '#FF5722', // Orange primary color from design
-  },
-  welcomeContainer: {
-    flex: 1,
-    justifyContent: 'space-between',
-    paddingHorizontal: 32,
-    paddingVertical: 48,
-  },
-  logoContainer: {
-    width: 120,
-    height: 120,
-    backgroundColor: 'rgba(255, 255, 255, 0.2)',
-    borderRadius: 60,
     justifyContent: 'center',
     alignItems: 'center',
-    alignSelf: 'center',
-    marginBottom: 32,
-    marginTop: 60,
+    backgroundColor: COLORS.background,
   },
-  logoIcon: {
-    fontSize: 60,
-  },
-  appName: {
-    fontSize: 32,
-    fontWeight: 'bold',
-    color: '#FFFFFF',
-    textAlign: 'center',
-    marginBottom: 8,
-  },
-  tagline: {
-    fontSize: 18,
-    color: 'rgba(255, 255, 255, 0.9)',
-    textAlign: 'center',
-    marginBottom: 48,
-  },
-  buttonContainer: {
-    gap: 16,
-  },
-  primaryButton: {
-    backgroundColor: '#FFFFFF',
-    paddingVertical: 16,
-    paddingHorizontal: 32,
-    borderRadius: 12,
-    alignItems: 'center',
-  },
-  primaryButtonText: {
-    fontSize: 18,
-    fontWeight: '600',
-    color: '#FF5722',
-  },
-  secondaryButton: {
-    paddingVertical: 12,
-    alignItems: 'center',
-  },
-  secondaryButtonText: {
-    fontSize: 16,
-    color: 'rgba(255, 255, 255, 0.9)',
-    textDecorationLine: 'underline',
-  },
-  featuresContainer: {
-    backgroundColor: 'rgba(255, 255, 255, 0.1)',
-    borderRadius: 16,
-    padding: 24,
-    marginTop: 32,
-  },
-  featuresTitle: {
-    fontSize: 18,
-    fontWeight: 'bold',
-    color: '#FFFFFF',
-    marginBottom: 16,
-    textAlign: 'center',
-  },
-  featureItem: {
-    fontSize: 16,
-    color: 'rgba(255, 255, 255, 0.9)',
-    marginBottom: 8,
-    lineHeight: 24,
+  loadingText: {
+    fontSize: FONT_SIZES.md,
+    color: COLORS.textSecondary,
+    marginTop: SPACING.md,
   },
 });
