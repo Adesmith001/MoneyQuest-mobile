@@ -24,6 +24,7 @@ import ProfileSetupScreen from '../screens/auth/ProfileSetupScreen';
 import MainTabNavigator from './MainTabNavigator';
 
 // Other Screens
+import LoadingScreen from '../screens/common/LoadingScreen'; // Import the new loading screen
 import QuestionScreen from '../screens/game/QuestionScreen';
 import LevelCompletionScreen from '../screens/game/LevelCompletionScreen';
 import SettingsScreen from '../screens/profile/SettingsScreen';
@@ -108,9 +109,9 @@ const AppNavigator: React.FC = () => {
     setShowOnboarding(false);
   };
 
-  // Show loading while auth state is being determined
+  // Show loading screen while auth state is being determined or during login/signup
   if (isLoading) {
-    return null; // Could add a loading component here
+    return <LoadingScreen />; // Display the loading screen instead of null
   }
 
   // Show welcome screen after successful signup

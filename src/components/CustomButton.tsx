@@ -12,7 +12,7 @@ interface CustomButtonProps {
   title: string;
   onPress: () => void;
   variant?: 'primary' | 'secondary' | 'outline';
-  size?: 'small' | 'medium' | 'large';
+  size?: 'small' | 'medium' | 'large' | 'full';
   disabled?: boolean;
   loading?: boolean;
   style?: ViewStyle;

@@ -1,11 +1,23 @@
-import React from 'react';
-import { View, Text, StyleSheet, SafeAreaView, TouchableOpacity, ScrollView, Dimensions, Image } from 'react-native';
-import { useSelector } from 'react-redux';
-import { RootState } from '../../store';
-import { formatXP } from '../../utils';
-import { getAvatarById } from '../../utils/avatarUtils';
+import React, { useState } from "react";
+import {
+  View,
+  Text,
+  StyleSheet,
+  SafeAreaView,
+  TouchableOpacity,
+  ScrollView,
+  Dimensions,
+  Image,
+} from "react-native";
+import { useSelector } from "react-redux";
+import { Ionicons } from "@expo/vector-icons";
+import { RootState } from "../../store";
+import { formatXP } from "../../utils";
+import { getAvatarById } from "../../utils/avatarUtils";
+import InviteFriendsModal from "../../components/modals/InviteFriendsModal"; // Import the new modal
+import CustomButton from "../../components/CustomButton";
 
-const { width: screenWidth } = Dimensions.get('window');
+const { width: screenWidth } = Dimensions.get("window");
 
 interface Props {
   navigation: any;
@@ -13,6 +25,7 @@ interface Props {
 
 const ProfileScreen: React.FC<Props> = ({ navigation }) => {
   const { user } = useSelector((state: RootState) => state.auth);
+  const [isInviteModalVisible, setInviteModalVisible] = useState(false);
 
   if (!user) {
     return (
@@ -22,82 +35,113 @@ const ProfileScreen: React.FC<Props> = ({ navigation }) => {
     );
   }
 
-  // User data from Redux store or fallback
   const userData = {
-    name: user?.name || 'Iyanu Babayemi',
-    email: user?.email || 'iyanubabs@gmail.com',
-    username: user?.username || 'iyanubabs',
-    avatar: user?.avatar || '👤',
-    level: user?.level || 1,
-    xp: user?.xp || 9770,
-    streak: user?.streak || 12,
+    name: user?.name,
+    username: user?.username,
+    avatar: user?.avatar,
+    level: user?.level,
+    xp: user?.xp,
+    streak: user?.streak,
     lifePoints: 50,
-    totalQuestions: user?.totalQuestionsAnswered || 0,
-    correctAnswers: user?.correctAnswers || 0,
-    accuracy: user?.totalQuestionsAnswered ? Math.round((user.correctAnswers / user.totalQuestionsAnswered) * 100) : 0,
   };
 
   const handleEditProfile = () => {
-    navigation.navigate('EditProfile');
+    navigation.navigate("EditProfile");
   };
+
+  const inviteLink = `https://invite.moneyquest.com/${user?.$id}`;
 
   return (
     <SafeAreaView style={styles.container}>
       <ScrollView style={styles.content} showsVerticalScrollIndicator={false}>
-        {/* Header with Edit Button */}
+        {/* Header */}
         <View style={styles.profileHeader}>
-          <View style={styles.headerTop}>
-            <View style={styles.userInfo}>
-              <Text style={styles.userName}>{userData.name}</Text>
-              <Text style={styles.userHandle}>@{userData.username}</Text>
-            </View>
-            <TouchableOpacity 
-              style={styles.editButton}
-              onPress={handleEditProfile}
-            >
-              <Text style={styles.editIcon}>✏️</Text>
-            </TouchableOpacity>
-          </View>
-
-          {/* Avatar */}
           <View style={styles.avatarContainer}>
-            <Image source={getAvatarById(user.avatar)} style={styles.avatarImage} />
+            <Image
+              source={getAvatarById(userData.avatar)}
+              style={styles.avatarImage}
+            />
           </View>
+          <View style={styles.userInfo}>
+            <Text style={styles.userName}>{userData.name}</Text>
+            <Text style={styles.userHandle}>@{userData.username}</Text>
+          </View>
+          <TouchableOpacity
+            style={styles.editButton}
+            onPress={handleEditProfile}
+          >
+            <Ionicons name="create-outline" size={25} color="white" />
+          </TouchableOpacity>
         </View>
 
         {/* Stats Cards */}
         <View style={styles.statsContainer}>
           <View style={styles.statsRow}>
             <View style={styles.statCard}>
-              <Text style={styles.statIcon}>🔥</Text>
-              <Text style={styles.statValue}>{userData.streak}</Text>
-              <Text style={styles.statLabel}>Day streak</Text>
+              <View style={styles.statRow}>
+                <View style={styles.statTopRow}>
+                  <Text style={styles.statIcon}>🔥</Text>
+                </View>
+                <View style={styles.statBottomRow}>
+                  <Text style={styles.statValue}>{userData.streak}</Text>
+                  <Text style={styles.statLabel}>Day streak</Text>
+                </View>
+              </View>
             </View>
-            
             <View style={styles.statCard}>
-              <Text style={styles.statIcon}>💎</Text>
-              <Text style={styles.statValue}>{formatXP(userData.xp)}</Text>
-              <Text style={styles.statLabel}>Total XP</Text>
+              <View style={styles.statRow}>
+                <View style={styles.statTopRow}>
+                  <Text style={styles.statIcon}>💎</Text>
+                </View>
+                <View style={styles.statBottomRow}>
+                  <Text style={styles.statValue}>{formatXP(userData.xp)}</Text>
+                  <Text style={styles.statLabel}>Total XP</Text>
+                </View>
+              </View>
             </View>
           </View>
-
-          <View style={styles.singleStatCard}>
-            <Text style={styles.statIcon}>❤️</Text>
-            <Text style={styles.statValue}>{userData.lifePoints}</Text>
-            <Text style={styles.statLabel}>Life Points</Text>
+          <View style={styles.statCard}>
+            <View style={styles.statRow}>
+              <View style={styles.statTopRow}>
+                <Text style={styles.statIcon}>❤️</Text>
+              </View>
+              <View style={styles.statBottomRow}>
+                <Text style={styles.statValue}>{userData.lifePoints}</Text>
+                <Text style={styles.statLabel}>Life Points</Text>
+              </View>
+            </View>
           </View>
         </View>
 
         {/* Invite Friends Button */}
-        <TouchableOpacity style={styles.inviteButton}>
-          <Text style={styles.inviteButtonText}>Invite Friends</Text>
-        </TouchableOpacity>
+        <CustomButton
+          title={"Invite Friends"}
+          onPress={() => setInviteModalVisible(true)}
+          size="large"
+          style={{
+            marginHorizontal: 10,
+            marginBottom: 20,
+            width: screenWidth - 40,
+          }}
+        />
 
         {/* Badges & Achievement */}
         <View style={styles.achievementsSection}>
           <Text style={styles.sectionTitle}>Badges & Achievement</Text>
+          <View style={styles.achievementsGrid}>
+            {Array.from({ length: 6 }).map((_, index) => (
+              <View key={index} style={styles.achievementCard} />
+            ))}
+          </View>
         </View>
       </ScrollView>
+
+      {/* Invite Modal */}
+      <InviteFriendsModal
+        visible={isInviteModalVisible}
+        onClose={() => setInviteModalVisible(false)}
+        inviteLink={inviteLink}
+      />
     </SafeAreaView>
   );
 };
@@ -105,165 +149,138 @@ const ProfileScreen: React.FC<Props> = ({ navigation }) => {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#F8F9FA',
+    backgroundColor: "#F8F9FA",
   },
   content: {
     flex: 1,
   },
-  
-  // Main Profile Header
   profileHeader: {
-    backgroundColor: '#FF6B35',
+    flexDirection: "row",
+    alignItems: "center",
+    backgroundColor: "#F04D23",
     paddingHorizontal: 20,
-    paddingTop: 20,
-    paddingBottom: 40,
+    paddingVertical: 20,
+    paddingTop: 30,
+    height: "20%",
+    justifyContent: "space-between",
+    gap: 10,
   },
-  headerTop: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    marginBottom: 30,
+  avatarContainer: {
+    width: 64,
+    height: 64,
+    borderRadius: 32,
+    borderWidth: 3,
+    borderColor: "white",
+    justifyContent: "center",
+    alignItems: "center",
+    overflow: "hidden",
+    backgroundColor: "#ffffff",
+  },
+  avatarImage: {
+    width: "100%",
+    height: "100%",
   },
   userInfo: {
     flex: 1,
+    marginLeft: 16,
   },
   userName: {
-    fontSize: 24,
-    fontWeight: 'bold',
-    color: 'white',
-    marginBottom: 4,
+    fontSize: 22,
+    fontWeight: "bold",
+    color: "white",
   },
   userHandle: {
     fontSize: 16,
-    color: 'rgba(255, 255, 255, 0.8)',
+    color: "rgba(255, 255, 255, 0.9)",
   },
   editButton: {
-    width: 40,
-    height: 40,
-    backgroundColor: 'rgba(255, 255, 255, 0.2)',
-    borderRadius: 8,
-    justifyContent: 'center',
-    alignItems: 'center',
+    width: 44,
+    height: 44,
+    justifyContent: "center",
+    alignItems: "center",
   },
   editIcon: {
-    fontSize: 18,
+    fontSize: 24,
+    color: "white",
   },
-  avatarContainer: {
-    alignSelf: 'center',
-    width: 100,
-    height: 100,
-    backgroundColor: 'rgba(255, 255, 255, 0.2)',
-    borderRadius: 50,
-    justifyContent: 'center',
-    alignItems: 'center',
-  },
-  avatarImage: {
-    width: 100,
-    height: 100,
-    borderRadius: 50,
-  },
-
-  // Stats Cards
   statsContainer: {
     paddingHorizontal: 20,
-    marginTop: -20,
+    marginTop: 20,
     marginBottom: 20,
   },
   statsRow: {
-    flexDirection: 'row',
-    gap: 12,
-    marginBottom: 12,
+    flexDirection: "row",
+    justifyContent: "space-between",
+    marginBottom: 16,
   },
   statCard: {
-    flex: 1,
-    backgroundColor: 'white',
-    borderRadius: 16,
-    padding: 20,
-    alignItems: 'center',
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.1,
-    shadowRadius: 4,
-    elevation: 3,
+    width: "48%",
+    backgroundColor: "white",
+    borderRadius: 14,
+    padding: 16,
+    borderColor: "#E5E5E5",
+    borderWidth: 2,
   },
-  singleStatCard: {
-    backgroundColor: 'white',
-    borderRadius: 16,
-    padding: 20,
-    alignItems: 'center',
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.1,
-    shadowRadius: 4,
-    elevation: 3,
+  statRow: {
+    flexDirection: "row",
+    alignItems: "center",
   },
-  statIcon: {
-    fontSize: 24,
-    marginBottom: 8,
-  },
-  statValue: {
-    fontSize: 24,
-    fontWeight: 'bold',
-    color: '#333',
+  statTopRow: {
+    flexDirection: "row",
+    alignItems: "center",
     marginBottom: 4,
   },
-  statLabel: {
-    fontSize: 14,
-    color: '#666',
+  statBottomRow: {
+    alignItems: "flex-start",
   },
-
-  // Invite Button
+  statIcon: {
+    fontSize: 20,
+    marginRight: 8,
+  },
+  statValue: {
+    fontSize: 16,
+    fontWeight: "bold",
+    color: "#4B4B4B",
+  },
+  statLabel: {
+    fontSize: 12,
+    color: "#AFAFAF",
+    fontWeight: "800",
+  },
   inviteButton: {
     marginHorizontal: 20,
-    backgroundColor: '#FF6B35',
-    borderRadius: 16,
-    paddingVertical: 16,
-    alignItems: 'center',
+    backgroundColor: "#FF6B35",
+    borderRadius: 20,
+    paddingVertical: 18,
+    alignItems: "center",
     marginBottom: 30,
   },
   inviteButtonText: {
     fontSize: 16,
-    fontWeight: '600',
-    color: 'white',
+    fontWeight: "bold",
+    color: "white",
   },
-
-  // Achievements
   achievementsSection: {
     paddingHorizontal: 20,
     marginBottom: 30,
   },
   sectionTitle: {
     fontSize: 20,
-    fontWeight: 'bold',
-    color: '#333',
+    fontWeight: "bold",
+    color: "#333",
     marginBottom: 16,
   },
   achievementsGrid: {
-    flexDirection: 'row',
-    flexWrap: 'wrap',
-    gap: 12,
+    flexDirection: "row",
+    flexWrap: "wrap",
+    justifyContent: "space-between",
   },
   achievementCard: {
-    width: (screenWidth - 64) / 3,
+    width: (screenWidth - 40 - 24) / 3, // (Screen width - padding - gaps) / 3
     aspectRatio: 1,
-    backgroundColor: 'white',
-    borderRadius: 12,
-    justifyContent: 'center',
-    alignItems: 'center',
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 1 },
-    shadowOpacity: 0.1,
-    shadowRadius: 2,
-    elevation: 2,
-  },
-  achievementLocked: {
-    backgroundColor: '#F0F0F0',
-  },
-  achievementIcon: {
-    fontSize: 32,
-  },
-  achievementIconLocked: {
-    opacity: 0.3,
+    backgroundColor: "#E9ECEF",
+    borderRadius: 16,
+    marginBottom: 12,
   },
 });
 
