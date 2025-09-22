@@ -27,7 +27,7 @@ const EditProfileScreen: React.FC<Props> = ({ navigation }) => {
 
   // Editable form state
   const [name, setName] = useState(user?.name || "Iyanu Babayemi");
-  const [username, setUsername] = useState("iyanubabs");
+  const [username, setUsername] = useState(user?.username || "iyanubabs");
   const [email, setEmail] = useState(user?.email || "iyanubabs@gmail.com");
 
   const handleSignOut = () => {

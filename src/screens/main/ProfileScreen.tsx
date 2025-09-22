@@ -17,8 +17,8 @@ const ProfileScreen: React.FC<Props> = ({ navigation }) => {
   const userData = {
     name: user?.name || 'Iyanu Babayemi',
     email: user?.email || 'iyanubabs@gmail.com',
-    username: 'iyanubabs',
-    avatar: '👤',
+    username: user?.username || 'iyanubabs',
+    avatar: user?.avatar || '👤',
     level: user?.level || 1,
     xp: user?.xp || 9770,
     streak: user?.streak || 12,

@@ -2,7 +2,6 @@ import React, { useState } from 'react';
 import { 
   View, 
   Text, 
-  TextInput,
   TouchableOpacity,
   StyleSheet, 
   SafeAreaView,
@@ -15,6 +14,7 @@ import {
 import { useDispatch, useSelector } from 'react-redux';
 import { signUp, signInWithGoogle } from '../../store/slices/authSlice';
 import { RootState, AppDispatch } from '../../store';
+import AnimatedTextInput from '../../components/AnimatedTextInput';
 
 interface Props {
   navigation: any;
@@ -23,6 +23,7 @@ interface Props {
 const RegisterScreen: React.FC<Props> = ({ navigation }) => {
   const [firstName, setFirstName] = useState('');
   const [lastName, setLastName] = useState('');
+  const [username, setUsername] = useState('');
   const [phoneNumber, setPhoneNumber] = useState('');
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
@@ -30,7 +31,7 @@ const RegisterScreen: React.FC<Props> = ({ navigation }) => {
   const { isLoading, error } = useSelector((state: RootState) => state.auth);
 
   const handleSignUp = async () => {
-    if (!firstName || !lastName || !phoneNumber || !email || !password) {
+    if (!firstName || !lastName || !username || !phoneNumber || !email || !password) {
       Alert.alert('Error', 'Please fill in all fields');
       return;
     }
@@ -45,35 +46,18 @@ const RegisterScreen: React.FC<Props> = ({ navigation }) => {
       return;
     }
 
-    try {
-      const fullName = `${firstName} ${lastName}`;
-      const result = await dispatch(signUp({ 
-        email, 
-        password, 
-        name: fullName,
-        phoneNumber
-      }));
-      
-      if (signUp.fulfilled.match(result)) {
-        // Sign up successful
-        Alert.alert(
-          'Success', 
-          'Account created successfully! Please verify your email.',
-          [
-            {
-              text: 'OK',
-              onPress: () => navigation.navigate('Login')
-            }
-          ]
-        );
-      } else {
-        // Sign up failed
-        const errorMessage = result.payload as string;
-        Alert.alert('Sign Up Failed', errorMessage || 'Failed to create account');
+    // Instead of creating account immediately, navigate to onboarding
+    // The account will be created after all onboarding data is collected
+    navigation.navigate('AgeSelection', {
+      registrationData: {
+        firstName,
+        lastName,
+        username,
+        email,
+        phoneNumber,
+        password,
       }
-    } catch (error) {
-      Alert.alert('Error', 'An unexpected error occurred');
-    }
+    });
   };
 
   const handleSocialSignUp = async (provider: string) => {
@@ -115,63 +99,51 @@ const RegisterScreen: React.FC<Props> = ({ navigation }) => {
 
             {/* Form */}
             <View style={styles.form}>
-              <View style={styles.inputContainer}>
-                <TextInput
-                  style={styles.input}
-                  value={firstName}
-                  onChangeText={setFirstName}
-                  placeholder="First Name"
-                  placeholderTextColor="#999"
-                  autoCapitalize="words"
-                />
-              </View>
+              <AnimatedTextInput
+                label="First Name"
+                value={firstName}
+                onChangeText={setFirstName}
+                autoCapitalize="words"
+              />
 
-              <View style={styles.inputContainer}>
-                <TextInput
-                  style={styles.input}
-                  value={lastName}
-                  onChangeText={setLastName}
-                  placeholder="Last Name"
-                  placeholderTextColor="#999"
-                  autoCapitalize="words"
-                />
-              </View>
+              <AnimatedTextInput
+                label="Last Name"
+                value={lastName}
+                onChangeText={setLastName}
+                autoCapitalize="words"
+              />
 
-              <View style={styles.inputContainer}>
-                <TextInput
-                  style={styles.input}
-                  value={phoneNumber}
-                  onChangeText={setPhoneNumber}
-                  placeholder="Phone Number"
-                  placeholderTextColor="#999"
-                  keyboardType="phone-pad"
-                />
-              </View>
+              <AnimatedTextInput
+                label="Username"
+                value={username}
+                onChangeText={setUsername}
+                autoCapitalize="none"
+                autoCorrect={false}
+              />
 
-              <View style={styles.inputContainer}>
-                <TextInput
-                  style={styles.input}
-                  value={email}
-                  onChangeText={setEmail}
-                  placeholder="Email"
-                  placeholderTextColor="#999"
-                  keyboardType="email-address"
-                  autoCapitalize="none"
-                  autoCorrect={false}
-                />
-              </View>
+              <AnimatedTextInput
+                label="Phone Number"
+                value={phoneNumber}
+                onChangeText={setPhoneNumber}
+                keyboardType="phone-pad"
+              />
 
-              <View style={styles.inputContainer}>
-                <TextInput
-                  style={styles.input}
-                  value={password}
-                  onChangeText={setPassword}
-                  placeholder="Password"
-                  placeholderTextColor="#999"
-                  secureTextEntry
-                  autoCapitalize="none"
-                />
-              </View>
+              <AnimatedTextInput
+                label="Email"
+                value={email}
+                onChangeText={setEmail}
+                keyboardType="email-address"
+                autoCapitalize="none"
+                autoCorrect={false}
+              />
+
+              <AnimatedTextInput
+                label="Password"
+                value={password}
+                onChangeText={setPassword}
+                secureTextEntry
+                autoCapitalize="none"
+              />
 
               <TouchableOpacity
                 style={[styles.signUpButton, isLoading && styles.disabledButton]}
@@ -261,17 +233,6 @@ const styles = StyleSheet.create({
   },
   form: {
     marginBottom: 40,
-  },
-  inputContainer: {
-    marginBottom: 20,
-  },
-  input: {
-    backgroundColor: "#F5F5F5",
-    paddingHorizontal: 20,
-    paddingVertical: 16,
-    borderRadius: 12,
-    fontSize: 16,
-    color: "#212121",
   },
   signUpButton: {
     backgroundColor: "#FF5722",

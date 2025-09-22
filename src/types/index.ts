@@ -1,10 +1,17 @@
 export interface User {
   $id: string;
+  userId?: string; // The actual Appwrite user ID (stored as field)
   email: string;
   name: string;
+  username?: string;
   phoneNumber?: string;
   profilePicture?: string;
   profilePictureId?: string;
+  age?: number;
+  learningLimit?: string;
+  mainGoal?: string;
+  referralSource?: string;
+  avatar?: string;
   xp: number;
   level: number;
   currentSection: number;
@@ -79,6 +86,7 @@ export interface AuthState {
   isAuthenticated: boolean;
   isLoading: boolean;
   error: string | null;
+  showWelcomeScreen: boolean;
 }
 
 export interface GameState {

@@ -6,6 +6,12 @@ import { RootState } from '../store';
 
 // Onboarding
 import OnboardingFlow from '../screens/onboarding/OnboardingFlow';
+import AgeSelectionScreen from '../screens/onboarding/AgeSelectionScreen';
+import LearningLimitScreen from '../screens/onboarding/LearningLimitScreen';
+import GoalSelectionScreen from '../screens/onboarding/GoalSelectionScreen';
+import ReferralSourceScreen from '../screens/onboarding/ReferralSourceScreen';
+import AvatarSelectionScreen from '../screens/onboarding/AvatarSelectionScreen';
+import WelcomeSuccessScreen from '../screens/onboarding/WelcomeSuccessScreen';
 
 // Auth Screens
 import WelcomeScreen from '../screens/auth/WelcomeScreen';
@@ -26,6 +32,41 @@ import EditProfileScreen from '../screens/profile/EditProfileScreen';
 export type RootStackParamList = {
   // Onboarding
   Onboarding: undefined;
+  AgeSelection: {
+    registrationData: {
+      firstName: string;
+      lastName: string;
+      username: string;
+      email: string;
+      phoneNumber: string;
+      password: string;
+    };
+  };
+  LearningLimitSelection: {
+    registrationData: any;
+    age: number;
+  };
+  GoalSelection: {
+    registrationData: any;
+    age: number;
+    learningLimit: string;
+  };
+  ReferralSource: {
+    registrationData: any;
+    age: number;
+    learningLimit: string;
+    mainGoal: string;
+  };
+  AvatarSelection: {
+    registrationData: any;
+    age: number;
+    learningLimit: string;
+    mainGoal: string;
+    referralSource: string;
+  };
+  WelcomeSuccess: {
+    userName: string;
+  };
   
   // Auth Stack
   Welcome: undefined;
@@ -36,6 +77,7 @@ export type RootStackParamList = {
   
   // Main App
   MainApp: undefined;
+  MainTabs: undefined;
   
   // Game Screens
   Question: {
@@ -57,7 +99,7 @@ export type RootStackParamList = {
 const Stack = createStackNavigator<RootStackParamList>();
 
 const AppNavigator: React.FC = () => {
-  const { isAuthenticated, isLoading } = useSelector((state: RootState) => state.auth);
+  const { isAuthenticated, isLoading, showWelcomeScreen, user } = useSelector((state: RootState) => state.auth);
   const [showOnboarding, setShowOnboarding] = useState<boolean>(true);
 
   const handleOnboardingComplete = () => {
@@ -67,6 +109,21 @@ const AppNavigator: React.FC = () => {
   // Show loading while auth state is being determined
   if (isLoading) {
     return null; // Could add a loading component here
+  }
+
+  // Show welcome screen after successful signup
+  if (showWelcomeScreen && user) {
+    return (
+      <NavigationContainer>
+        <Stack.Navigator screenOptions={{ headerShown: false }}>
+          <Stack.Screen 
+            name="WelcomeSuccess" 
+            component={WelcomeSuccessScreen}
+            initialParams={{ userName: user.name?.split(' ')[0] || user.name }}
+          />
+        </Stack.Navigator>
+      </NavigationContainer>
+    );
   }
 
   // Show onboarding flow
@@ -90,11 +147,19 @@ const AppNavigator: React.FC = () => {
             <Stack.Screen name="Register" component={RegisterScreen} />
             <Stack.Screen name="ForgotPassword" component={ForgotPasswordScreen} />
             <Stack.Screen name="ProfileSetup" component={ProfileSetupScreen} />
+            
+            {/* Onboarding Screens */}
+            <Stack.Screen name="AgeSelection" component={AgeSelectionScreen} />
+            <Stack.Screen name="LearningLimitSelection" component={LearningLimitScreen} />
+            <Stack.Screen name="GoalSelection" component={GoalSelectionScreen} />
+            <Stack.Screen name="ReferralSource" component={ReferralSourceScreen} />
+            <Stack.Screen name="AvatarSelection" component={AvatarSelectionScreen} />
           </>
         ) : (
           // Authenticated Stack
           <>
             <Stack.Screen name="MainApp" component={MainTabNavigator} />
+            <Stack.Screen name="MainTabs" component={MainTabNavigator} />
             <Stack.Screen 
               name="Question" 
               component={QuestionScreen}

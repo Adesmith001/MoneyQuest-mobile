@@ -7,6 +7,7 @@ const initialState: AuthState = {
   isAuthenticated: false,
   isLoading: false,
   error: null,
+  showWelcomeScreen: false,
 };
 
 // Async thunks
@@ -26,15 +27,16 @@ export const signIn = createAsyncThunk(
 
 export const signUp = createAsyncThunk(
   'auth/signUp',
-  async ({ email, password, name, phoneNumber }: { 
+  async ({ email, password, name, phoneNumber, username }: { 
     email: string; 
     password: string; 
     name: string; 
     phoneNumber?: string;
+    username?: string;
   }, { rejectWithValue }) => {
     try {
       // Step 1: Create the account
-      await AuthService.createAccount(email, password, name, phoneNumber);
+      await AuthService.createAccount(email, password, name, phoneNumber, username);
       
       // Step 2: Immediately sign in the user after account creation
       await AuthService.signIn(email, password);
@@ -122,6 +124,81 @@ export const updateProfilePicture = createAsyncThunk(
   }
 );
 
+export const updateUserOnboarding = createAsyncThunk(
+  'auth/updateUserOnboarding',
+  async ({ 
+    userId, 
+    age, 
+    learningLimit, 
+    mainGoal, 
+    referralSource, 
+    avatar 
+  }: { 
+    userId: string; 
+    age: number;
+    learningLimit: string;
+    mainGoal: string;
+    referralSource: string;
+    avatar: string;
+  }, { rejectWithValue }) => {
+    try {
+      await AuthService.updateUserOnboarding(userId, {
+        age,
+        learningLimit,
+        mainGoal,
+        referralSource,
+        avatar
+      });
+      const userDocument = await AuthService.getUserDocument(userId);
+      return userDocument;
+    } catch (error: any) {
+      return rejectWithValue(error.message);
+    }
+  }
+);
+
+export const signUpWithOnboarding = createAsyncThunk(
+  'auth/signUpWithOnboarding',
+  async ({ 
+    registrationData, 
+    onboardingData 
+  }: { 
+    registrationData: {
+      firstName: string;
+      lastName: string;
+      username: string;
+      email: string;
+      phoneNumber: string;
+      password: string;
+    };
+    onboardingData: {
+      age: number;
+      learningLimit: string;
+      mainGoal: string;
+      referralSource: string;
+      avatar: string;
+    };
+  }, { rejectWithValue }) => {
+    try {
+      const fullName = `${registrationData.firstName} ${registrationData.lastName}`;
+      
+      // Create account with all data including onboarding
+      const result = await AuthService.createAccountWithOnboarding({
+        email: registrationData.email,
+        password: registrationData.password,
+        name: fullName,
+        username: registrationData.username,
+        phoneNumber: registrationData.phoneNumber,
+        ...onboardingData
+      });
+      
+      return result;
+    } catch (error: any) {
+      return rejectWithValue(error.message);
+    }
+  }
+);
+
 const authSlice = createSlice({
   name: 'auth',
   initialState,
@@ -139,6 +216,11 @@ const authSlice = createSlice({
       state.user = null;
       state.error = null;
       state.isLoading = false;
+      state.showWelcomeScreen = false;
+    },
+    completeWelcomeScreen: (state) => {
+      state.showWelcomeScreen = false;
+      state.isAuthenticated = true; // Now authenticate the user
     },
   },
   extraReducers: (builder) => {
@@ -235,9 +317,33 @@ const authSlice = createSlice({
         if (state.user && action.payload) {
           state.user = action.payload;
         }
+      })
+      // Update User Onboarding
+      .addCase(updateUserOnboarding.fulfilled, (state, action) => {
+        if (state.user && action.payload) {
+          state.user = action.payload;
+        }
+      })
+      // Sign Up With Onboarding
+      .addCase(signUpWithOnboarding.pending, (state) => {
+        state.isLoading = true;
+        state.error = null;
+      })
+      .addCase(signUpWithOnboarding.fulfilled, (state, action) => {
+        state.isLoading = false;
+        state.isAuthenticated = false; // Don't authenticate yet, show welcome screen first
+        state.user = action.payload.userDocument;
+        state.error = null;
+        state.showWelcomeScreen = true; // Flag to show welcome screen
+      })
+      .addCase(signUpWithOnboarding.rejected, (state, action) => {
+        state.isLoading = false;
+        state.isAuthenticated = false;
+        state.user = null;
+        state.error = action.payload as string;
       });
   },
 });
 
-export const { clearError, updateUser, logout } = authSlice.actions;
+export const { clearError, updateUser, logout, completeWelcomeScreen } = authSlice.actions;
 export default authSlice.reducer;
