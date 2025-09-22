@@ -14,6 +14,11 @@ import {
 // Initialize Appwrite client
 const client = new Client();
 
+// Log configuration for debugging
+console.log('Appwrite Configuration:');
+console.log('Endpoint:', APPWRITE_ENDPOINT);
+console.log('Project ID:', APPWRITE_PROJECT_ID);
+
 client
   .setEndpoint(APPWRITE_ENDPOINT || 'https://fra.cloud.appwrite.io/v1')
   .setProject(APPWRITE_PROJECT_ID);

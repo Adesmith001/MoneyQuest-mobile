@@ -33,7 +33,13 @@ export const signUp = createAsyncThunk(
     phoneNumber?: string;
   }, { rejectWithValue }) => {
     try {
+      // Step 1: Create the account
       await AuthService.createAccount(email, password, name, phoneNumber);
+      
+      // Step 2: Immediately sign in the user after account creation
+      await AuthService.signIn(email, password);
+      
+      // Step 3: Get the current user (session is now established)
       const currentUser = await AuthService.getCurrentUser();
       const userDocument = await AuthService.getUserDocument(currentUser.$id);
       return { currentUser, userDocument };
@@ -59,7 +65,11 @@ export const signInWithGoogle = createAsyncThunk(
   async (_, { rejectWithValue }) => {
     try {
       const result = await AuthService.signInWithGoogle();
-      return result;
+      // Make sure we return serializable data
+      return {
+        currentUser: result.currentUser,
+        userDocument: result.userDocument
+      };
     } catch (error: any) {
       return rejectWithValue(error.message);
     }
@@ -78,6 +88,23 @@ export const getCurrentUser = createAsyncThunk(
       return null;
     } catch (error: any) {
       return rejectWithValue(error.message);
+    }
+  }
+);
+
+export const checkAuthStatus = createAsyncThunk(
+  'auth/checkAuthStatus',
+  async (_, { rejectWithValue }) => {
+    try {
+      const currentUser = await AuthService.getCurrentUser();
+      if (currentUser) {
+        const userDocument = await AuthService.getUserDocument(currentUser.$id);
+        return { currentUser, userDocument };
+      }
+      return null;
+    } catch (error: any) {
+      // Don't reject for auth check - just return null
+      return null;
     }
   }
 );
@@ -106,6 +133,12 @@ const authSlice = createSlice({
       if (state.user) {
         state.user = { ...state.user, ...action.payload };
       }
+    },
+    logout: (state) => {
+      state.isAuthenticated = false;
+      state.user = null;
+      state.error = null;
+      state.isLoading = false;
     },
   },
   extraReducers: (builder) => {
@@ -178,6 +211,25 @@ const authSlice = createSlice({
         }
         state.isLoading = false;
       })
+      // Check Auth Status
+      .addCase(checkAuthStatus.pending, (state) => {
+        state.isLoading = true;
+      })
+      .addCase(checkAuthStatus.fulfilled, (state, action) => {
+        if (action.payload) {
+          state.isAuthenticated = true;
+          state.user = action.payload.userDocument;
+        } else {
+          state.isAuthenticated = false;
+          state.user = null;
+        }
+        state.isLoading = false;
+      })
+      .addCase(checkAuthStatus.rejected, (state) => {
+        state.isAuthenticated = false;
+        state.user = null;
+        state.isLoading = false;
+      })
       // Update Profile Picture
       .addCase(updateProfilePicture.fulfilled, (state, action) => {
         if (state.user && action.payload) {
@@ -187,5 +239,5 @@ const authSlice = createSlice({
   },
 });
 
-export const { clearError, updateUser } = authSlice.actions;
+export const { clearError, updateUser, logout } = authSlice.actions;
 export default authSlice.reducer;

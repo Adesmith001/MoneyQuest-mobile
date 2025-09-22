@@ -55,7 +55,7 @@ const WelcomeScreen: React.FC<Props> = ({ navigation }) => {
           onPress={() => navigation.navigate('Login')}
         />
         <CustomButton
-          title='Signup'
+          title='Sign Up'
           onPress={() => navigation.navigate('Register')}
         />
       </Animated.View>

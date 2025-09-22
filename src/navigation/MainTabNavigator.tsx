@@ -1,6 +1,6 @@
 import React from 'react';
 import { createBottomTabNavigator } from '@react-navigation/bottom-tabs';
-import { Ionicons } from '@expo/vector-icons';
+import { Text, View, StyleSheet } from 'react-native';
 import { COLORS } from '../constants';
 
 // Tab Screens
@@ -10,66 +10,116 @@ import ProfileScreen from '../screens/main/ProfileScreen';
 
 export type MainTabParamList = {
   Home: undefined;
+  Treasure: undefined;
   Leaderboard: undefined;
+  Streak: undefined;
   Profile: undefined;
 };
 
 const Tab = createBottomTabNavigator<MainTabParamList>();
 
 const MainTabNavigator: React.FC = () => {
+  const renderTabIcon = (routeName: string, focused: boolean) => {
+    let emoji: string;
+    
+    switch (routeName) {
+      case 'Home':
+        emoji = '🏠';
+        break;
+      case 'Treasure':
+        emoji = '💰';
+        break;
+      case 'Leaderboard':
+        emoji = '👑';
+        break;
+      case 'Streak':
+        emoji = '🔥';
+        break;
+      case 'Profile':
+        emoji = '👩🏾';
+        break;
+      default:
+        emoji = '❓';
+    }
+
+    return (
+      <View style={[
+        styles.tabIconContainer,
+        focused && styles.tabIconContainerFocused
+      ]}>
+        <Text style={[
+          styles.tabIcon,
+          focused && styles.tabIconFocused
+        ]}>
+          {emoji}
+        </Text>
+      </View>
+    );
+  };
+
   return (
     <Tab.Navigator
       screenOptions={({ route }) => ({
-        tabBarIcon: ({ focused, color, size }) => {
-          let iconName: keyof typeof Ionicons.glyphMap;
-
-          if (route.name === 'Home') {
-            iconName = focused ? 'home' : 'home-outline';
-          } else if (route.name === 'Leaderboard') {
-            iconName = focused ? 'trophy' : 'trophy-outline';
-          } else if (route.name === 'Profile') {
-            iconName = focused ? 'person' : 'person-outline';
-          } else {
-            iconName = 'help-outline';
-          }
-
-          return <Ionicons name={iconName} size={size} color={color} />;
-        },
-        tabBarActiveTintColor: COLORS.primary,
-        tabBarInactiveTintColor: COLORS.textSecondary,
+        tabBarIcon: ({ focused }) => renderTabIcon(route.name, focused),
+        tabBarActiveTintColor: '#FF6B35',
+        tabBarInactiveTintColor: '#999',
         tabBarStyle: {
-          backgroundColor: COLORS.background,
-          borderTopColor: COLORS.border,
-          paddingBottom: 5,
-          paddingTop: 5,
-          height: 60,
+          backgroundColor: '#FFFFFF',
+          borderTopWidth: 0,
+          paddingBottom: 8,
+          paddingTop: 8,
+          height: 80,
+          elevation: 10,
+          shadowColor: '#000',
+          shadowOffset: { width: 0, height: -2 },
+          shadowOpacity: 0.1,
+          shadowRadius: 4,
         },
+        tabBarShowLabel: false,
         headerShown: false,
       })}
     >
       <Tab.Screen 
         name="Home" 
         component={HomeScreen}
-        options={{
-          tabBarLabel: 'Learn',
-        }}
       />
+      {/* <Tab.Screen 
+        name="Treasure" 
+        component={LeaderboardScreen} 
+      /> */}
       <Tab.Screen 
         name="Leaderboard" 
         component={LeaderboardScreen}
-        options={{
-          tabBarLabel: 'Leaderboard',
-        }}
+      />
+      <Tab.Screen 
+        name="Streak" 
+        component={LeaderboardScreen} 
       />
       <Tab.Screen 
         name="Profile" 
         component={ProfileScreen}
-        options={{
-          tabBarLabel: 'Profile',
-        }}
       />
     </Tab.Navigator>
   );
 };
+
+const styles = StyleSheet.create({
+  tabIconContainer: {
+    width: 45,
+    height: 45,
+    borderRadius: 22.5,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  tabIconContainerFocused: {
+    backgroundColor: '#FF6B35',
+  },
+  tabIcon: {
+    fontSize: 24,
+  },
+  tabIconFocused: {
+    fontSize: 26,
+  },
+});
 
 export default MainTabNavigator;

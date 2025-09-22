@@ -1,20 +1,104 @@
-import { account, databases, storage, DB_ID, COLLECTIONS, STORAGE_BUCKET } from './appwrite';
-import client from './appwrite';
-import { ID } from 'react-native-appwrite';
-import { User } from '../types';
+import {
+  account,
+  databases,
+  storage,
+  DB_ID,
+  COLLECTIONS,
+  STORAGE_BUCKET,
+  Query,
+} from "./appwrite";
+import client from "./appwrite";
+import { ID } from "react-native-appwrite";
+import { User } from "../types";
+import * as WebBrowser from "expo-web-browser";
+import * as Linking from "expo-linking";
 
 class AuthService {
+
   // Create account with email and password
-  async createAccount(email: string, password: string, name: string, phoneNumber?: string): Promise<any> {
+  async createAccount(
+    email: string,
+    password: string,
+    name: string,
+    phoneNumber?: string
+  ): Promise<any> {
+    let newAccount: any = null;
+    
     try {
-      const newAccount = await account.create(ID.unique(), email, password, name);
+      console.log('Creating Appwrite account for:', { email, name });
+      console.log('Password length:', password.length);
+      console.log('Appwrite endpoint:', client.config.endpoint);
+      console.log('Appwrite project ID:', client.config.project);
       
+      // Validate inputs
+      if (!email || !password || !name) {
+        throw new Error('Email, password, and name are required');
+      }
+      
+      if (password.length < 8) {
+        throw new Error('Password must be at least 8 characters long');
+      }
+
+      // Check if user already exists by trying to create account
+      try {
+        newAccount = await account.create(
+          ID.unique(),
+          email,
+          password,
+          name
+        );
+        console.log('Appwrite account created successfully:', newAccount.$id);
+      } catch (accountError: any) {
+        console.error('Account creation failed:', accountError);
+        
+        // Handle specific Appwrite errors
+        if (accountError.code === 409) {
+          throw new Error('An account with this email already exists. Please use a different email or try signing in.');
+        } else if (accountError.code === 400) {
+          throw new Error('Invalid email format or password requirements not met.');
+        } else if (accountError.message) {
+          throw new Error(`Account creation failed: ${accountError.message}`);
+        }
+        
+        throw accountError;
+      }
+
       // Create user document in database
-      await this.createUserDocument(newAccount.$id, email, name, phoneNumber);
-      
+      console.log('Now creating user document in database...');
+      try {
+        await this.createUserDocument(newAccount.$id, email, name, phoneNumber);
+        console.log('User document created successfully');
+      } catch (docError: any) {
+        console.error('User document creation failed:', docError);
+        
+        // If user document creation fails, we should delete the account to maintain consistency
+        try {
+          console.log('Attempting to clean up account due to document creation failure...');
+          await account.deleteSession('current').catch(() => {}); // Clean up any session
+          // Note: We can't delete the account directly, but we can warn the user
+        } catch (cleanupError) {
+          console.error('Cleanup failed:', cleanupError);
+        }
+        
+        if (docError.code === 404) {
+          throw new Error('Database or collection not found. Please contact support.');
+        } else if (docError.code === 401) {
+          throw new Error('Permission denied. Please contact support.');
+        }
+        
+        throw new Error(`Account created but profile setup failed. Please try signing in and complete your profile setup. Error: ${docError.message}`);
+      }
+
       return newAccount;
     } catch (error) {
-      console.error('Create account error:', error);
+      console.error("Create account error:", error);
+      
+      // Log more specific error details
+      if (error instanceof Error) {
+        console.error("Error message:", error.message);
+        console.error("Error stack:", error.stack);
+      }
+      
       throw error;
     }
   }
@@ -22,9 +106,23 @@ class AuthService {
   // Sign in with email and password
   async signIn(email: string, password: string): Promise<any> {
     try {
-      const session = await account.createEmailPasswordSession(email, password);
-      await this.updateLastLoginDate();
-      return session;
+      // Check if there's already an active session
+      try {
+        const currentSession = await account.getSession('current');
+        if (currentSession) {
+          // If there's already a session, delete it first
+          await account.deleteSession('current');
+        }
+      } catch (error) {
+        // No active session, which is fine
+      }
+
+      // Create email session
+      await account.createEmailPasswordSession(email, password);
+      
+      // Get current user after session is created
+      const user = await this.getCurrentUser();
+      return user;
     } catch (error) {
       console.error('Sign in error:', error);
       throw error;
@@ -34,9 +132,9 @@ class AuthService {
   // Sign out
   async signOut(): Promise<void> {
     try {
-      await account.deleteSession('current');
+      await account.deleteSession("current");
     } catch (error) {
-      console.error('Sign out error:', error);
+      console.error("Sign out error:", error);
       throw error;
     }
   }
@@ -44,7 +142,47 @@ class AuthService {
   // Get current user
   async getCurrentUser(): Promise<any> {
     try {
-      return await account.get();
+      // First check if there's an active session
+      let session;
+      try {
+        session = await account.getSession('current');
+      } catch (error) {
+        return null;
+      }
+      
+      if (!session) {
+        return null;
+      }
+
+      // Get the account info
+      const account_info = await account.get();
+      
+      // Get the user document from your database
+      const userDoc = await databases.getDocument(
+        DB_ID,
+        COLLECTIONS.USERS,
+        account_info.$id
+      );
+
+      return {
+        $id: account_info.$id,
+        email: account_info.email,
+        name: account_info.name,
+        phoneNumber: userDoc.phoneNumber,
+        profilePicture: userDoc.profilePicture,
+        profilePictureId: userDoc.profilePictureId,
+        xp: userDoc.xp,
+        level: userDoc.level,
+        currentSection: userDoc.currentSection,
+        streak: userDoc.streak,
+        lastLoginDate: userDoc.lastLoginDate,
+        totalQuestionsAnswered: userDoc.totalQuestionsAnswered,
+        correctAnswers: userDoc.correctAnswers,
+        monthlyXP: userDoc.monthlyXP,
+        $createdAt: account_info.$createdAt,
+        $updatedAt: account_info.$updatedAt,
+      } as User;
+
     } catch (error) {
       console.error('Get current user error:', error);
       return null;
@@ -54,8 +192,12 @@ class AuthService {
   // Get user document from database
   async getUserDocument(userId: string): Promise<User | null> {
     try {
-      const userDoc = await databases.getDocument(DB_ID, COLLECTIONS.USERS, userId);
-      
+      const userDoc = await databases.getDocument(
+        DB_ID,
+        COLLECTIONS.USERS,
+        userId
+      );
+
       // Type-safe conversion from Appwrite document to User interface
       const user: User = {
         $id: userDoc.$id,
@@ -72,21 +214,40 @@ class AuthService {
         totalQuestionsAnswered: userDoc.totalQuestionsAnswered || 0,
         correctAnswers: userDoc.correctAnswers || 0,
         monthlyXP: userDoc.monthlyXP || 0,
-        createdAt: userDoc.createdAt || userDoc.$createdAt,
-        updatedAt: userDoc.updatedAt || userDoc.$updatedAt,
+        $createdAt: userDoc.$createdAt,
+        $updatedAt: userDoc.$updatedAt,
       };
-      
+
       return user;
     } catch (error) {
-      console.error('Get user document error:', error);
+      console.error("Get user document error:", error);
       return null;
     }
   }
 
   // Create user document in database
-  async createUserDocument(userId: string, email: string, name: string, phoneNumber?: string): Promise<void> {
+  async createUserDocument(
+    userId: string,
+    email: string,
+    name: string,
+    phoneNumber?: string
+  ): Promise<void> {
     try {
       const currentDate = new Date().toISOString();
+      
+      console.log('Creating user document with configuration:');
+      console.log('DB_ID:', DB_ID);
+      console.log('COLLECTIONS.USERS:', COLLECTIONS.USERS);
+      console.log('userId:', userId);
+      
+      if (!DB_ID) {
+        throw new Error('Database ID is not configured');
+      }
+      
+      if (!COLLECTIONS.USERS) {
+        throw new Error('Users collection ID is not configured');
+      }
+      
       const userData: any = {
         email,
         name,
@@ -98,39 +259,58 @@ class AuthService {
         totalQuestionsAnswered: 0,
         correctAnswers: 0,
         monthlyXP: 0,
-        createdAt: currentDate,
-        updatedAt: currentDate,
+        // createdAt: currentDate,
+        // updatedAt: currentDate,
       };
 
-      if (phoneNumber) {
+      if (phoneNumber && phoneNumber.trim() !== '') {
         userData.phoneNumber = phoneNumber;
       }
 
-      await databases.createDocument(DB_ID, COLLECTIONS.USERS, userId, userData);
-    } catch (error) {
-      console.error('Create user document error:', error);
+      console.log('User data to be created:', JSON.stringify(userData, null, 2));
+
+      const document = await databases.createDocument(
+        DB_ID,
+        COLLECTIONS.USERS,
+        userId,
+        userData
+      );
+      
+      console.log('User document created successfully with ID:', document.$id);
+    } catch (error: any) {
+      console.error("Create user document error:", error);
+      console.error("DB_ID:", DB_ID);
+      console.error("COLLECTIONS.USERS:", COLLECTIONS.USERS);
+      console.error("userId:", userId);
       throw error;
     }
   }
 
   // Update user profile picture
-  async updateProfilePicture(userId: string, imageUri: string): Promise<string> {
+  async updateProfilePicture(
+    userId: string,
+    imageUri: string
+  ): Promise<string> {
     try {
       // Create file object for React Native Appwrite
       const fileName = `profile_${userId}_${Date.now()}.jpg`;
       const fileObject = {
         name: fileName,
-        type: 'image/jpeg',
+        type: "image/jpeg",
         size: 0, // This will be set by the library
         uri: imageUri,
       };
-      
+
       // Upload to Appwrite storage
-      const file = await storage.createFile(STORAGE_BUCKET, ID.unique(), fileObject);
-      
+      const file = await storage.createFile(
+        STORAGE_BUCKET,
+        ID.unique(),
+        fileObject
+      );
+
       // Generate the file view URL
       const fileUrl = `${client.config.endpoint}/storage/buckets/${STORAGE_BUCKET}/files/${file.$id}/view?project=${client.config.project}`;
-      
+
       // Update user document with profile picture ID
       await databases.updateDocument(DB_ID, COLLECTIONS.USERS, userId, {
         profilePictureId: file.$id,
@@ -140,7 +320,7 @@ class AuthService {
 
       return file.$id;
     } catch (error) {
-      console.error('Update profile picture error:', error);
+      console.error("Update profile picture error:", error);
       throw error;
     }
   }
@@ -170,32 +350,44 @@ class AuthService {
       }
       // If daysDiff === 0, it's the same day, keep current streak
 
-      await databases.updateDocument(DB_ID, COLLECTIONS.USERS, currentUser.$id, {
-        lastLoginDate: today.toISOString(),
-        streak: newStreak,
-        updatedAt: new Date().toISOString(),
-      });
+      await databases.updateDocument(
+        DB_ID,
+        COLLECTIONS.USERS,
+        currentUser.$id,
+        {
+          lastLoginDate: today.toISOString(),
+          streak: newStreak,
+          updatedAt: new Date().toISOString(),
+        }
+      );
     } catch (error) {
-      console.error('Update last login date error:', error);
+      console.error("Update last login date error:", error);
     }
   }
 
   // Send password recovery email
   async sendPasswordRecovery(email: string): Promise<void> {
     try {
-      await account.createRecovery(email, 'http://localhost:3000/reset-password');
+      await account.createRecovery(
+        email,
+        "http://localhost:3000/reset-password"
+      );
     } catch (error) {
-      console.error('Send password recovery error:', error);
+      console.error("Send password recovery error:", error);
       throw error;
     }
   }
 
   // Complete password recovery
-  async completePasswordRecovery(userId: string, secret: string, password: string): Promise<void> {
+  async completePasswordRecovery(
+    userId: string,
+    secret: string,
+    password: string
+  ): Promise<void> {
     try {
       await account.updateRecovery(userId, secret, password);
     } catch (error) {
-      console.error('Complete password recovery error:', error);
+      console.error("Complete password recovery error:", error);
       throw error;
     }
   }
@@ -203,19 +395,22 @@ class AuthService {
   // Create verification for email
   async createEmailVerification(): Promise<void> {
     try {
-      await account.createVerification('http://localhost:3000/verify-email');
+      await account.createVerification("http://localhost:3000/verify-email");
     } catch (error) {
-      console.error('Create email verification error:', error);
+      console.error("Create email verification error:", error);
       throw error;
     }
   }
 
   // Confirm email verification
-  async confirmEmailVerification(userId: string, secret: string): Promise<void> {
+  async confirmEmailVerification(
+    userId: string,
+    secret: string
+  ): Promise<void> {
     try {
       await account.updateVerification(userId, secret);
     } catch (error) {
-      console.error('Confirm email verification error:', error);
+      console.error("Confirm email verification error:", error);
       throw error;
     }
   }
@@ -223,46 +418,59 @@ class AuthService {
   // OAuth sign-in methods
   async signInWithGoogle(): Promise<any> {
     try {
-      // Create OAuth2 session with proper React Native deep links
-      const session = await account.createOAuth2Session(
-        'google' as any,
-        'io.expo.moneyquest://oauth/success', // Success redirect
-        'io.expo.moneyquest://oauth/failure'  // Failure redirect
+      const redirectURL = Linking.createURL("oauth/success");
+      const failureURL = Linking.createURL("oauth/failure");
+
+      const authUrl = `${
+        client.config.endpoint
+      }/account/sessions/oauth2/google?project=${
+        client.config.project
+      }&success=${encodeURIComponent(redirectURL)}&failure=${encodeURIComponent(
+        failureURL
+      )}`;
+
+      const result = await WebBrowser.openAuthSessionAsync(
+        authUrl,
+        redirectURL
       );
-      
-      // After successful OAuth, get current user and create/update user document
-      const currentUser = await this.getCurrentUser();
-      if (currentUser) {
-        // Check if user document exists, if not create one
-        let userDocument = await this.getUserDocument(currentUser.$id);
-        if (!userDocument) {
-          await this.createUserDocument(
-            currentUser.$id, 
-            currentUser.email, 
-            currentUser.name
-          );
-          userDocument = await this.getUserDocument(currentUser.$id);
+
+      if (result.type === "success") {
+        // Wait for session to be established
+        await new Promise((resolve) => setTimeout(resolve, 1500));
+
+        const currentUser = await this.getCurrentUser();
+        if (currentUser) {
+          let userDocument = await this.getUserDocument(currentUser.$id);
+          if (!userDocument) {
+            await this.createUserDocument(
+              currentUser.$id,
+              currentUser.email,
+              currentUser.name
+            );
+            userDocument = await this.getUserDocument(currentUser.$id);
+          }
+          await this.updateLastLoginDate();
+          return { currentUser, userDocument };
         }
-        await this.updateLastLoginDate();
-        return { currentUser, userDocument };
       }
-      return session;
+
+      throw new Error("OAuth authentication failed");
     } catch (error) {
-      console.error('Google sign-in error:', error);
+      console.error("Google sign-in error:", error);
       throw error;
     }
   }
 
   async signInWithFacebook(): Promise<void> {
     try {
-      // TODO: Use correct OAuth provider enum when available  
+      // TODO: Use correct OAuth provider enum when available
       await account.createOAuth2Session(
-        'facebook' as any, 
-        'io.expo.moneyquest://oauth/success', 
-        'io.expo.moneyquest://oauth/failure'
+        "facebook" as any,
+        "io.expo.moneyquest://oauth/success",
+        "io.expo.moneyquest://oauth/failure"
       );
     } catch (error) {
-      console.error('Facebook sign-in error:', error);
+      console.error("Facebook sign-in error:", error);
       throw error;
     }
   }
@@ -271,12 +479,76 @@ class AuthService {
     try {
       // TODO: Use correct OAuth provider enum when available
       await account.createOAuth2Session(
-        'twitter' as any, 
-        'io.expo.moneyquest://oauth/success', 
-        'io.expo.moneyquest://oauth/failure'
+        "twitter" as any,
+        "io.expo.moneyquest://oauth/success",
+        "io.expo.moneyquest://oauth/failure"
       );
     } catch (error) {
-      console.error('Twitter sign-in error:', error);
+      console.error("Twitter sign-in error:", error);
+      throw error;
+    }
+  }
+
+  async signUp(email: string, password: string, name: string, phoneNumber?: string) {
+    try {
+      // Step 1: Create the account
+      const newAccount = await account.create(
+        ID.unique(),
+        email,
+        password,
+        name
+      );
+
+      // Step 2: Immediately sign in the user after account creation
+      await account.createSession(email, password);
+
+      // Step 3: Now get the current user (session is established)
+      const user = await account.get();
+
+      // Step 4: Create user document in your database with additional fields
+      const userDocument = await databases.createDocument(
+        process.env.APPWRITE_DATABASE_ID!,
+        process.env.APPWRITE_USERS_COLLECTION_ID!,
+        user.$id,
+        {
+          email: user.email,
+          name: user.name,
+          phoneNumber: phoneNumber || '',
+          profilePicture: '',
+          profilePictureId: '',
+          xp: 0,
+          level: 1,
+          currentSection: 1,
+          streak: 0,
+          lastLoginDate: new Date().toISOString(),
+          totalQuestionsAnswered: 0,
+          correctAnswers: 0,
+          monthlyXP: 0,
+        }
+      );
+
+      // Step 5: Return the combined user data
+      return {
+        $id: user.$id,
+        email: user.email,
+        name: user.name,
+        phoneNumber: userDocument.phoneNumber,
+        profilePicture: userDocument.profilePicture,
+        profilePictureId: userDocument.profilePictureId,
+        xp: userDocument.xp,
+        level: userDocument.level,
+        currentSection: userDocument.currentSection,
+        streak: userDocument.streak,
+        lastLoginDate: userDocument.lastLoginDate,
+        totalQuestionsAnswered: userDocument.totalQuestionsAnswered,
+        correctAnswers: userDocument.correctAnswers,
+        monthlyXP: userDocument.monthlyXP,
+        $createdAt: user.$createdAt,
+        $updatedAt: user.$updatedAt,
+      } as User;
+
+    } catch (error) {
+      console.error('Signup error:', error);
       throw error;
     }
   }

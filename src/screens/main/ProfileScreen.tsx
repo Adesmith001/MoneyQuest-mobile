@@ -1,141 +1,93 @@
 import React from 'react';
-import { View, Text, StyleSheet, SafeAreaView, TouchableOpacity, ScrollView, Alert } from 'react-native';
-import { useDispatch, useSelector } from 'react-redux';
-import { signOut } from '../../store/slices/authSlice';
-import { RootState, AppDispatch } from '../../store';
-import { COLORS, FONT_SIZES, SPACING } from '../../constants';
-import { formatXP, formatStreak, getStreakEmoji } from '../../utils';
+import { View, Text, StyleSheet, SafeAreaView, TouchableOpacity, ScrollView, Dimensions } from 'react-native';
+import { useSelector } from 'react-redux';
+import { RootState } from '../../store';
+import { formatXP } from '../../utils';
+
+const { width: screenWidth } = Dimensions.get('window');
 
 interface Props {
   navigation: any;
 }
 
 const ProfileScreen: React.FC<Props> = ({ navigation }) => {
-  const dispatch = useDispatch<AppDispatch>();
-  const { user, isLoading } = useSelector((state: RootState) => state.auth);
+  const { user } = useSelector((state: RootState) => state.auth);
 
-  // Mock user data - in production this would come from Redux store
+  // User data from Redux store or fallback
   const userData = {
-    name: user?.name || 'John Doe',
-    email: user?.email || 'john.doe@example.com',
+    name: user?.name || 'Iyanu Babayemi',
+    email: user?.email || 'iyanubabs@gmail.com',
+    username: 'iyanubabs',
     avatar: '👤',
     level: user?.level || 1,
-    xp: user?.xp || 0,
-    streak: user?.streak || 0,
+    xp: user?.xp || 9770,
+    streak: user?.streak || 12,
+    lifePoints: 50,
     totalQuestions: user?.totalQuestionsAnswered || 0,
     correctAnswers: user?.correctAnswers || 0,
     accuracy: user?.totalQuestionsAnswered ? Math.round((user.correctAnswers / user.totalQuestionsAnswered) * 100) : 0,
   };
 
-  const handleSignOut = () => {
-    Alert.alert(
-      'Sign Out',
-      'Are you sure you want to sign out?',
-      [
-        {
-          text: 'Cancel',
-          style: 'cancel',
-        },
-        {
-          text: 'Sign Out',
-          style: 'destructive',
-          onPress: async () => {
-            try {
-              await dispatch(signOut()).unwrap();
-              // Navigation will be handled automatically by the navigation state listener
-              // since the user will no longer be authenticated
-            } catch (error) {
-              Alert.alert('Error', 'Failed to sign out. Please try again.');
-            }
-          },
-        },
-      ]
-    );
+  const handleEditProfile = () => {
+    navigation.navigate('EditProfile');
   };
-
-  const menuItems = [
-    { title: 'Account Settings', icon: '⚙️', action: () => navigation.navigate('Settings') },
-    { title: 'Achievements', icon: '🏆', action: () => console.log('Achievements') },
-    { title: 'Learning Stats', icon: '📊', action: () => console.log('Stats') },
-    { title: 'Notifications', icon: '🔔', action: () => console.log('Notifications') },
-    { title: 'Help & Support', icon: '❓', action: () => console.log('Help') },
-    { title: 'About', icon: 'ℹ️', action: () => console.log('About') },
-  ];
 
   return (
     <SafeAreaView style={styles.container}>
       <ScrollView style={styles.content} showsVerticalScrollIndicator={false}>
-        {/* Profile Header */}
+        {/* Header with Edit Button */}
         <View style={styles.profileHeader}>
-          <View style={styles.avatarContainer}>
-            <Text style={styles.avatar}>{userData.avatar}</Text>
+          <View style={styles.headerTop}>
+            <View style={styles.userInfo}>
+              <Text style={styles.userName}>{userData.name}</Text>
+              <Text style={styles.userHandle}>@{userData.username}</Text>
+            </View>
+            <TouchableOpacity 
+              style={styles.editButton}
+              onPress={handleEditProfile}
+            >
+              <Text style={styles.editIcon}>✏️</Text>
+            </TouchableOpacity>
           </View>
-          <Text style={styles.userName}>{userData.name}</Text>
-          <Text style={styles.userEmail}>{userData.email}</Text>
 
-          <TouchableOpacity style={styles.editProfileButton}>
-            <Text style={styles.editProfileText}>Edit Profile</Text>
-          </TouchableOpacity>
+          {/* Avatar */}
+          <View style={styles.avatarContainer}>
+            <Text style={styles.avatar}>👩🏾</Text>
+          </View>
         </View>
 
-        {/* Stats Section */}
-        <View style={styles.statsSection}>
-          <Text style={styles.sectionTitle}>Your Progress</Text>
-          
-          <View style={styles.statsGrid}>
+        {/* Stats Cards */}
+        <View style={styles.statsContainer}>
+          <View style={styles.statsRow}>
             <View style={styles.statCard}>
+              <Text style={styles.statIcon}>🔥</Text>
+              <Text style={styles.statValue}>{userData.streak}</Text>
+              <Text style={styles.statLabel}>Day streak</Text>
+            </View>
+            
+            <View style={styles.statCard}>
+              <Text style={styles.statIcon}>💎</Text>
               <Text style={styles.statValue}>{formatXP(userData.xp)}</Text>
               <Text style={styles.statLabel}>Total XP</Text>
             </View>
+          </View>
 
-            <View style={styles.statCard}>
-              <Text style={styles.statValue}>Level {userData.level}</Text>
-              <Text style={styles.statLabel}>Current Level</Text>
-            </View>
-
-            <View style={styles.statCard}>
-              <Text style={styles.statValue}>
-                {getStreakEmoji(userData.streak)} {userData.streak}
-              </Text>
-              <Text style={styles.statLabel}>Day Streak</Text>
-            </View>
-
-            <View style={styles.statCard}>
-              <Text style={styles.statValue}>{userData.accuracy}%</Text>
-              <Text style={styles.statLabel}>Accuracy</Text>
-            </View>
+          <View style={styles.singleStatCard}>
+            <Text style={styles.statIcon}>❤️</Text>
+            <Text style={styles.statValue}>{userData.lifePoints}</Text>
+            <Text style={styles.statLabel}>Life Points</Text>
           </View>
         </View>
 
-        {/* Menu Section */}
-        <View style={styles.menuSection}>
-          <Text style={styles.sectionTitle}>Settings</Text>
-          
-          {menuItems.map((item, index) => (
-            <TouchableOpacity
-              key={index}
-              style={styles.menuItem}
-              onPress={item.action}
-            >
-              <View style={styles.menuItemLeft}>
-                <Text style={styles.menuIcon}>{item.icon}</Text>
-                <Text style={styles.menuTitle}>{item.title}</Text>
-              </View>
-              <Text style={styles.menuArrow}>›</Text>
-            </TouchableOpacity>
-          ))}
-        </View>
-
-        {/* Sign Out Button */}
-        <TouchableOpacity 
-          style={styles.signOutButton} 
-          onPress={handleSignOut}
-          disabled={isLoading}
-        >
-          <Text style={styles.signOutText}>
-            {isLoading ? 'Signing Out...' : 'Sign Out'}
-          </Text>
+        {/* Invite Friends Button */}
+        <TouchableOpacity style={styles.inviteButton}>
+          <Text style={styles.inviteButtonText}>Invite Friends</Text>
         </TouchableOpacity>
+
+        {/* Badges & Achievement */}
+        <View style={styles.achievementsSection}>
+          <Text style={styles.sectionTitle}>Badges & Achievement</Text>
+        </View>
       </ScrollView>
     </SafeAreaView>
   );
@@ -144,127 +96,163 @@ const ProfileScreen: React.FC<Props> = ({ navigation }) => {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: COLORS.background,
+    backgroundColor: '#F8F9FA',
   },
   content: {
     flex: 1,
   },
+  
+  // Main Profile Header
   profileHeader: {
-    alignItems: 'center',
-    backgroundColor: COLORS.primary,
-    paddingHorizontal: SPACING.xl,
-    paddingTop: SPACING.xl,
-    paddingBottom: SPACING.xxl,
+    backgroundColor: '#FF6B35',
+    paddingHorizontal: 20,
+    paddingTop: 20,
+    paddingBottom: 40,
   },
-  avatarContainer: {
-    width: 80,
-    height: 80,
-    backgroundColor: 'rgba(255, 255, 255, 0.2)',
-    borderRadius: 40,
-    justifyContent: 'center',
+  headerTop: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
     alignItems: 'center',
-    marginBottom: SPACING.md,
+    marginBottom: 30,
   },
-  avatar: {
-    fontSize: 40,
+  userInfo: {
+    flex: 1,
   },
   userName: {
-    fontSize: FONT_SIZES.xxl,
+    fontSize: 24,
     fontWeight: 'bold',
-    color: COLORS.background,
-    marginBottom: SPACING.xs,
+    color: 'white',
+    marginBottom: 4,
   },
-  userEmail: {
-    fontSize: FONT_SIZES.md,
+  userHandle: {
+    fontSize: 16,
     color: 'rgba(255, 255, 255, 0.8)',
-    marginBottom: SPACING.lg,
   },
-  editProfileButton: {
+  editButton: {
+    width: 40,
+    height: 40,
     backgroundColor: 'rgba(255, 255, 255, 0.2)',
-    paddingHorizontal: SPACING.lg,
-    paddingVertical: SPACING.sm,
-    borderRadius: 20,
+    borderRadius: 8,
+    justifyContent: 'center',
+    alignItems: 'center',
   },
-  editProfileText: {
-    fontSize: FONT_SIZES.md,
-    color: COLORS.background,
-    fontWeight: '600',
+  editIcon: {
+    fontSize: 18,
   },
-  statsSection: {
-    padding: SPACING.xl,
+  avatarContainer: {
+    alignSelf: 'center',
+    width: 100,
+    height: 100,
+    backgroundColor: 'rgba(255, 255, 255, 0.2)',
+    borderRadius: 50,
+    justifyContent: 'center',
+    alignItems: 'center',
   },
-  sectionTitle: {
-    fontSize: FONT_SIZES.xl,
-    fontWeight: 'bold',
-    color: COLORS.text,
-    marginBottom: SPACING.lg,
+  avatar: {
+    fontSize: 50,
   },
-  statsGrid: {
+
+  // Stats Cards
+  statsContainer: {
+    paddingHorizontal: 20,
+    marginTop: -20,
+    marginBottom: 20,
+  },
+  statsRow: {
     flexDirection: 'row',
-    flexWrap: 'wrap',
-    gap: SPACING.md,
+    gap: 12,
+    marginBottom: 12,
   },
   statCard: {
     flex: 1,
-    minWidth: '45%',
-    backgroundColor: COLORS.card,
-    padding: SPACING.lg,
-    borderRadius: 12,
+    backgroundColor: 'white',
+    borderRadius: 16,
+    padding: 20,
     alignItems: 'center',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.1,
+    shadowRadius: 4,
+    elevation: 3,
+  },
+  singleStatCard: {
+    backgroundColor: 'white',
+    borderRadius: 16,
+    padding: 20,
+    alignItems: 'center',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.1,
+    shadowRadius: 4,
+    elevation: 3,
+  },
+  statIcon: {
+    fontSize: 24,
+    marginBottom: 8,
   },
   statValue: {
-    fontSize: FONT_SIZES.xl,
+    fontSize: 24,
     fontWeight: 'bold',
-    color: COLORS.primary,
-    marginBottom: SPACING.xs,
+    color: '#333',
+    marginBottom: 4,
   },
   statLabel: {
-    fontSize: FONT_SIZES.sm,
-    color: COLORS.textSecondary,
-    textAlign: 'center',
+    fontSize: 14,
+    color: '#666',
   },
-  menuSection: {
-    paddingHorizontal: SPACING.xl,
-    paddingBottom: SPACING.xl,
-  },
-  menuItem: {
-    flexDirection: 'row',
+
+  // Invite Button
+  inviteButton: {
+    marginHorizontal: 20,
+    backgroundColor: '#FF6B35',
+    borderRadius: 16,
+    paddingVertical: 16,
     alignItems: 'center',
-    justifyContent: 'space-between',
-    backgroundColor: COLORS.card,
-    padding: SPACING.lg,
-    borderRadius: 12,
-    marginBottom: SPACING.md,
+    marginBottom: 30,
   },
-  menuItemLeft: {
-    flexDirection: 'row',
-    alignItems: 'center',
-  },
-  menuIcon: {
-    fontSize: FONT_SIZES.lg,
-    marginRight: SPACING.md,
-  },
-  menuTitle: {
-    fontSize: FONT_SIZES.md,
-    color: COLORS.text,
-    fontWeight: '500',
-  },
-  menuArrow: {
-    fontSize: FONT_SIZES.xl,
-    color: COLORS.textSecondary,
-  },
-  signOutButton: {
-    marginHorizontal: SPACING.xl,
-    marginBottom: SPACING.xl,
-    backgroundColor: COLORS.error,
-    padding: SPACING.lg,
-    borderRadius: 12,
-    alignItems: 'center',
-  },
-  signOutText: {
-    fontSize: FONT_SIZES.md,
+  inviteButtonText: {
+    fontSize: 16,
     fontWeight: '600',
-    color: COLORS.background,
+    color: 'white',
+  },
+
+  // Achievements
+  achievementsSection: {
+    paddingHorizontal: 20,
+    marginBottom: 30,
+  },
+  sectionTitle: {
+    fontSize: 20,
+    fontWeight: 'bold',
+    color: '#333',
+    marginBottom: 16,
+  },
+  achievementsGrid: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: 12,
+  },
+  achievementCard: {
+    width: (screenWidth - 64) / 3,
+    aspectRatio: 1,
+    backgroundColor: 'white',
+    borderRadius: 12,
+    justifyContent: 'center',
+    alignItems: 'center',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.1,
+    shadowRadius: 2,
+    elevation: 2,
+  },
+  achievementLocked: {
+    backgroundColor: '#F0F0F0',
+  },
+  achievementIcon: {
+    fontSize: 32,
+  },
+  achievementIconLocked: {
+    opacity: 0.3,
   },
 });
 

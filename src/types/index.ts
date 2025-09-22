@@ -13,8 +13,8 @@ export interface User {
   totalQuestionsAnswered: number;
   correctAnswers: number;
   monthlyXP: number;
-  createdAt: string;
-  updatedAt: string;
+  $createdAt: string;  
+  $updatedAt: string;
 }
 
 export interface Question {

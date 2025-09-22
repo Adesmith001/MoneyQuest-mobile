@@ -21,6 +21,7 @@ import MainTabNavigator from './MainTabNavigator';
 import QuestionScreen from '../screens/game/QuestionScreen';
 import LevelCompletionScreen from '../screens/game/LevelCompletionScreen';
 import SettingsScreen from '../screens/profile/SettingsScreen';
+import EditProfileScreen from '../screens/profile/EditProfileScreen';
 
 export type RootStackParamList = {
   // Onboarding
@@ -50,6 +51,7 @@ export type RootStackParamList = {
   
   // Other Screens
   Settings: undefined;
+  EditProfile: undefined;
 };
 
 const Stack = createStackNavigator<RootStackParamList>();
@@ -107,6 +109,13 @@ const AppNavigator: React.FC = () => {
               options={{
                 headerShown: true,
                 title: 'Settings',
+              }}
+            />
+            <Stack.Screen 
+              name="EditProfile" 
+              component={EditProfileScreen}
+              options={{
+                headerShown: false,
               }}
             />
           </>
