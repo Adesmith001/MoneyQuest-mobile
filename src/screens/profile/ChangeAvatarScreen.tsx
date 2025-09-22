@@ -1,0 +1,100 @@
+import React, { useState } from 'react';
+import {
+  View,
+  Text,
+  StyleSheet,
+  SafeAreaView,
+  TouchableOpacity,
+  Image,
+  Alert,
+  ScrollView,
+} from 'react-native';
+import { useDispatch, useSelector } from 'react-redux';
+import { AppDispatch, RootState } from '../../store';
+import { updateUser } from '../../store/slices/authSlice';
+import { avatars } from '../../utils/avatarUtils';
+import CustomButton from '../../components/CustomButton';
+
+interface Props {
+  navigation: any;
+}
+
+const ChangeAvatarScreen: React.FC<Props> = ({ navigation }) => {
+  const dispatch = useDispatch<AppDispatch>();
+  const { user, isLoading } = useSelector((state: RootState) => state.auth);
+  const [selectedAvatar, setSelectedAvatar] = useState(user?.avatar || '');
+
+  const handleSaveAvatar = () => {
+    if (selectedAvatar === user?.avatar) {
+      navigation.goBack();
+      return;
+    }
+
+    try {
+      dispatch(updateUser({ avatar: selectedAvatar }));
+      Alert.alert('Success', 'Avatar updated successfully!');
+      navigation.goBack();
+    } catch (error) {
+      Alert.alert('Error', 'Failed to update avatar. Please try again.');
+    }
+  };
+
+  return (
+    <SafeAreaView style={styles.container}>
+      <View style={styles.header}>
+        <Text style={styles.title}>Change Avatar</Text>
+      </View>
+      <ScrollView>
+        <View style={styles.avatarGrid}>
+          {avatars.map((avatar) => (
+            <TouchableOpacity
+              key={avatar.id}
+              style={[
+                styles.avatarOption,
+                selectedAvatar === avatar.id && styles.selectedAvatar,
+              ]}
+              onPress={() => setSelectedAvatar(avatar.id)}
+            >
+              <Image source={avatar.image} style={styles.avatarImage} />
+            </TouchableOpacity>
+          ))}
+        </View>
+      </ScrollView>
+      <View style={styles.buttonContainer}>
+        <CustomButton
+          title={isLoading ? 'Saving...' : 'Save'}
+          onPress={handleSaveAvatar}
+          disabled={isLoading}
+        />
+      </View>
+    </SafeAreaView>
+  );
+};
+
+const styles = StyleSheet.create({
+  container: { flex: 1, backgroundColor: '#FFFFFF' },
+  header: { alignItems: 'center', paddingVertical: 16, paddingTop: 40 },
+  title: { fontSize: 20, fontWeight: 'bold', color: '#333' },
+  avatarGrid: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    justifyContent: 'space-around',
+    padding: 16,
+  },
+  avatarOption: {
+    width: '30%',
+    aspectRatio: 1,
+    backgroundColor: '#F5F0E8',
+    borderRadius: 20,
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginBottom: 16,
+    borderWidth: 3,
+    borderColor: 'transparent',
+  },
+  selectedAvatar: { borderColor: '#FF5722' },
+  avatarImage: { width: '80%', height: '80%' },
+  buttonContainer: { padding: 20 },
+});
+
+export default ChangeAvatarScreen;

@@ -63,25 +63,25 @@ const styles = StyleSheet.create({
   },
   selectedButton: {
     borderColor: '#FF5722',
-    backgroundColor: '#FFF3F0',
+    backgroundColor: '#FF5722',
   },
   label: {
     fontSize: 16,
-    color: '#212121',
-    fontWeight: '500',
+    color: '#000000',
+    fontWeight: '600',
     flex: 1,
   },
   selectedLabel: {
-    color: '#FF5722',
+    color: '#FFFFFF',
     fontWeight: '600',
   },
   subtitle: {
     fontSize: 16,
-    color: '#666',
-    fontWeight: '500',
+    color: '#000000',
+    fontWeight: '600',
   },
   selectedSubtitle: {
-    color: '#FF5722',
+    color: '#FFFFFF',
     fontWeight: '600',
   },
 });

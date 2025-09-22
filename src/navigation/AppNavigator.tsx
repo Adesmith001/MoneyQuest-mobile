@@ -28,6 +28,7 @@ import QuestionScreen from '../screens/game/QuestionScreen';
 import LevelCompletionScreen from '../screens/game/LevelCompletionScreen';
 import SettingsScreen from '../screens/profile/SettingsScreen';
 import EditProfileScreen from '../screens/profile/EditProfileScreen';
+import ChangeAvatarScreen from '../screens/profile/ChangeAvatarScreen'; // Import the new screen
 
 export type RootStackParamList = {
   // Onboarding
@@ -94,6 +95,7 @@ export type RootStackParamList = {
   // Other Screens
   Settings: undefined;
   EditProfile: undefined;
+  ChangeAvatar: undefined;
 };
 
 const Stack = createStackNavigator<RootStackParamList>();
@@ -179,6 +181,13 @@ const AppNavigator: React.FC = () => {
             <Stack.Screen 
               name="EditProfile" 
               component={EditProfileScreen}
+              options={{
+                headerShown: false,
+              }}
+            />
+            <Stack.Screen 
+              name="ChangeAvatar" 
+              component={ChangeAvatarScreen}
               options={{
                 headerShown: false,
               }}

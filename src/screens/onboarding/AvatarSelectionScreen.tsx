@@ -12,25 +12,12 @@ import {
 import { useDispatch, useSelector } from 'react-redux';
 import { signUpWithOnboarding } from '../../store/slices/authSlice';
 import { RootState, AppDispatch } from '../../store';
+import { avatars, getAvatarById } from '../../utils/avatarUtils'; // Import from the new utility file
 
 interface Props {
   navigation: any;
   route: any;
 }
-
-// Placeholder avatar data - you can replace these with your actual avatar images
-const avatars = [
-  { id: 'avatar1', emoji: '👨🏾‍🦱' },
-  { id: 'avatar2', emoji: '👩🏾‍🦱' },
-  { id: 'avatar3', emoji: '👩🏾‍💼' },
-  { id: 'avatar4', emoji: '👩🏾‍🎤' },
-  { id: 'avatar5', emoji: '👦🏾' },
-  { id: 'avatar6', emoji: '👨🏾‍🎓' },
-  { id: 'avatar7', emoji: '👨🏾‍💼' },
-  { id: 'avatar8', emoji: '👨🏾‍🎤' },
-  { id: 'avatar9', emoji: '👦🏽' },
-  { id: 'avatar10', emoji: '👨🏾‍🦲' },
-];
 
 const AvatarSelectionScreen: React.FC<Props> = ({ navigation, route }) => {
   const [selectedAvatar, setSelectedAvatar] = useState<string>('');
@@ -68,6 +55,11 @@ const AvatarSelectionScreen: React.FC<Props> = ({ navigation, route }) => {
     }
   };
 
+  const getSelectedAvatarImage = () => {
+    // Use the utility function
+    return getAvatarById(selectedAvatar);
+  };
+
   return (
     <SafeAreaView style={styles.container}>
       <ScrollView style={styles.scrollView} showsVerticalScrollIndicator={false}>
@@ -77,11 +69,13 @@ const AvatarSelectionScreen: React.FC<Props> = ({ navigation, route }) => {
             <Text style={styles.title}>Money Quest</Text>
           </View>
 
-          {/* Default Avatar */}
-          <View style={styles.defaultAvatarContainer}>
-            <View style={styles.defaultAvatar}>
-              <Text style={styles.defaultAvatarText}>👤</Text>
-            </View>
+          {/* Main Avatar Display */}
+          <View style={styles.mainAvatarContainer}>
+            {selectedAvatar ? (
+              <Image source={getSelectedAvatarImage()} style={styles.mainAvatarImage} />
+            ) : (
+              <Image source={require('../../../assets/avatar1.png')} style={styles.mainAvatarImage} />
+            )}
           </View>
 
           {/* Main Title */}
@@ -100,17 +94,17 @@ const AvatarSelectionScreen: React.FC<Props> = ({ navigation, route }) => {
                 ]}
                 onPress={() => setSelectedAvatar(avatar.id)}
               >
-                <Text style={styles.avatarEmoji}>{avatar.emoji}</Text>
+                <Image source={avatar.image} style={styles.avatarImage} />
               </TouchableOpacity>
             ))}
           </View>
 
           {/* Continue Button */}
-          <TouchableOpacity 
+          <TouchableOpacity
             style={[
-              styles.continueButton, 
-              (!selectedAvatar || isLoading) && styles.disabledButton
-            ]} 
+              styles.continueButton,
+              (!selectedAvatar || isLoading) && styles.disabledButton,
+            ]}
             onPress={handleContinue}
             disabled={!selectedAvatar || isLoading}
           >
@@ -134,40 +128,46 @@ const styles = StyleSheet.create({
   },
   content: {
     paddingHorizontal: 32,
-    paddingTop: 60,
-    paddingBottom: 50,
+    paddingTop: 20, 
+    paddingBottom: 40,
   },
   header: {
     alignItems: 'center',
-    marginBottom: 40,
+    marginBottom: 14,
+    marginTop: 24,
   },
   title: {
-    fontSize: 20,
-    fontWeight: 'bold',
+    fontSize: 18,
+    fontWeight: '600',
     color: '#212121',
   },
-  defaultAvatarContainer: {
+  mainAvatarContainer: {
     alignItems: 'center',
-    marginBottom: 40,
+    marginBottom: 24,
   },
   defaultAvatar: {
     width: 120,
     height: 120,
-    backgroundColor: '#E0E0E0',
+    backgroundColor: '#E8E8E8',
     borderRadius: 60,
     justifyContent: 'center',
     alignItems: 'center',
   },
+  mainAvatarImage: {
+    width: 120,
+    height: 120,
+    borderRadius: 60,
+  },
   defaultAvatarText: {
     fontSize: 60,
-    color: '#999',
+    color: '#BDBDBD',
   },
   mainHeader: {
     alignItems: 'center',
-    marginBottom: 40,
+    marginBottom: 32,
   },
   mainTitle: {
-    fontSize: 24,
+    fontSize: 26,
     fontWeight: 'bold',
     color: '#212121',
     textAlign: 'center',
@@ -175,14 +175,14 @@ const styles = StyleSheet.create({
   avatarGrid: {
     flexDirection: 'row',
     flexWrap: 'wrap',
-    justifyContent: 'space-between',
-    marginBottom: 60,
+    justifyContent: 'space-around', 
+    marginBottom: 40,
   },
   avatarOption: {
     width: '30%',
     aspectRatio: 1,
-    backgroundColor: '#F5F5F5',
-    borderRadius: 16,
+    backgroundColor: '#F5F0E8', 
+    borderRadius: 20, 
     justifyContent: 'center',
     alignItems: 'center',
     marginBottom: 16,
@@ -190,18 +190,17 @@ const styles = StyleSheet.create({
     borderColor: 'transparent',
   },
   selectedAvatar: {
-    borderColor: '#FF5722',
-    backgroundColor: '#FFF3F0',
+    borderColor: '#FF5722', // Orange border for selection
   },
-  avatarEmoji: {
-    fontSize: 40,
+  avatarImage: {
+    width: '80%',
+    height: '80%',
   },
   continueButton: {
     backgroundColor: '#FF5722',
-    paddingVertical: 16,
-    borderRadius: 25,
+    paddingVertical: 18,
+    borderRadius: 16, // Less rounded corners
     alignItems: 'center',
-    marginTop: 20,
   },
   disabledButton: {
     backgroundColor: '#CCCCCC',

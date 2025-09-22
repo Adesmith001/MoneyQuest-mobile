@@ -7,6 +7,7 @@ import { COLORS } from '../constants';
 import HomeScreen from '../screens/main/HomeScreen';
 import LeaderboardScreen from '../screens/main/LeaderboardScreen';
 import ProfileScreen from '../screens/main/ProfileScreen';
+import ProfileTabIcon from './ProfileTabIcon'; 
 
 export type MainTabParamList = {
   Home: undefined;
@@ -95,9 +96,14 @@ const MainTabNavigator: React.FC = () => {
         name="Streak" 
         component={LeaderboardScreen} 
       />
-      <Tab.Screen 
-        name="Profile" 
+      <Tab.Screen
+        name="Profile"
         component={ProfileScreen}
+        options={{
+          tabBarIcon: ({ focused }) => <ProfileTabIcon focused={focused} />,
+          // You can remove tabBarLabel if you only want the icon
+          tabBarLabel: () => null, 
+        }}
       />
     </Tab.Navigator>
   );

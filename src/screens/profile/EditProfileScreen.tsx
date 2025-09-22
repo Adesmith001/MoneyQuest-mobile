@@ -9,11 +9,13 @@ import {
   Alert,
   Switch,
   TextInput,
+  Image,
 } from "react-native";
 import { useDispatch, useSelector } from "react-redux";
 import { signOut, updateUser } from "../../store/slices/authSlice";
 import { RootState, AppDispatch } from "../../store";
 import CustomButton from "../../components/CustomButton";
+import { getAvatarById } from "../../utils/avatarUtils"; // Import the helper
 
 interface Props {
   navigation: any;
@@ -79,6 +81,7 @@ const EditProfileScreen: React.FC<Props> = ({ navigation }) => {
     dispatch(
       updateUser({
         name: name.trim(),
+        username: username.trim(), // Also save the username
         email: email.trim(),
       })
     );
@@ -96,9 +99,14 @@ const EditProfileScreen: React.FC<Props> = ({ navigation }) => {
         {/* Avatar Section */}
         <View style={styles.avatarSection}>
           <View style={styles.avatar}>
-            <Text style={styles.avatarEmoji}>👩🏾</Text>
+            {/* Use the user's actual avatar */}
+            <Image source={getAvatarById(user?.avatar)} style={styles.avatarDisplay} />
           </View>
-          <TouchableOpacity style={styles.changeAvatarButton}>
+          {/* Navigate to ChangeAvatarScreen on press */}
+          <TouchableOpacity
+            style={styles.changeAvatarButton}
+            onPress={() => navigation.navigate('ChangeAvatar')}
+          >
             <Text style={styles.changeAvatarText}>Change Avatar</Text>
           </TouchableOpacity>
         </View>
@@ -221,10 +229,15 @@ const styles = StyleSheet.create({
   avatar: {
     width: 120,
     height: 120,
-    backgroundColor: "#FF6B35",
+    backgroundColor: "#F5F0E8", // Use a neutral background
     borderRadius: 60,
     justifyContent: "center",
     alignItems: "center",
+    overflow: 'hidden', // Ensure image stays within the circle
+  },
+  avatarDisplay: {
+    width: '100%',
+    height: '100%',
   },
   avatarEmoji: {
     fontSize: 60,

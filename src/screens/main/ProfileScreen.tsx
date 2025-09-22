@@ -1,8 +1,9 @@
 import React from 'react';
-import { View, Text, StyleSheet, SafeAreaView, TouchableOpacity, ScrollView, Dimensions } from 'react-native';
+import { View, Text, StyleSheet, SafeAreaView, TouchableOpacity, ScrollView, Dimensions, Image } from 'react-native';
 import { useSelector } from 'react-redux';
 import { RootState } from '../../store';
 import { formatXP } from '../../utils';
+import { getAvatarById } from '../../utils/avatarUtils';
 
 const { width: screenWidth } = Dimensions.get('window');
 
@@ -12,6 +13,14 @@ interface Props {
 
 const ProfileScreen: React.FC<Props> = ({ navigation }) => {
   const { user } = useSelector((state: RootState) => state.auth);
+
+  if (!user) {
+    return (
+      <View style={styles.container}>
+        <Text>Loading...</Text>
+      </View>
+    );
+  }
 
   // User data from Redux store or fallback
   const userData = {
@@ -52,7 +61,7 @@ const ProfileScreen: React.FC<Props> = ({ navigation }) => {
 
           {/* Avatar */}
           <View style={styles.avatarContainer}>
-            <Text style={styles.avatar}>👩🏾</Text>
+            <Image source={getAvatarById(user.avatar)} style={styles.avatarImage} />
           </View>
         </View>
 
@@ -148,8 +157,10 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     alignItems: 'center',
   },
-  avatar: {
-    fontSize: 50,
+  avatarImage: {
+    width: 100,
+    height: 100,
+    borderRadius: 50,
   },
 
   // Stats Cards

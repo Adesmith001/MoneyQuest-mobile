@@ -7,6 +7,7 @@ import {
   TouchableOpacity,
   Dimensions,
 } from 'react-native';
+import CustomButton from '../../components/CustomButton';
 
 interface Props {
   navigation: any;
@@ -14,7 +15,7 @@ interface Props {
 }
 
 const AgeSelectionScreen: React.FC<Props> = ({ navigation, route }) => {
-  const [age, setAge] = useState(18);
+  const [age, setAge] = useState(7);
   const { width } = Dimensions.get('window');
 
   const handleContinue = () => {
@@ -72,9 +73,7 @@ const AgeSelectionScreen: React.FC<Props> = ({ navigation, route }) => {
         <View style={styles.spacer} />
 
         {/* Continue Button */}
-        <TouchableOpacity style={styles.continueButton} onPress={handleContinue}>
-          <Text style={styles.continueButtonText}>Continue</Text>
-        </TouchableOpacity>
+        <CustomButton title={'Continue'} onPress={handleContinue} />
       </View>
     </SafeAreaView>
   );

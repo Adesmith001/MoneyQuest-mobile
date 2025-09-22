@@ -1,12 +1,13 @@
-import React, { useState } from 'react';
+import React, { useState } from "react";
 import {
   View,
   Text,
   StyleSheet,
   SafeAreaView,
   TouchableOpacity,
-} from 'react-native';
-import SelectionButton from '../../components/SelectionButton';
+} from "react-native";
+import SelectionButton from "../../components/SelectionButton";
+import CustomButton from "../../components/CustomButton";
 
 interface Props {
   navigation: any;
@@ -14,21 +15,21 @@ interface Props {
 }
 
 const goalOptions = [
-  { id: 'grow-wealth', label: 'Grow wealth' },
-  { id: 'passive-income', label: 'Build passive income' },
-  { id: 'financial-independence', label: 'Financial independence' },
-  { id: 'retire-wealthy', label: 'Retire Wealthy' },
-  { id: 'learn-skills', label: 'Learn useful skills' },
-  { id: 'travel-world', label: 'Travel the world' },
+  { id: "grow-wealth", label: "Grow wealth" },
+  { id: "passive-income", label: "Build passive income" },
+  { id: "financial-independence", label: "Financial independence" },
+  { id: "retire-wealthy", label: "Retire Wealthy" },
+  { id: "learn-skills", label: "Learn useful skills" },
+  { id: "travel-world", label: "Travel the world" },
 ];
 
 const GoalSelectionScreen: React.FC<Props> = ({ navigation, route }) => {
-  const [selectedGoal, setSelectedGoal] = useState<string>('');
+  const [selectedGoal, setSelectedGoal] = useState<string>("");
 
   const handleContinue = () => {
     if (!selectedGoal) return;
-    
-    navigation.navigate('ReferralSource', {
+
+    navigation.navigate("ReferralSource", {
       registrationData: route.params.registrationData,
       age: route.params.age,
       learningLimit: route.params.learningLimit,
@@ -64,16 +65,11 @@ const GoalSelectionScreen: React.FC<Props> = ({ navigation, route }) => {
         <View style={styles.spacer} />
 
         {/* Continue Button */}
-        <TouchableOpacity 
-          style={[
-            styles.continueButton, 
-            !selectedGoal && styles.disabledButton
-          ]} 
+        <CustomButton
+          title={"Continue"}
           onPress={handleContinue}
           disabled={!selectedGoal}
-        >
-          <Text style={styles.continueButtonText}>Continue</Text>
-        </TouchableOpacity>
+        />
       </View>
     </SafeAreaView>
   );
@@ -82,7 +78,7 @@ const GoalSelectionScreen: React.FC<Props> = ({ navigation, route }) => {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#FFFFFF',
+    backgroundColor: "#FFFFFF",
   },
   content: {
     flex: 1,
@@ -91,23 +87,23 @@ const styles = StyleSheet.create({
     paddingBottom: 50,
   },
   header: {
-    alignItems: 'center',
+    alignItems: "center",
     marginBottom: 60,
   },
   title: {
     fontSize: 20,
-    fontWeight: 'bold',
-    color: '#212121',
+    fontWeight: "bold",
+    color: "#212121",
   },
   mainHeader: {
-    alignItems: 'center',
+    alignItems: "center",
     marginBottom: 60,
   },
   mainTitle: {
     fontSize: 24,
-    fontWeight: 'bold',
-    color: '#212121',
-    textAlign: 'center',
+    fontWeight: "bold",
+    color: "#212121",
+    textAlign: "center",
   },
   optionsContainer: {
     marginBottom: 40,
@@ -116,18 +112,18 @@ const styles = StyleSheet.create({
     flex: 1,
   },
   continueButton: {
-    backgroundColor: '#FF5722',
+    backgroundColor: "#FF5722",
     paddingVertical: 16,
     borderRadius: 25,
-    alignItems: 'center',
+    alignItems: "center",
   },
   disabledButton: {
-    backgroundColor: '#CCCCCC',
+    backgroundColor: "#CCCCCC",
   },
   continueButtonText: {
-    color: '#FFFFFF',
+    color: "#FFFFFF",
     fontSize: 18,
-    fontWeight: '600',
+    fontWeight: "600",
   },
 });
 

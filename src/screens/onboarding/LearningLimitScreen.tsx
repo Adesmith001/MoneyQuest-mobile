@@ -7,6 +7,7 @@ import {
   TouchableOpacity,
 } from 'react-native';
 import SelectionButton from '../../components/SelectionButton';
+import CustomButton from '../../components/CustomButton';
 
 interface Props {
   navigation: any;
@@ -62,16 +63,11 @@ const LearningLimitScreen: React.FC<Props> = ({ navigation, route }) => {
         <View style={styles.spacer} />
 
         {/* Continue Button */}
-        <TouchableOpacity 
-          style={[
-            styles.continueButton, 
-            !selectedLimit && styles.disabledButton
-          ]} 
+        <CustomButton 
+          title={'Continue'} 
           onPress={handleContinue}
           disabled={!selectedLimit}
-        >
-          <Text style={styles.continueButtonText}>Continue</Text>
-        </TouchableOpacity>
+        />
       </View>
     </SafeAreaView>
   );
