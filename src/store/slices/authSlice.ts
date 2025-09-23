@@ -1,6 +1,7 @@
 import { createSlice, createAsyncThunk, PayloadAction } from '@reduxjs/toolkit';
 import { AuthState, User } from '../../types';
 import AuthService from '../../services/auth';
+import { updateStreakOnLogin, resetStreakState } from './streakSlice';
 
 const initialState: AuthState = {
   user: null,
@@ -13,11 +14,17 @@ const initialState: AuthState = {
 // Async thunks
 export const signIn = createAsyncThunk(
   'auth/signIn',
-  async ({ email, password }: { email: string; password: string }, { rejectWithValue }) => {
+  async ({ email, password }: { email: string; password: string }, { rejectWithValue, dispatch }) => {
     try {
       await AuthService.signIn(email, password);
       const currentUser = await AuthService.getCurrentUser();
       const userDocument = await AuthService.getUserDocument(currentUser.$id);
+      
+      // Update streak on login
+      if (userDocument?.$id) {
+        dispatch(updateStreakOnLogin(userDocument.$id));
+      }
+      
       return { currentUser, userDocument };
     } catch (error: any) {
       return rejectWithValue(error.message);
@@ -53,9 +60,11 @@ export const signUp = createAsyncThunk(
 
 export const signOut = createAsyncThunk(
   'auth/signOut',
-  async (_, { rejectWithValue }) => {
+  async (_, { rejectWithValue, dispatch }) => {
     try {
       await AuthService.signOut();
+      // Reset streak state on sign out
+      dispatch(resetStreakState());
     } catch (error: any) {
       return rejectWithValue(error.message);
     }
@@ -64,9 +73,15 @@ export const signOut = createAsyncThunk(
 
 export const signInWithGoogle = createAsyncThunk(
   'auth/signInWithGoogle',
-  async (_, { rejectWithValue }) => {
+  async (_, { rejectWithValue, dispatch }) => {
     try {
       const result = await AuthService.signInWithGoogle();
+      
+      // Update streak on login
+      if (result.userDocument?.$id) {
+        dispatch(updateStreakOnLogin(result.userDocument.$id));
+      }
+      
       // Make sure we return serializable data
       return {
         currentUser: result.currentUser,
@@ -80,11 +95,17 @@ export const signInWithGoogle = createAsyncThunk(
 
 export const getCurrentUser = createAsyncThunk(
   'auth/getCurrentUser',
-  async (_, { rejectWithValue }) => {
+  async (_, { rejectWithValue, dispatch }) => {
     try {
       const currentUser = await AuthService.getCurrentUser();
       if (currentUser) {
         const userDocument = await AuthService.getUserDocument(currentUser.$id);
+        
+        // Update streak on app startup if user is already logged in
+        if (userDocument?.$id) {
+          dispatch(updateStreakOnLogin(userDocument.$id));
+        }
+        
         return { currentUser, userDocument };
       }
       return null;
@@ -96,11 +117,17 @@ export const getCurrentUser = createAsyncThunk(
 
 export const checkAuthStatus = createAsyncThunk(
   'auth/checkAuthStatus',
-  async (_, { rejectWithValue }) => {
+  async (_, { rejectWithValue, dispatch }) => {
     try {
       const currentUser = await AuthService.getCurrentUser();
       if (currentUser) {
         const userDocument = await AuthService.getUserDocument(currentUser.$id);
+        
+        // Update streak on app startup if user is already authenticated
+        if (userDocument?.$id) {
+          dispatch(updateStreakOnLogin(userDocument.$id));
+        }
+        
         return { currentUser, userDocument };
       }
       return null;

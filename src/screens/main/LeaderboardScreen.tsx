@@ -1,93 +1,83 @@
-import React from 'react';
-import { View, Text, StyleSheet, SafeAreaView, FlatList } from 'react-native';
-import { COLORS, FONT_SIZES, SPACING } from '../../constants';
-import { formatXP } from '../../utils';
+import React, { useEffect } from 'react';
+import { View, Text, StyleSheet, SafeAreaView, FlatList, ActivityIndicator, Image } from 'react-native';
+import { useSelector, useDispatch } from 'react-redux';
+import { RootState } from '../../store';
+import { fetchLeaderboard } from '../../store/slices/leaderboardSlice';
+import { LeaderboardEntry } from '../../types';
+import { getAvatarById } from '../../utils/avatarUtils';
+import { Ionicons } from '@expo/vector-icons';
 
-interface LeaderboardItem {
-  id: string;
-  rank: number;
-  name: string;
-  avatar: string;
-  xp: number;
-  isCurrentUser?: boolean;
-}
+const LeaderboardScreen: React.FC = () => {
+  const dispatch = useDispatch();
+  const { entries, isLoading, error } = useSelector((state: RootState) => state.leaderboard);
+  const { user: currentUser } = useSelector((state: RootState) => state.auth);
 
-const mockData: LeaderboardItem[] = [
-  { id: '1', rank: 1, name: 'Alex Johnson', avatar: '👨‍💼', xp: 2450 },
-  { id: '2', rank: 2, name: 'Sarah Chen', avatar: '👩‍🎓', xp: 2380 },
-  { id: '3', rank: 3, name: 'Mike Williams', avatar: '👨‍🏫', xp: 2120 },
-  { id: '4', rank: 4, name: 'You', avatar: '👤', xp: 0, isCurrentUser: true },
-  { id: '5', rank: 5, name: 'Emma Davis', avatar: '👩‍💼', xp: 1890 },
-];
+  useEffect(() => {
+    dispatch(fetchLeaderboard() as any);
+  }, [dispatch]);
 
-interface Props {
-  navigation: any;
-}
+  const topThree = entries.slice(0, 3);
+  const restOfLeaderboard = entries.slice(3);
 
-const LeaderboardScreen: React.FC<Props> = ({ navigation }) => {
-  const renderRankBadge = (rank: number) => {
-    if (rank === 1) return '🥇';
-    if (rank === 2) return '🥈';
-    if (rank === 3) return '🥉';
-    return `#${rank}`;
+  const renderPodiumItem = (player: LeaderboardEntry | undefined, rank: number) => {
+    if (!player) return <View style={styles.podiumItem} />;
+
+    const isFirst = rank === 1;
+    return (
+      <View style={[styles.podiumItem, isFirst ? styles.firstPlace : styles.otherPodium]}>
+        <Text style={[styles.podiumRank, isFirst && { color: '#FFC107' }]}>{rank}</Text>
+        {isFirst && <Image source={require('../../../assets/crown.png')} style={styles.crownIcon} />}
+        <Image source={getAvatarById(player.profilePicture)} style={[styles.podiumAvatar, isFirst && styles.firstAvatar]} />
+        <Text style={styles.podiumName} numberOfLines={1}>{player.userName}</Text>
+        <Text style={styles.podiumXP}>{player.monthlyXP} XP</Text>
+      </View>
+    );
   };
 
-  const renderLeaderboardItem = ({ item }: { item: LeaderboardItem }) => (
-    <View style={[
-      styles.leaderboardItem,
-      item.isCurrentUser && styles.currentUserItem
-    ]}>
-      <View style={styles.rankContainer}>
-        <Text style={[
-          styles.rankText,
-          item.rank <= 3 && styles.topRankText
-        ]}>
-          {renderRankBadge(item.rank)}
-        </Text>
-      </View>
-
-      <View style={styles.avatarContainer}>
-        <Text style={styles.avatar}>{item.avatar}</Text>
-      </View>
-
-      <View style={styles.userInfo}>
-        <Text style={[
-          styles.userName,
-          item.isCurrentUser && styles.currentUserName
-        ]}>
-          {item.name}
-        </Text>
-        <Text style={styles.userXP}>{formatXP(item.xp)} XP</Text>
-      </View>
-
-      {item.isCurrentUser && (
-        <View style={styles.currentUserBadge}>
-          <Text style={styles.currentUserBadgeText}>You</Text>
-        </View>
-      )}
+  const renderListItem = ({ item, index }: { item: LeaderboardEntry; index: number }) => (
+    <View style={[styles.listItem, item.userId === currentUser?.$id && styles.currentUserItem]}>
+      <Text style={styles.listRank}>{index + 4}</Text>
+      <Image source={getAvatarById(item.profilePicture)} style={styles.listAvatar} />
+      <Text style={styles.listName}>{item.userName}</Text>
+      <Text style={styles.listXP}>{item.monthlyXP} XP</Text>
     </View>
   );
 
+  if (isLoading) {
+    return (
+      <SafeAreaView style={styles.container}>
+        <ActivityIndicator size="large" color="#FF6B35" style={{ flex: 1 }} />
+      </SafeAreaView>
+    );
+  }
+
+  if (!isLoading && entries.length === 0) {
+    return (
+      <SafeAreaView style={styles.container}>
+        <View style={styles.emptyContainer}>
+          <Ionicons name="trophy-outline" size={80} color="#D3D3D3" />
+          <Text style={styles.emptyTitle}>The Leaderboard is Empty!</Text>
+          <Text style={styles.emptySubtitle}>Be the first to claim your rightful place at the top.</Text>
+        </View>
+      </SafeAreaView>
+    );
+  }
+
   return (
     <SafeAreaView style={styles.container}>
-      <View style={styles.header}>
-        <Text style={styles.title}>Leaderboard</Text>
-        <Text style={styles.subtitle}>This Month's Top Learners</Text>
-        
-        <View style={styles.resetInfo}>
-          <Text style={styles.resetText}>🔄 Resets monthly</Text>
-        </View>
+      <Text style={styles.title}>Leaderboard</Text>
+      <View style={styles.podiumContainer}>
+        {renderPodiumItem(topThree.find(p => p.rank === 2), 2)}
+        {renderPodiumItem(topThree.find(p => p.rank === 1), 1)}
+        {renderPodiumItem(topThree.find(p => p.rank === 3), 3)}
       </View>
-
-      <View style={styles.content}>
-        <FlatList
-          data={mockData}
-          renderItem={renderLeaderboardItem}
-          keyExtractor={(item) => item.id}
-          showsVerticalScrollIndicator={false}
-          style={styles.list}
-        />
-      </View>
+      <FlatList
+        data={restOfLeaderboard}
+        renderItem={renderListItem}
+        keyExtractor={(item) => item.$id}
+        style={styles.list}
+        showsVerticalScrollIndicator={false}
+      />
     </SafeAreaView>
   );
 };
@@ -95,103 +85,123 @@ const LeaderboardScreen: React.FC<Props> = ({ navigation }) => {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: COLORS.background,
-  },
-  header: {
-    paddingHorizontal: SPACING.xl,
-    paddingTop: SPACING.xl,
-    paddingBottom: SPACING.lg,
-    backgroundColor: COLORS.primary,
+    backgroundColor: '#FFFFFF',
   },
   title: {
-    fontSize: FONT_SIZES.xxxl,
+    fontSize: 24,
     fontWeight: 'bold',
-    color: COLORS.background,
-    marginBottom: SPACING.sm,
+    textAlign: 'center',
+    marginVertical: 20,
   },
-  subtitle: {
-    fontSize: FONT_SIZES.md,
-    color: 'rgba(255, 255, 255, 0.9)',
-    marginBottom: SPACING.lg,
+  podiumContainer: {
+    flexDirection: 'row',
+    justifyContent: 'center',
+    alignItems: 'flex-end',
+    paddingHorizontal: 20,
+    marginBottom: 30,
+    height: 220,
   },
-  resetInfo: {
-    alignSelf: 'flex-start',
-    backgroundColor: 'rgba(255, 255, 255, 0.2)',
-    paddingHorizontal: SPACING.md,
-    paddingVertical: SPACING.sm,
-    borderRadius: 20,
+  podiumItem: {
+    alignItems: 'center',
+    width: '33%',
   },
-  resetText: {
-    fontSize: FONT_SIZES.sm,
-    color: COLORS.background,
+  firstPlace: {
+    position: 'relative',
+    bottom: 20,
   },
-  content: {
-    flex: 1,
-    paddingHorizontal: SPACING.xl,
-    paddingTop: SPACING.xl,
+  otherPodium: {
+    position: 'relative',
+    top: 10,
+  },
+  podiumRank: {
+    fontSize: 36,
+    fontWeight: 'bold',
+    color: '#FF6B35',
+  },
+  crownIcon: {
+    width: 40,
+    height: 40,
+    position: 'absolute',
+    top: 25,
+    right: 10,
+    transform: [{ rotate: '15deg' }],
+  },
+  podiumAvatar: {
+    width: 80,
+    height: 80,
+    borderRadius: 40,
+    borderWidth: 3,
+    borderColor: '#FF6B35',
+    marginVertical: 8,
+  },
+  firstAvatar: {
+    width: 110,
+    height: 110,
+    borderRadius: 55,
+  },
+  podiumName: {
+    fontSize: 16,
+    fontWeight: '600',
+  },
+  podiumXP: {
+    fontSize: 14,
+    color: '#6C757D',
   },
   list: {
     flex: 1,
+    paddingHorizontal: 20,
   },
-  leaderboardItem: {
+  listItem: {
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: COLORS.card,
-    padding: SPACING.lg,
-    borderRadius: 12,
-    marginBottom: SPACING.md,
-    borderWidth: 2,
-    borderColor: 'transparent',
+    paddingVertical: 15,
+    borderBottomWidth: 1,
+    borderBottomColor: '#F0F0F0',
   },
   currentUserItem: {
-    borderColor: COLORS.primary,
-    backgroundColor: 'rgba(255, 87, 34, 0.05)',
+    backgroundColor: 'rgba(255, 107, 53, 0.05)',
+    borderRadius: 10,
   },
-  rankContainer: {
-    width: 40,
-    alignItems: 'center',
-  },
-  rankText: {
-    fontSize: FONT_SIZES.lg,
+  listRank: {
+    fontSize: 16,
     fontWeight: 'bold',
-    color: COLORS.textSecondary,
+    color: '#6C757D',
+    width: 40,
+    textAlign: 'center',
   },
-  topRankText: {
-    fontSize: FONT_SIZES.xl,
+  listAvatar: {
+    width: 50,
+    height: 50,
+    borderRadius: 25,
+    marginHorizontal: 15,
   },
-  avatarContainer: {
-    marginLeft: SPACING.md,
-    marginRight: SPACING.lg,
-  },
-  avatar: {
-    fontSize: 32,
-  },
-  userInfo: {
+  listName: {
     flex: 1,
+    fontSize: 16,
+    fontWeight: '500',
   },
-  userName: {
-    fontSize: FONT_SIZES.lg,
-    fontWeight: '600',
-    color: COLORS.text,
-    marginBottom: SPACING.xs,
+  listXP: {
+    fontSize: 16,
+    fontWeight: 'bold',
+    color: '#FF6B35',
   },
-  currentUserName: {
-    color: COLORS.primary,
+  emptyContainer: {
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
+    paddingHorizontal: 40,
   },
-  userXP: {
-    fontSize: FONT_SIZES.md,
-    color: COLORS.textSecondary,
+  emptyTitle: {
+    fontSize: 22,
+    fontWeight: 'bold',
+    marginTop: 20,
+    textAlign: 'center',
   },
-  currentUserBadge: {
-    backgroundColor: COLORS.primary,
-    paddingHorizontal: SPACING.sm,
-    paddingVertical: SPACING.xs,
-    borderRadius: 12,
-  },
-  currentUserBadgeText: {
-    fontSize: FONT_SIZES.sm,
-    fontWeight: '600',
-    color: COLORS.background,
+  emptySubtitle: {
+    fontSize: 16,
+    color: '#6C757D',
+    marginTop: 10,
+    textAlign: 'center',
   },
 });
 

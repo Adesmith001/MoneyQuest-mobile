@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import {
   View,
   Text,
@@ -9,13 +9,14 @@ import {
   Dimensions,
   Image,
 } from "react-native";
-import { useSelector } from "react-redux";
+import { useSelector, useDispatch } from "react-redux";
 import { Ionicons } from "@expo/vector-icons";
 import { RootState } from "../../store";
 import { formatXP } from "../../utils";
 import { getAvatarById } from "../../utils/avatarUtils";
-import InviteFriendsModal from "../../components/modals/InviteFriendsModal"; // Import the new modal
+import InviteFriendsModal from "../../components/modals/InviteFriendsModal";
 import CustomButton from "../../components/CustomButton";
+import { loadStreakData } from "../../store/slices/streakSlice";
 
 const { width: screenWidth } = Dimensions.get("window");
 
@@ -24,8 +25,19 @@ interface Props {
 }
 
 const ProfileScreen: React.FC<Props> = ({ navigation }) => {
+  const dispatch = useDispatch();
   const { user } = useSelector((state: RootState) => state.auth);
+  const { currentStreak, totalStreak, daysThisMonth } = useSelector(
+    (state: RootState) => state.streak
+  );
   const [isInviteModalVisible, setInviteModalVisible] = useState(false);
+
+  useEffect(() => {
+    // Load streak data when component mounts
+    if (user?.$id) {
+      dispatch(loadStreakData(user.$id) as any);
+    }
+  }, [user?.$id, dispatch]);
 
   if (!user) {
     return (
@@ -41,7 +53,9 @@ const ProfileScreen: React.FC<Props> = ({ navigation }) => {
     avatar: user?.avatar,
     level: user?.level,
     xp: user?.xp,
-    streak: user?.streak,
+    currentStreak: currentStreak,
+    totalStreak: totalStreak,
+    daysThisMonth: daysThisMonth,
     lifePoints: 50,
   };
 
@@ -83,31 +97,39 @@ const ProfileScreen: React.FC<Props> = ({ navigation }) => {
                   <Text style={styles.statIcon}>🔥</Text>
                 </View>
                 <View style={styles.statBottomRow}>
-                  <Text style={styles.statValue}>{userData.streak}</Text>
-                  <Text style={styles.statLabel}>Day streak</Text>
+                  <Text style={styles.statValue}>{userData.currentStreak}</Text>
+                  <Text style={styles.statLabel}>Current streak</Text>
                 </View>
               </View>
             </View>
+            {/* <View style={styles.statsRow}> */}
+              <View style={styles.statCard}>
+                <View style={styles.statRow}>
+                  <View style={styles.statTopRow}>
+                    <Text style={styles.statIcon}>💎</Text>
+                  </View>
+                  <View style={styles.statBottomRow}>
+                    <Text style={styles.statValue}>
+                      {formatXP(userData.xp)}
+                    </Text>
+                    <Text style={styles.statLabel}>Total XP</Text>
+                  </View>
+                </View>
+              {/* </View> */}
+            </View>
+          </View>
+           
+
+          <View style={styles.statsRow}>
             <View style={styles.statCard}>
               <View style={styles.statRow}>
                 <View style={styles.statTopRow}>
-                  <Text style={styles.statIcon}>💎</Text>
+                  <Text style={styles.statIcon}>❤️</Text>
                 </View>
                 <View style={styles.statBottomRow}>
-                  <Text style={styles.statValue}>{formatXP(userData.xp)}</Text>
-                  <Text style={styles.statLabel}>Total XP</Text>
+                  <Text style={styles.statValue}>{userData.lifePoints}</Text>
+                  <Text style={styles.statLabel}>Life Points</Text>
                 </View>
-              </View>
-            </View>
-          </View>
-          <View style={styles.statCard}>
-            <View style={styles.statRow}>
-              <View style={styles.statTopRow}>
-                <Text style={styles.statIcon}>❤️</Text>
-              </View>
-              <View style={styles.statBottomRow}>
-                <Text style={styles.statValue}>{userData.lifePoints}</Text>
-                <Text style={styles.statLabel}>Life Points</Text>
               </View>
             </View>
           </View>

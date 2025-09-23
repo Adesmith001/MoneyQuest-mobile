@@ -5,17 +5,19 @@ import { combineReducers } from '@reduxjs/toolkit';
 import authReducer from './slices/authSlice';
 import gameReducer from './slices/gameSlice';
 import leaderboardReducer from './slices/leaderboardSlice';
+import streakReducer from './slices/streakSlice';
 
 const persistConfig = {
   key: 'root',
   storage: AsyncStorage,
-  whitelist: ['auth', 'game'], // Only persist auth and game state
+  whitelist: ['auth', 'game', 'streak'], // Persist auth, game, and streak state
 };
 
 const rootReducer = combineReducers({
   auth: authReducer,
   game: gameReducer,
   leaderboard: leaderboardReducer,
+  streak: streakReducer,
 });
 
 const persistedReducer = persistReducer(persistConfig, rootReducer);

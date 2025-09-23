@@ -1,6 +1,6 @@
 export interface User {
   $id: string;
-  userId?: string; // The actual Appwrite user ID (stored as field)
+  userId?: string; 
   email: string;
   name: string;
   username?: string;
@@ -20,6 +20,7 @@ export interface User {
   totalQuestionsAnswered: number;
   correctAnswers: number;
   monthlyXP: number;
+  activeDays?:string;
   $createdAt: string;  
   $updatedAt: string;
 }
