@@ -129,7 +129,7 @@ const styles = StyleSheet.create({
     fontSize: 180,
     fontWeight: 'bold',
     textAlign: 'center',
-    color: 'black', // The color here doesn't matter, it's just a mask
+    color: 'black', 
   },
   streakLabel: {
     fontSize: 22,
