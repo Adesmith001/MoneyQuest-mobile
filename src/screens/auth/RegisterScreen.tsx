@@ -143,6 +143,7 @@ const RegisterScreen: React.FC<Props> = ({ navigation }) => {
                 onChangeText={setPassword}
                 secureTextEntry
                 autoCapitalize="none"
+                showPasswordToggle={true}
               />
 
               <TouchableOpacity
@@ -211,7 +212,6 @@ const styles = StyleSheet.create({
   content: {
     paddingHorizontal: 32,
     paddingTop: 60,
-    paddingBottom: 50,
   },
   header: {
     alignItems: "center",
@@ -239,7 +239,7 @@ const styles = StyleSheet.create({
     paddingVertical: 16,
     borderRadius: 25,
     alignItems: "center",
-    marginBottom: 40,
+    marginBottom: 20,
   },
   signUpButtonText: {
     color: "#FFFFFF",
@@ -251,7 +251,7 @@ const styles = StyleSheet.create({
   },
   divider: {
     alignItems: "center",
-    marginBottom: 30,
+    marginBottom: 5,
   },
   dividerText: {
     fontSize: 14,
@@ -262,7 +262,6 @@ const styles = StyleSheet.create({
     flexDirection: "row",
     justifyContent: "center",
     gap: 20,
-    marginBottom: 40,
   },
   socialButton: {
     width: 50,

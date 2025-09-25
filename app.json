@@ -7,7 +7,8 @@
     "icon": "./assets/logo.png",
     "userInterfaceStyle": "light",
     "newArchEnabled": true,
-    "scheme": "io.expo.moneyquest",
+    "scheme": "moneyquest",
+    "platforms": ["ios", "android"],
     "splash": {
       "image": "./assets/logo.png",
       "resizeMode": "contain",

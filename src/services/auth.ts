@@ -563,32 +563,51 @@ class AuthService {
     }
   }
 
-  // Send password recovery email
-  async sendPasswordRecovery(email: string): Promise<void> {
-    try {
-      await account.createRecovery(
-        email,
-        "http://localhost:3000/reset-password"
-      );
-    } catch (error) {
-      console.error("Send password recovery error:", error);
-      throw error;
+ // Send password recovery email
+async sendPasswordRecovery(email: string): Promise<void> {
+  try {
+    const recoveryUrl = `https://reliable-twilight-323604.netlify.app/`;
+    await account.createRecovery(email, recoveryUrl);
+  } catch (error: any) {
+    console.error("Send password recovery error:", error);
+    if (error.code === 404) {
+      throw new Error("No account found with this email address.");
+    } else if (error.code === 429) {
+      throw new Error("Too many requests. Please wait before trying again.");
+    } else if (error.code === 400 && error.message?.includes('Invalid `url` param')) {
+      throw new Error("Password reset is not properly configured. Please contact support.");
     }
+    throw new Error(error.message || "Failed to send recovery email. Please try again.");
   }
+}
 
-  // Complete password recovery
-  async completePasswordRecovery(
-    userId: string,
-    secret: string,
-    password: string
-  ): Promise<void> {
-    try {
-      await account.updateRecovery(userId, secret, password);
-    } catch (error) {
-      console.error("Complete password recovery error:", error);
-      throw error;
+// Complete password recovery
+async completePasswordRecovery(
+  userId: string,
+  secret: string,
+  password: string,
+  confirmPassword: string
+): Promise<void> {
+  try {
+    if (password !== confirmPassword) {
+      throw new Error("Passwords do not match.");
     }
+    
+    if (password.length < 8) {
+      throw new Error("Password must be at least 8 characters long.");
+    }
+    
+    await account.updateRecovery(userId, secret, password);
+  } catch (error: any) {
+    console.error("Complete password recovery error:", error);
+    if (error.code === 401) {
+      throw new Error("Invalid or expired recovery code. Please request a new password reset.");
+    } else if (error.code === 400) {
+      throw new Error("Invalid password format.");
+    }
+    throw new Error(error.message || "Failed to reset password. Please try again.");
   }
+}
 
   // Create verification for email
   async createEmailVerification(): Promise<void> {

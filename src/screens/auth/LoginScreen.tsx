@@ -14,6 +14,7 @@ import {
 import { useDispatch, useSelector } from 'react-redux';
 import { signIn, signInWithGoogle } from '../../store/slices/authSlice';
 import { RootState, AppDispatch } from '../../store';
+import { Ionicons } from '@expo/vector-icons';
 
 interface Props {
   navigation: any;
@@ -22,6 +23,7 @@ interface Props {
 const LoginScreen: React.FC<Props> = ({ navigation }) => {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
+  const [showPassword, setShowPassword] = useState(false);
   const dispatch = useDispatch<AppDispatch>();
   const { isLoading, error } = useSelector((state: RootState) => state.auth);
 
@@ -104,14 +106,24 @@ const LoginScreen: React.FC<Props> = ({ navigation }) => {
 
             <View style={styles.inputContainer}>
               <TextInput
-                style={styles.input}
+                style={[styles.input, styles.passwordInput]}
                 value={password}
                 onChangeText={setPassword}
                 placeholder="Password"
                 placeholderTextColor="#999"
-                secureTextEntry
+                secureTextEntry={!showPassword}
                 autoCapitalize="none"
               />
+              <TouchableOpacity
+                style={styles.eyeIcon}
+                onPress={() => setShowPassword(!showPassword)}
+              >
+                <Ionicons
+                  name={showPassword ? 'eye-off-outline' : 'eye-outline'}
+                  size={24}
+                  color="#999"
+                />
+              </TouchableOpacity>
             </View>
 
             <TouchableOpacity
@@ -210,6 +222,7 @@ const styles = StyleSheet.create({
   },
   inputContainer: {
     marginBottom: 20,
+    position: 'relative',
   },
   input: {
     backgroundColor: "#F5F5F5",
@@ -218,6 +231,15 @@ const styles = StyleSheet.create({
     borderRadius: 12,
     fontSize: 16,
     color: "#212121",
+  },
+  passwordInput: {
+    paddingRight: 55,
+  },
+  eyeIcon: {
+    position: 'absolute',
+    right: 16,
+    top: 16,
+    padding: 4,
   },
   forgotPassword: {
     alignSelf: "flex-start",

@@ -3,6 +3,7 @@ import { NavigationContainer } from '@react-navigation/native';
 import { createStackNavigator } from '@react-navigation/stack';
 import { useSelector } from 'react-redux';
 import { RootState } from '../store';
+import * as Linking from 'expo-linking';
 
 // Onboarding
 import OnboardingFlow from '../screens/onboarding/OnboardingFlow';
@@ -74,7 +75,10 @@ export type RootStackParamList = {
   Welcome: undefined;
   Login: undefined;
   Register: undefined;
-  ForgotPassword: undefined;
+  ForgotPassword: {
+    userId?: string;
+    secret?: string;
+  };
   ProfileSetup: undefined;
   
   // Main App
@@ -101,6 +105,21 @@ export type RootStackParamList = {
 
 const Stack = createStackNavigator<RootStackParamList>();
 
+const linking = {
+  prefixes: ['moneyquest://'],
+  config: {
+    screens: {
+      ForgotPassword: {
+        path: 'reset-password/:userId/:secret',
+        parse: {
+          userId: (userId: string) => userId,
+          secret: (secret: string) => secret,
+        },
+      },
+    },
+  },
+};
+
 const AppNavigator: React.FC = () => {
   const { isAuthenticated, isLoading, showWelcomeScreen, user } = useSelector((state: RootState) => state.auth);
   const [showOnboarding, setShowOnboarding] = useState<boolean>(true);
@@ -117,7 +136,7 @@ const AppNavigator: React.FC = () => {
   // Show welcome screen after successful signup
   if (showWelcomeScreen && user) {
     return (
-      <NavigationContainer>
+      <NavigationContainer linking={linking}>
         <Stack.Navigator screenOptions={{ headerShown: false }}>
           <Stack.Screen 
             name="WelcomeSuccess" 
@@ -135,7 +154,9 @@ const AppNavigator: React.FC = () => {
   }
 
   return (
-    <NavigationContainer>
+    <NavigationContainer
+      linking={linking}
+    >
       <Stack.Navigator
         screenOptions={{
           headerShown: false,

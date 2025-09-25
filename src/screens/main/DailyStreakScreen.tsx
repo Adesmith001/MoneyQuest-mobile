@@ -120,7 +120,7 @@ const styles = StyleSheet.create({
     paddingHorizontal: 20,
   },
   maskedView: {
-    height: 180,
+    height: 200,
     width: '100%',
     justifyContent: 'center',
     alignItems: 'center',
