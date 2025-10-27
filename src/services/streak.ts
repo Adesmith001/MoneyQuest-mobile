@@ -1,22 +1,54 @@
 import AsyncStorage from '@react-native-async-storage/async-storage';
+import AppwriteStreakService, { StreakData as AppwriteStreakData } from './streakAppwrite';
 
 export interface StreakData {
   currentStreak: number;
   totalStreak: number;
   lastLoginDate: string;
   streakStartDate: string;
-  loginHistory: string[]; 
+  loginHistory: string[];
+}
+
+// Legacy interface for backward compatibility
+interface LegacyStreakData {
+  currentStreak: number;
+  totalStreak: number;
+  lastLoginDate: string;
+  streakStartDate: string;
+  loginHistory: string[];
 }
 
 class StreakService {
   private static readonly STREAK_STORAGE_KEY = 'user_streak_data';
+  private static readonly MIGRATION_COMPLETE_KEY = 'streak_migration_complete';
 
-  // Get streak data from local storage
-  async getStreakData(userId: string): Promise<StreakData> {
+  // Check if migration to Appwrite has been completed
+  private async isMigrationComplete(userId: string): Promise<boolean> {
+    try {
+      const migrationKey = `${StreakService.MIGRATION_COMPLETE_KEY}_${userId}`;
+      const migrationStatus = await AsyncStorage.getItem(migrationKey);
+      return migrationStatus === 'true';
+    } catch {
+      return false;
+    }
+  }
+
+  // Mark migration as complete
+  private async markMigrationComplete(userId: string): Promise<void> {
+    try {
+      const migrationKey = `${StreakService.MIGRATION_COMPLETE_KEY}_${userId}`;
+      await AsyncStorage.setItem(migrationKey, 'true');
+    } catch (error) {
+      console.error('Error marking migration complete:', error);
+    }
+  }
+
+  // Get legacy streak data from local storage
+  private async getLegacyStreakData(userId: string): Promise<LegacyStreakData | null> {
     try {
       const key = `${StreakService.STREAK_STORAGE_KEY}_${userId}`;
       const storedData = await AsyncStorage.getItem(key);
-      
+
       if (storedData) {
         const data = JSON.parse(storedData);
         // Ensure loginHistory exists for backward compatibility
@@ -25,8 +57,51 @@ class StreakService {
         }
         return data;
       }
-      
-      // Return default streak data if nothing is stored
+      return null;
+    } catch (error) {
+      console.error('Error getting legacy streak data:', error);
+      return null;
+    }
+  }
+
+  // Convert Appwrite streak data to legacy format
+  private convertAppwriteToLegacy(appwriteData: AppwriteStreakData): StreakData {
+    return {
+      currentStreak: appwriteData.currentStreak,
+      totalStreak: appwriteData.totalLoginDays, // Map totalLoginDays to totalStreak for compatibility
+      lastLoginDate: appwriteData.lastLoginDate,
+      streakStartDate: appwriteData.streakStartDate,
+      loginHistory: appwriteData.loginHistory,
+    };
+  }
+
+  // Get streak data - now uses Appwrite with migration support
+  async getStreakData(userId: string): Promise<StreakData> {
+    try {
+      const migrationComplete = await this.isMigrationComplete(userId);
+
+      if (!migrationComplete) {
+        // Attempt migration from local storage to Appwrite
+        const legacyData = await this.getLegacyStreakData(userId);
+        if (legacyData) {
+          await AppwriteStreakService.migrateLocalStreakData(userId, legacyData);
+        }
+        await this.markMigrationComplete(userId);
+      }
+
+      // Get data from Appwrite
+      const appwriteData = await AppwriteStreakService.getStreakData(userId);
+      return this.convertAppwriteToLegacy(appwriteData);
+    } catch (error) {
+      console.error('Error getting streak data, falling back to legacy:', error);
+
+      // Fallback to legacy local storage if Appwrite fails
+      const legacyData = await this.getLegacyStreakData(userId);
+      if (legacyData) {
+        return legacyData;
+      }
+
+      // Return default if nothing exists
       const now = new Date().toISOString();
       return {
         currentStreak: 0,
@@ -35,115 +110,65 @@ class StreakService {
         streakStartDate: now,
         loginHistory: [],
       };
-    } catch (error) {
-      console.error('Error getting streak data:', error);
-      return {
-        currentStreak: 0,
-        totalStreak: 0,
-        lastLoginDate: '',
-        streakStartDate: new Date().toISOString(),
-        loginHistory: [],
-      };
     }
   }
 
-  // Save streak data to local storage
+  // Save streak data - now deprecated, data is automatically saved to Appwrite
   async saveStreakData(userId: string, streakData: StreakData): Promise<void> {
-    try {
-      const key = `${StreakService.STREAK_STORAGE_KEY}_${userId}`;
-      await AsyncStorage.setItem(key, JSON.stringify(streakData));
-    } catch (error) {
-      console.error('Error saving streak data:', error);
-    }
+    // This method is kept for backward compatibility but doesn't do anything
+    // as Appwrite handles data persistence automatically
+    console.warn('saveStreakData is deprecated - data is automatically saved to Appwrite');
   }
 
-  // Update streak when user logs in
+  // Update streak when user logs in - now uses Appwrite
   async updateStreakOnLogin(userId: string): Promise<StreakData> {
-    const streakData = await this.getStreakData(userId);
-    const now = new Date();
-    const today = this.getDateString(now);
-    const lastLogin = streakData.lastLoginDate ? new Date(streakData.lastLoginDate) : null;
-    const lastLoginDate = lastLogin ? this.getDateString(lastLogin) : '';
-
-    // Check if user already logged in today
-    if (lastLoginDate === today) {
-      return streakData;
+    try {
+      const appwriteData = await AppwriteStreakService.updateStreakOnLogin(userId);
+      return this.convertAppwriteToLegacy(appwriteData);
+    } catch (error) {
+      console.error('Error updating streak on login:', error);
+      throw error;
     }
-
-    // Update login history
-    const updatedHistory = new Set(streakData.loginHistory || []);
-    updatedHistory.add(today);
-
-    // Clean up history to keep only the last 14 days to prevent storage bloat
-    const fourteenDaysAgo = new Date();
-    fourteenDaysAgo.setDate(now.getDate() - 13); // Keep today + 13 previous days
-    const cleanedHistory = Array.from(updatedHistory).filter(
-      dateString => new Date(dateString) >= fourteenDaysAgo
-    );
-
-    // Check if login is consecutive (yesterday)
-    const yesterday = new Date(now);
-    yesterday.setDate(yesterday.getDate() - 1);
-    const yesterdayString = this.getDateString(yesterday);
-
-    let newStreakData: StreakData;
-
-    if (lastLoginDate === yesterdayString) {
-      // Consecutive day - increment streak
-      newStreakData = {
-        ...streakData,
-        currentStreak: streakData.currentStreak + 1,
-        totalStreak: streakData.totalStreak + 1,
-        lastLoginDate: now.toISOString(),
-        loginHistory: cleanedHistory,
-      };
-    } else if (lastLoginDate === '') {
-      // First time login or no previous data
-      newStreakData = {
-        ...streakData,
-        currentStreak: 1,
-        totalStreak: streakData.totalStreak + 1,
-        lastLoginDate: now.toISOString(),
-        streakStartDate: now.toISOString(),
-        loginHistory: cleanedHistory,
-      };
-    } else {
-      // Streak broken - reset current streak but keep total
-      newStreakData = {
-        ...streakData,
-        currentStreak: 1,
-        totalStreak: streakData.totalStreak + 1,
-        lastLoginDate: now.toISOString(),
-        streakStartDate: now.toISOString(),
-        loginHistory: cleanedHistory,
-      };
-    }
-
-    await this.saveStreakData(userId, newStreakData);
-    return newStreakData;
   }
 
   // Get the current streak for a user
   async getCurrentStreak(userId: string): Promise<number> {
-    const streakData = await this.getStreakData(userId);
-    return streakData.currentStreak;
+    try {
+      return await AppwriteStreakService.getCurrentStreak(userId);
+    } catch (error) {
+      console.error('Error getting current streak:', error);
+      return 0;
+    }
   }
 
   // Get the total streak for a user
   async getTotalStreak(userId: string): Promise<number> {
-    const streakData = await this.getStreakData(userId);
-    return streakData.totalStreak;
+    try {
+      return await AppwriteStreakService.getTotalLoginDays(userId);
+    } catch (error) {
+      console.error('Error getting total streak:', error);
+      return 0;
+    }
   }
 
   // Check if user has logged in today
   async hasLoggedInToday(userId: string): Promise<boolean> {
-    const streakData = await this.getStreakData(userId);
-    if (!streakData.lastLoginDate) return false;
-    
-    const today = this.getDateString(new Date());
-    const lastLogin = this.getDateString(new Date(streakData.lastLoginDate));
-    
-    return today === lastLogin;
+    try {
+      return await AppwriteStreakService.hasLoggedInToday(userId);
+    } catch (error) {
+      console.error('Error checking today login:', error);
+      return false;
+    }
+  }
+
+  // Get weekly streak (Sunday to Saturday)
+  async getWeeklyStreak(userId: string): Promise<number> {
+    try {
+      return await AppwriteStreakService.getWeeklyStreak(userId);
+    } catch (error) {
+      console.error('Error getting weekly streak:', error);
+      return 0;
+    }
   }
 
   // Helper function to get date string in YYYY-MM-DD format
@@ -159,8 +184,16 @@ class StreakService {
   // Clear streak data (useful for testing or account deletion)
   async clearStreakData(userId: string): Promise<void> {
     try {
+      // Clear both Appwrite and local storage
+      await AppwriteStreakService.clearStreakData(userId);
+
+      // Clear legacy local storage
       const key = `${StreakService.STREAK_STORAGE_KEY}_${userId}`;
       await AsyncStorage.removeItem(key);
+
+      // Clear migration flag so data can be re-migrated if needed
+      const migrationKey = `${StreakService.MIGRATION_COMPLETE_KEY}_${userId}`;
+      await AsyncStorage.removeItem(migrationKey);
     } catch (error) {
       console.error('Error clearing streak data:', error);
     }
@@ -171,14 +204,27 @@ class StreakService {
     currentStreak: number;
     totalStreak: number;
     streakStartDate: string;
+    weeklyStreak?: number;
+    longestStreak?: number;
   }> {
-    const streakData = await this.getStreakData(userId);
-
-    return {
-      currentStreak: streakData.currentStreak,
-      totalStreak: streakData.totalStreak,
-      streakStartDate: streakData.streakStartDate,
-    };
+    try {
+      const stats = await AppwriteStreakService.getStreakStats(userId);
+      return {
+        currentStreak: stats.currentStreak,
+        totalStreak: stats.totalLoginDays, // Map to legacy field name
+        streakStartDate: stats.streakStartDate,
+        weeklyStreak: stats.weeklyStreak,
+        longestStreak: stats.longestStreak,
+      };
+    } catch (error) {
+      console.error('Error getting streak stats:', error);
+      const streakData = await this.getStreakData(userId);
+      return {
+        currentStreak: streakData.currentStreak,
+        totalStreak: streakData.totalStreak,
+        streakStartDate: streakData.streakStartDate,
+      };
+    }
   }
 }
 

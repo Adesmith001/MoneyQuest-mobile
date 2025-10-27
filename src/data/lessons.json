@@ -1,0 +1,1352 @@
+[
+  {
+    "id": 1,
+    "title": "Needs & Wants",
+    "levels": [
+      {
+        "id": 1,
+        "article": {
+          "title": "Understanding the Basics",
+          "content": "In personal finance, it's crucial to distinguish between 'needs' and 'wants'. Needs are things essential for survival, like food, water, shelter, and basic clothing. Wants are things that you would like to have but are not necessary for survival, like the latest smartphone, a fancy dinner, or designer clothes. Learning to prioritize your needs over your wants is the first step toward building a solid budget and achieving your financial goals."
+        },
+        "questions": [
+          {
+            "id": 10101,
+            "type": "selection",
+            "text": "Which of the following is a 'need'?",
+            "options": [
+              "A new video game",
+              "A concert ticket",
+              "Groceries",
+              "A vacation"
+            ],
+            "correctAnswer": "Groceries",
+            "explanation": "Groceries are essential for survival (food), making them a need."
+          },
+          {
+            "id": 10102,
+            "type": "selection",
+            "text": "A 'want' is something that is...",
+            "options": [
+              "Essential for survival",
+              "Nice to have, but not essential",
+              "A waste of money",
+              "Only for wealthy people"
+            ],
+            "correctAnswer": "Nice to have, but not essential",
+            "explanation": "Wants are desires that are not critical for living."
+          },
+          {
+            "id": 10103,
+            "type": "selection",
+            "text": "Why is it important to distinguish between needs and wants?",
+            "options": [
+              "To impress your friends",
+              "To stop spending money completely",
+              "To prioritize spending and create a budget",
+              "It is not important"
+            ],
+            "correctAnswer": "To prioritize spending and create a budget",
+            "explanation": "Understanding the difference helps you allocate your money effectively, ensuring essentials are covered first."
+          },
+          {
+            "id": 10104,
+            "type": "audio",
+            "text": "Listen to the spending scenario. Is this person prioritizing correctly?",
+            "audioUrl": "https://example.com/audio/prioritizing-example.mp3",
+            "options": [
+              "Yes, correct prioritization",
+              "No, incorrect prioritization",
+              "Partially correct",
+              "Cannot determine"
+            ],
+            "correctAnswer": "Yes, correct prioritization",
+            "explanation": "The person paid their rent and utilities before considering entertainment expenses."
+          },
+          {
+            "id": 10105,
+            "type": "matching",
+            "text": "Match the expense with its priority level:",
+            "pairs": [
+              {
+                "left": "Emergency medical care",
+                "right": "First Priority"
+              },
+              {
+                "left": "Basic groceries",
+                "right": "First Priority"
+              },
+              {
+                "left": "Streaming subscriptions",
+                "right": "Second Priority"
+              },
+              {
+                "left": "Luxury vacation",
+                "right": "Second Priority"
+              }
+            ],
+            "correctAnswer": "matched",
+            "explanation": "Essential needs like medical care and food come first, while entertainment and luxury items come after needs are met."
+          }
+        ]
+      },
+      {
+        "id": 2,
+        "article": {
+          "title": "Prioritizing Spending",
+          "content": "Once you know the difference between needs and wants, the next step is prioritizing. This means you allocate your money to your needs first. After all needs are met, you can then decide how to spend the remaining money on your wants. This simple act of prioritization can prevent you from overspending and getting into debt."
+        },
+        "questions": [
+          {
+            "id": 10201,
+            "type": "selection",
+            "text": "What should you allocate your money to first?",
+            "options": ["Savings", "Wants", "Needs", "Entertainment"],
+            "correctAnswer": "Needs",
+            "explanation": "Needs are essential for survival and should always be the top priority in your budget."
+          },
+          {
+            "id": 10202,
+            "type": "selection",
+            "text": "Prioritizing spending helps to prevent what?",
+            "options": [
+              "Having fun",
+              "Overspending and debt",
+              "Building wealth",
+              "Buying anything you want"
+            ],
+            "correctAnswer": "Overspending and debt",
+            "explanation": "By focusing on needs first, you ensure you don't spend money you don't have on non-essential items."
+          },
+          {
+            "id": 10203,
+            "type": "fill-in-the-blank",
+            "text": "You can spend on your wants ______ all your needs are met.",
+            "options": ["before", "instead of", "after", "never"],
+            "correctAnswer": "after",
+            "explanation": "Wants should be considered only after you have budgeted for all your essential needs."
+          },
+          {
+            "id": 10204,
+            "type": "selection",
+            "text": "Which of these is the best example of prioritizing?",
+            "options": [
+              "Buying a movie ticket instead of paying rent",
+              "Paying your electricity bill before buying a new shirt",
+              "Saving for a vacation instead of buying food",
+              "Ignoring all your bills to save money"
+            ],
+            "correctAnswer": "Paying your electricity bill before buying a new shirt",
+            "explanation": "The electricity bill is a need (shelter/utilities), while a new shirt is a want. The need comes first."
+          },
+           {
+            "id": 10205,
+            "type": "audio",
+            "text": "Listen to the audio and identify if the expense described is a need or a want:",
+            "audioUrl": "https://example.com/audio/expense-example.mp3",
+            "options": [
+              "Need",
+              "Want",
+              "Both",
+              "Neither"
+            ],
+            "correctAnswer": "Want",
+            "explanation": "The audio described a luxury item, which is a want, not a need."
+          },
+          {
+            "id": 10206,
+            "type": "matching",
+            "text": "Match each expense with its correct category:",
+            "pairs": [
+              {
+                "left": "Monthly rent",
+                "right": "Need"
+              },
+              {
+                "left": "Designer handbag",
+                "right": "Want"
+              },
+              {
+                "left": "Electricity bill",
+                "right": "Need"
+              },
+              {
+                "left": "Movie theater ticket",
+                "right": "Want"
+              }
+            ],
+            "correctAnswer": "matched",
+            "explanation": "Needs are essential for survival (rent, utilities), while wants are nice to have but not necessary (designer items, entertainment)."
+          }
+        ]
+      },
+      {
+        "id": 3,
+        "article": {
+          "title": "The Impact of Small Purchases",
+          "content": "Small, frequent purchases on wants can add up surprisingly quickly. This is often called the 'latte factor'. A N3,000 coffee every workday might not seem like much, but it can total over N700,000 in a year! Tracking these small expenses is key to understanding where your money is going and finding opportunities to save."
+        },
+        "questions": [
+          {
+            "id": 10301,
+            "type": "selection",
+            "text": "The 'latte factor' refers to:",
+            "options": [
+              "The rising cost of coffee",
+              "How small, frequent purchases can add up",
+              "The need to drink coffee every day",
+              "A type of budget"
+            ],
+            "correctAnswer": "How small, frequent purchases can add up",
+            "explanation": "It illustrates how seemingly insignificant daily expenses can amount to a large sum over time."
+          },
+          {
+            "id": 10302,
+            "type": "fill-in-the-blank",
+            "text": "Tracking small expenses helps you find opportunities to ______.",
+            "options": ["spend more", "ignore your budget", "save", "invest"],
+            "correctAnswer": "save",
+            "explanation": "When you see how much small wants are costing you, you can decide to cut back and save that money instead."
+          },
+          {
+            "id": 10303,
+            "type": "selection",
+            "text": "If you spend N1,000 on snacks every day, how much do you spend in a 30-day month?",
+            "options": ["N10,000", "N20,000", "N30,000", "N40,000"],
+            "correctAnswer": "N30,000",
+            "explanation": "N1,000 multiplied by 30 days equals N30,000, showing how small costs accumulate."
+          }
+        ]
+      },
+      {
+        "id": 4,
+        "article": {
+          "title": "Delayed Gratification",
+          "content": "Delayed gratification is the ability to resist the temptation of an immediate reward and wait for a later, often larger or more enduring, reward. For example, instead of buying an expensive phone on impulse (a want), you could save that money each month to buy a car later (a bigger goal). This skill is crucial for achieving long-term financial success."
+        },
+        "questions": [
+          {
+            "id": 10401,
+            "type": "selection",
+            "text": "What is delayed gratification?",
+            "options": [
+              "Buying everything you want immediately",
+              "Never buying anything you want",
+              "Resisting an immediate reward for a better one later",
+              "Feeling bad about your purchases"
+            ],
+            "correctAnswer": "Resisting an immediate reward for a better one later",
+            "explanation": "It's the core concept of waiting for a more significant reward by forgoing a smaller, immediate one."
+          },
+          {
+            "id": 10402,
+            "type": "selection",
+            "text": "Which is an example of delayed gratification?",
+            "options": [
+              "Spending your whole paycheck on payday",
+              "Saving part of your allowance for a new bike",
+              "Using a credit card to buy clothes you can't afford",
+              "Eating your whole dessert before dinner"
+            ],
+            "correctAnswer": "Saving part of your allowance for a new bike",
+            "explanation": "This involves forgoing small, immediate wants to save for a larger, long-term goal."
+          },
+          {
+            "id": 10403,
+            "type": "fill-in-the-blank",
+            "text": "Delayed gratification is a key skill for reaching ______ financial goals.",
+            "options": [
+              "short-term",
+              "impossible",
+              "other people's",
+              "long-term"
+            ],
+            "correctAnswer": "long-term",
+            "explanation": "Major goals like buying a house or retiring require consistent saving over time, which is a form of delayed gratification."
+          },
+          {
+            "id": 10404,
+            "type": "selection",
+            "text": "Practicing delayed gratification can lead to:",
+            "options": [
+              "More debt",
+              "Less financial stress",
+              "Immediate happiness",
+              "Fewer savings"
+            ],
+            "correctAnswer": "Less financial stress",
+            "explanation": "By making thoughtful choices and saving for the future, you build a more secure financial foundation."
+          }
+        ]
+      },
+      {
+        "id": 5,
+        "article": {
+          "title": "Needs vs. Wants: The Grey Area",
+          "content": "Sometimes the line between a need and a want can be blurry. For example, you need food, but do you need to eat at a fancy restaurant? You need clothes, but do you need designer brands? A reliable smartphone might be a need for work, but the latest model is likely a want. Understanding your personal values helps you navigate this grey area and make choices that align with your goals."
+        },
+        "questions": [
+          {
+            "id": 10501,
+            "type": "selection",
+            "text": "Which of the following is an example of a 'grey area' between a need and a want?",
+            "options": [
+              "Drinking water",
+              "Having a roof over your head",
+              "Buying a luxury car for commuting",
+              "Basic medication"
+            ],
+            "correctAnswer": "Buying a luxury car for commuting",
+            "explanation": "You need transportation (a car might be a need), but a luxury car is a want. This is where the line blurs."
+          },
+          {
+            "id": 10502,
+            "type": "selection",
+            "text": "You need transportation. Which option is most clearly a 'want'?",
+            "options": [
+              "A bus pass",
+              "A basic, reliable used car",
+              "A bicycle",
+              "A brand-new sports car"
+            ],
+            "correctAnswer": "A brand-new sports car",
+            "explanation": "While transportation is the need, the sports car version is a high-end want that goes far beyond the basic requirement."
+          },
+          {
+            "id": 10503,
+            "type": "fill-in-the-blank",
+            "text": "Understanding your personal ______ helps you decide on grey area purchases.",
+            "options": ["friends", "income", "values", "wants"],
+            "correctAnswer": "values",
+            "explanation": "Your personal values and goals determine what is truly important for you to spend money on beyond the absolute basics."
+          }
+        ]
+      }
+    ]
+  },
+  {
+    "id": 2,
+    "title": "Savings & Basics",
+    "levels": [
+      {
+        "id": 1,
+        "article": {
+          "title": "Why Saving is Important",
+          "content": "Saving money is the foundation of financial security. It provides a safety net for unexpected emergencies, like a medical bill or job loss. It also allows you to achieve big goals, such as buying a house, funding your education, or retiring comfortably. A great place to keep your savings is a bank account, where it's safe and can even earn interest."
+        },
+        "questions": [
+          {
+            "id": 20101,
+            "type": "selection",
+            "text": "What is a primary benefit of saving money?",
+            "options": [
+              "Buying more wants",
+              "Creating a financial safety net",
+              "Impressing friends",
+              "It has no benefit"
+            ],
+            "correctAnswer": "Creating a financial safety net",
+            "explanation": "A key reason to save is to handle unexpected expenses without going into debt."
+          },
+          {
+            "id": 20102,
+            "type": "fill-in-the-blank",
+            "text": "You can save money to achieve big goals, like buying a ______.",
+            "options": ["coffee", "house", "shirt", "snack"],
+            "correctAnswer": "house",
+            "explanation": "Saving is essential for large, long-term financial goals."
+          },
+          {
+            "id": 20103,
+            "type": "selection",
+            "text": "Where is a safe place to keep your savings?",
+            "options": [
+              "Under your mattress",
+              "In your wallet",
+              "A bank account",
+              "With a friend"
+            ],
+            "correctAnswer": "A bank account",
+            "explanation": "Banks are secure, insured institutions designed for safely storing money."
+          }
+        ]
+      },
+      {
+        "id": 2,
+        "article": {
+          "title": "Types of Savings Accounts",
+          "content": "There are different places to put your savings. A traditional savings account is offered by most banks and provides easy access to your money. A high-yield savings account (HYSA) is similar but offers a much higher interest rate, meaning your money grows faster. For long-term goals like retirement, there are special accounts like a Pension Fund that offer tax advantages."
+        },
+        "questions": [
+          {
+            "id": 20201,
+            "type": "selection",
+            "text": "What is the main advantage of a high-yield savings account (HYSA)?",
+            "options": [
+              "It has a debit card",
+              "It offers a higher interest rate",
+              "You can't withdraw money",
+              "It has no fees"
+            ],
+            "correctAnswer": "It offers a higher interest rate",
+            "explanation": "The primary appeal of an HYSA is that your saved money earns more money over time compared to a traditional account."
+          },
+          {
+            "id": 20202,
+            "type": "selection",
+            "text": "Which account is specifically designed for long-term retirement savings?",
+            "options": [
+              "Checking Account",
+              "Traditional Savings Account",
+              "Pension Fund",
+              "Credit Card Account"
+            ],
+            "correctAnswer": "Pension Fund",
+            "explanation": "Pension funds are investment accounts with tax benefits designed to help you save for retirement."
+          },
+          {
+            "id": 20203,
+            "type": "selection",
+            "text": "What does earning 'interest' on your savings mean?",
+            "options": [
+              "The bank charges you a fee",
+              "Your money is less safe",
+              "The bank pays you a small amount for keeping your money with them",
+              "You have to pay taxes on it immediately"
+            ],
+            "correctAnswer": "The bank pays you a small amount for keeping your money with them",
+            "explanation": "Interest is essentially a reward or payment from the bank for using your money."
+          },
+          {
+            "id": 20204,
+            "type": "fill-in-the-blank",
+            "text": "A traditional savings account provides ______ access to your money.",
+            "options": ["difficult", "no", "easy", "delayed"],
+            "correctAnswer": "easy",
+            "explanation": "These accounts are liquid, meaning you can typically withdraw your funds whenever you need to."
+          }
+        ]
+      },
+      {
+        "id": 3,
+        "article": {
+          "title": "The Power of Compound Interest",
+          "content": "Compound interest is 'interest on interest.' It means your money starts earning interest, and then the interest you've earned also starts earning its own interest. Albert Einstein supposedly called it the 'eighth wonder of the world.' Over time, it can make your savings grow exponentially, which is why it's so important to start saving as early as possible."
+        },
+        "questions": [
+          {
+            "id": 20301,
+            "type": "selection",
+            "text": "What is compound interest?",
+            "options": [
+              "A fee charged by the bank",
+              "Interest that is very complicated",
+              "Interest earned on your initial savings only",
+              "Interest earned on both your savings and the accumulated interest"
+            ],
+            "correctAnswer": "Interest earned on both your savings and the accumulated interest",
+            "explanation": "This is the core definition of compounding - your earnings start generating their own earnings."
+          },
+          {
+            "id": 20302,
+            "type": "selection",
+            "text": "To take full advantage of compound interest, you should:",
+            "options": [
+              "Start saving as early as possible",
+              "Withdraw your interest regularly",
+              "Save for only one year",
+              "Choose an account with no interest"
+            ],
+            "correctAnswer": "Start saving as early as possible",
+            "explanation": "The longer your money has to compound, the more dramatically it can grow."
+          },
+          {
+            "id": 20303,
+            "type": "fill-in-the-blank",
+            "text": "Compound interest can make your savings grow ______ over time.",
+            "options": ["linearly", "exponentially", "slowly", "backwards"],
+            "correctAnswer": "exponentially",
+            "explanation": "The growth starts slow but accelerates over time, leading to a steep curve on a graph."
+          }
+        ]
+      },
+      {
+        "id": 4,
+        "article": {
+          "title": "Building an Emergency Fund",
+          "content": "An emergency fund is a stash of money set aside specifically for unexpected life events. This could be a job loss, a medical emergency, or an urgent car repair. Financial experts generally recommend having enough money to cover 3 to 6 months' worth of essential living expenses. This fund should be kept in an easily accessible account, like a high-yield savings account."
+        },
+        "questions": [
+          {
+            "id": 20401,
+            "type": "selection",
+            "text": "What is the purpose of an emergency fund?",
+            "options": [
+              "To save for a vacation",
+              "To invest in the stock market",
+              "To cover unexpected life events",
+              "To buy luxury goods"
+            ],
+            "correctAnswer": "To cover unexpected life events",
+            "explanation": "It's a financial safety net for true emergencies, not planned spending."
+          },
+          {
+            "id": 20402,
+            "type": "selection",
+            "text": "How much do experts recommend saving in an emergency fund?",
+            "options": [
+              "1 week of expenses",
+              "1 month of expenses",
+              "3 to 6 months of expenses",
+              "1 year of expenses"
+            ],
+            "correctAnswer": "3 to 6 months of expenses",
+            "explanation": "This range provides a solid cushion to find a new job or handle a significant crisis without going into debt."
+          },
+          {
+            "id": 20403,
+            "type": "selection",
+            "text": "Which of these is a good example of a reason to use your emergency fund?",
+            "options": [
+              "A concert ticket sale",
+              "An unexpected car repair",
+              "A new phone release",
+              "A holiday gift"
+            ],
+            "correctAnswer": "An unexpected car repair",
+            "explanation": "This is an unplanned, essential expense, which is exactly what the fund is for."
+          },
+          {
+            "id": 20404,
+            "type": "fill-in-the-blank",
+            "text": "Your emergency fund should be in an ______ accessible account.",
+            "options": ["investment", "inaccessible", "easily", "locked"],
+            "correctAnswer": "easily",
+            "explanation": "You need to be able to get the money quickly when an emergency happens, so a liquid savings account is ideal."
+          }
+        ]
+      },
+      {
+        "id": 5,
+        "article": {
+          "title": "Setting SMART Savings Goals",
+          "content": "To be successful at saving, it helps to set clear goals. A great framework for this is SMART: Specific, Measurable, Achievable, Relevant, and Time-bound. Instead of saying 'I want to save more,' a SMART goal would be: 'I will save N100,000 (Measurable) for a down payment on a car (Specific, Relevant) by saving N20,000 per month for the next 5 months (Achievable, Time-bound).'"
+        },
+        "questions": [
+          {
+            "id": 20501,
+            "type": "selection",
+            "text": "What does the 'S' in SMART goals stand for?",
+            "options": ["Simple", "Savings", "Specific", "Steady"],
+            "correctAnswer": "Specific",
+            "explanation": "A specific goal clearly states what you want to accomplish."
+          },
+          {
+            "id": 20502,
+            "type": "selection",
+            "text": "Which of these is a SMART goal?",
+            "options": [
+              "I want to be rich.",
+              "I will save money next year.",
+              "I will save N50,000 for a new laptop by December.",
+              "I will try to save something from every paycheck."
+            ],
+            "correctAnswer": "I will save N50,000 for a new laptop by December.",
+            "explanation": "This goal is Specific (laptop), Measurable (N50,000), and Time-bound (by December). We assume it's Achievable and Relevant for the person."
+          },
+          {
+            "id": 20503,
+            "type": "fill-in-the-blank",
+            "text": "The 'T' in SMART goals means the goal must be ______.",
+            "options": ["terrific", "tax-free", "time-bound", "temporary"],
+            "correctAnswer": "time-bound",
+            "explanation": "A deadline creates a sense of urgency and helps with planning."
+          },
+          {
+            "id": 20504,
+            "type": "selection",
+            "text": "Why is 'I want to save a lot of money' NOT a SMART goal?",
+            "options": [
+              "It is not achievable",
+              "It is not specific or measurable",
+              "It is not relevant",
+              "It is not simple enough"
+            ],
+            "correctAnswer": "It is not specific or measurable",
+            "explanation": "'A lot' is subjective. A measurable goal would state the exact amount, like N500,000."
+          },
+          {
+            "id": 20505,
+            "type": "selection",
+            "text": "Making a goal 'Achievable' means it should be:",
+            "options": [
+              "Extremely easy",
+              "Impossible to fail",
+              "Realistic for your situation",
+              "Something someone else set for you"
+            ],
+            "correctAnswer": "Realistic for your situation",
+            "explanation": "An achievable goal challenges you but is within your reach given your income and expenses."
+          }
+        ]
+      }
+    ]
+  },
+  {
+    "id": 3,
+    "title": "Budgeting",
+    "levels": [
+      {
+        "id": 1,
+        "article": {
+          "title": "What is a Budget?",
+          "content": "A budget is simply a plan for your money. It's a way to track your income (money coming in) and your expenses (money going out). Having a budget doesn't mean you can't have fun; it means you are in control of your money, telling it where to go instead of wondering where it went. It is the most powerful tool for achieving your financial goals."
+        },
+        "questions": [
+          {
+            "id": 30101,
+            "type": "selection",
+            "text": "What is a budget?",
+            "options": [
+              "A tool to stop all spending",
+              "A plan for your money",
+              "A record of your income only",
+              "A way to get rich quick"
+            ],
+            "correctAnswer": "A plan for your money",
+            "explanation": "A budget is a forward-looking plan that balances your income and expenses."
+          },
+          {
+            "id": 30102,
+            "type": "selection",
+            "text": "Income is ______, while expenses are ______.",
+            "options": [
+              "money out, money in",
+              "money in, money out",
+              "debts, savings",
+              "wants, needs"
+            ],
+            "correctAnswer": "money in, money out",
+            "explanation": "Income is what you earn, and expenses are what you spend."
+          },
+          {
+            "id": 30103,
+            "type": "selection",
+            "text": "The main purpose of a budget is to:",
+            "options": [
+              "Control your spending and save more",
+              "Calculate your taxes",
+              "Show off to friends",
+              "Limit your fun"
+            ],
+            "correctAnswer": "Control your spending and save more",
+            "explanation": "By tracking and planning, a budget helps you align your spending with your goals."
+          }
+        ]
+      },
+      {
+        "id": 2,
+        "article": {
+          "title": "The 50/30/20 Rule",
+          "content": "A popular and simple budgeting guideline is the 50/30/20 rule. It suggests you allocate your after-tax income as follows: 50% for Needs (rent, groceries, utilities), 30% for Wants (dining out, hobbies, shopping), and 20% for Savings and debt repayment. It's a flexible starting point that ensures you're covering all your bases: present needs, current lifestyle, and future goals."
+        },
+        "questions": [
+          {
+            "id": 30201,
+            "type": "selection",
+            "text": "In the 50/30/20 rule, what does the '50' stand for?",
+            "options": [
+              "50% for wants",
+              "50% for savings",
+              "50% for needs",
+              "50% for taxes"
+            ],
+            "correctAnswer": "50% for needs",
+            "explanation": "The largest portion is allocated to essential expenses like housing and food."
+          },
+          {
+            "id": 30202,
+            "type": "selection",
+            "text": "If your monthly income is N100,000, how much should you allocate to 'Wants' using this rule?",
+            "options": ["N50,000", "N30,000", "N20,000", "N10,000"],
+            "correctAnswer": "N30,000",
+            "explanation": "30% of N100,000 is N30,000, which is for non-essential lifestyle spending."
+          },
+          {
+            "id": 30203,
+            "type": "fill-in-the-blank",
+            "text": "The 20% portion of the rule is for savings and ______ repayment.",
+            "options": ["loan", "debt", "friend", "mortgage"],
+            "correctAnswer": "debt",
+            "explanation": "This category is for building your future financial health, which includes both saving and paying off existing debts."
+          },
+          {
+            "id": 30204,
+            "type": "selection",
+            "text": "The 50/30/20 rule is best described as a:",
+            "options": [
+              "Strict law",
+              "Flexible guideline",
+              "Way to avoid taxes",
+              "Get-rich-quick scheme"
+            ],
+            "correctAnswer": "Flexible guideline",
+            "explanation": "It's a starting point that you can and should adjust to fit your personal financial situation and goals."
+          }
+        ]
+      },
+      {
+        "id": 3,
+        "article": {
+          "title": "Tracking Your Expenses",
+          "content": "You can't manage what you don't measure. The first step in making a budget work is to track every expense. You can do this with a simple notebook, a spreadsheet, or a budgeting app. For one month, write down everything you spend money on. This will give you a clear, honest picture of your spending habits and show you where your money is actually going, which might be very different from where you think it's going."
+        },
+        "questions": [
+          {
+            "id": 30301,
+            "type": "selection",
+            "text": "Why is it important to track your expenses?",
+            "options": [
+              "To show your bank",
+              "To get a clear picture of your spending habits",
+              "Because it is required by law",
+              "To make you feel guilty"
+            ],
+            "correctAnswer": "To get a clear picture of your spending habits",
+            "explanation": "Tracking reveals your true financial behavior, which is necessary for making an effective budget."
+          },
+          {
+            "id": 30302,
+            "type": "selection",
+            "text": "Which is NOT a method for tracking expenses mentioned in the article?",
+            "options": ["Budgeting app", "Notebook", "Spreadsheet", "Guessing"],
+            "correctAnswer": "Guessing",
+            "explanation": "The point of tracking is to use concrete data, not to guess where your money went."
+          },
+          {
+            "id": 30303,
+            "type": "fill-in-the-blank",
+            "text": "Tracking your spending helps you find the difference between where you ______ your money goes and where it ______ goes.",
+            "options": [
+              "want, shouldn't",
+              "think, actually",
+              "hope, sadly",
+              "invest, spend"
+            ],
+            "correctAnswer": "think, actually",
+            "explanation": "Many people are surprised to see the real data on their spending habits after tracking them for the first time."
+          }
+        ]
+      },
+      {
+        "id": 4,
+        "article": {
+          "title": "Creating Your First Budget",
+          "content": "Ready to build your budget? Start by listing all your sources of income to get your total monthly income. Next, list your fixed expenses—the ones that are the same each month, like rent or subscriptions. Then, list your variable expenses—the ones that change, like groceries or fuel. Subtract your total expenses from your total income. If the number is positive, you have money to save or invest. If it's negative, you need to find ways to cut expenses or increase income."
+        },
+        "questions": [
+          {
+            "id": 30401,
+            "type": "selection",
+            "text": "What is the first step in creating a budget?",
+            "options": [
+              "Listing expenses",
+              "Cutting all spending",
+              "Listing all income sources",
+              "Choosing a budgeting app"
+            ],
+            "correctAnswer": "Listing all income sources",
+            "explanation": "You need to know how much money you have coming in before you can plan how to spend it."
+          },
+          {
+            "id": 30402,
+            "type": "selection",
+            "text": "Your monthly rent payment is an example of a:",
+            "options": [
+              "Variable expense",
+              "Fixed expense",
+              "One-time expense",
+              "Fun expense"
+            ],
+            "correctAnswer": "Fixed expense",
+            "explanation": "Fixed expenses are consistent and predictable, making them the easiest to budget for."
+          },
+          {
+            "id": 30403,
+            "type": "selection",
+            "text": "The amount you spend on groceries each month is an example of a:",
+            "options": [
+              "Variable expense",
+              "Fixed expense",
+              "Income source",
+              "Subscription"
+            ],
+            "correctAnswer": "Variable expense",
+            "explanation": "Variable expenses fluctuate from month to month, requiring more careful tracking."
+          },
+          {
+            "id": 30404,
+            "type": "selection",
+            "text": "If your expenses are greater than your income, your budget has a:",
+            "options": ["Surplus", "Profit", "Deficit", "Balance"],
+            "correctAnswer": "Deficit",
+            "explanation": "A deficit (a negative number) means you are spending more than you earn, which is unsustainable."
+          },
+          {
+            "id": 30405,
+            "type": "fill-in-the-blank",
+            "text": "To create a budget, you subtract your total ______ from your total income.",
+            "options": ["savings", "debts", "expenses", "wants"],
+            "correctAnswer": "expenses",
+            "explanation": "The fundamental budget equation is Income - Expenses = Savings/Deficit."
+          }
+        ]
+      },
+      {
+        "id": 5,
+        "article": {
+          "title": "Reviewing and Adjusting",
+          "content": "A budget is not a 'set it and forget it' document. It's a living tool that should adapt to your life. You should review your budget regularly—at least once a month. Did you overspend in one category? Did you underspend in another? Did your income change? Use this information to adjust your budget for the next month. Consistent review and adjustment are what make a budget successful in the long term."
+        },
+        "questions": [
+          {
+            "id": 30501,
+            "type": "selection",
+            "text": "How often should you review your budget?",
+            "options": [
+              "Once a year",
+              "Never",
+              "At least once a month",
+              "Only when you're in debt"
+            ],
+            "correctAnswer": "At least once a month",
+            "explanation": "Regular reviews keep your budget relevant and accurate to your current life situation."
+          },
+          {
+            "id": 30502,
+            "type": "selection",
+            "text": "Why is it important to adjust your budget?",
+            "options": [
+              "Because life circumstances change",
+              "Because your first budget will be perfect",
+              "To make it more complicated",
+              "It is not important"
+            ],
+            "correctAnswer": "Because life circumstances change",
+            "explanation": "Changes in income, expenses, or goals require your budget to be updated to remain effective."
+          },
+          {
+            "id": 30503,
+            "type": "fill-in-the-blank",
+            "text": "A budget is a ______ tool that should adapt to your life.",
+            "options": ["fixed", "rigid", "living", "temporary"],
+            "correctAnswer": "living",
+            "explanation": "This means the budget is meant to be flexible and change as your life changes."
+          }
+        ]
+      }
+    ]
+  },
+  {
+    "id": 4,
+    "title": "Debt & Credit",
+    "levels": [
+      {
+        "id": 1,
+        "article": {
+          "title": "What is Credit?",
+          "content": "Credit is the ability to borrow money or access goods or services with the understanding that you'll pay later. When you use a credit card or take out a loan, you are using credit. The institution that lends you the money is the creditor, and you are the debtor. Used responsibly, credit can be a useful tool to make large purchases, like a car or a house. However, if managed poorly, it can lead to debt."
+        },
+        "questions": [
+          {
+            "id": 40101,
+            "type": "selection",
+            "text": "Credit is the ability to...",
+            "options": [
+              "Get free money",
+              "Borrow money to be paid back later",
+              "Save money in a bank",
+              "Avoid paying for things"
+            ],
+            "correctAnswer": "Borrow money to be paid back later",
+            "explanation": "The core principle of credit is borrowing with a promise to repay."
+          },
+          {
+            "id": 40102,
+            "type": "selection",
+            "text": "When you take out a loan, you are the:",
+            "options": ["Creditor", "Debtor", "Banker", "Investor"],
+            "correctAnswer": "Debtor",
+            "explanation": "The debtor is the individual or entity that owes the money."
+          },
+          {
+            "id": 40103,
+            "type": "selection",
+            "text": "Which of the following is an example of using credit?",
+            "options": [
+              "Paying for groceries with cash",
+              "Using a debit card",
+              "Buying a phone with a credit card",
+              "Saving your allowance"
+            ],
+            "correctAnswer": "Buying a phone with a credit card",
+            "explanation": "A credit card is a direct form of borrowing from the bank that issues the card."
+          }
+        ]
+      },
+      {
+        "id": 2,
+        "article": {
+          "title": "Understanding Credit Scores",
+          "content": "A credit score is a number between 300 and 850 that represents your creditworthiness. Lenders use this score to decide whether to lend you money and at what interest rate. A higher score means you are seen as a lower risk, which can get you better loan terms. The score is calculated based on your payment history, the amount of debt you have, the length of your credit history, and other factors. Paying bills on time is the single most important factor in maintaining a good score."
+        },
+        "questions": [
+          {
+            "id": 40201,
+            "type": "selection",
+            "text": "What does a credit score represent?",
+            "options": [
+              "Your income level",
+              "How much money you have saved",
+              "Your creditworthiness or risk as a borrower",
+              "Your age"
+            ],
+            "correctAnswer": "Your creditworthiness or risk as a borrower",
+            "explanation": "It's a quick way for lenders to assess the likelihood that you will pay back a loan."
+          },
+          {
+            "id": 40202,
+            "type": "selection",
+            "text": "A ______ credit score is generally better.",
+            "options": ["higher", "lower", "negative", "zero"],
+            "correctAnswer": "higher",
+            "explanation": "A higher score indicates lower risk, which is more attractive to lenders."
+          },
+          {
+            "id": 40203,
+            "type": "fill-in-the-blank",
+            "text": "The most important factor for a good credit score is ______.",
+            "options": [
+              "having many credit cards",
+              "paying bills on time",
+              "your income",
+              "your age"
+            ],
+            "correctAnswer": "paying bills on time",
+            "explanation": "Payment history makes up the largest portion of your credit score calculation."
+          },
+          {
+            "id": 40204,
+            "type": "selection",
+            "text": "Why would a lender care about your credit score?",
+            "options": [
+              "To judge your personality",
+              "To decide if they can offer you a loan and at what interest rate",
+              "It's a legal requirement for all conversations",
+              "They don't care about it"
+            ],
+            "correctAnswer": "To decide if they can offer you a loan and at what interest rate",
+            "explanation": "It's their primary tool for managing their own risk when lending money."
+          }
+        ]
+      },
+      {
+        "id": 3,
+        "article": {
+          "title": "Good Debt vs. Bad Debt",
+          "content": "Not all debt is created equal. 'Good debt' is typically debt used to purchase something that will increase in value or increase your earning potential. Examples include a student loan for a valuable degree or a mortgage for a house. 'Bad debt' is used to purchase depreciating assets or for consumption. Examples include credit card debt for a vacation or a high-interest loan for a fancy car that loses value the moment you buy it. The goal is to minimize bad debt."
+        },
+        "questions": [
+          {
+            "id": 40301,
+            "type": "selection",
+            "text": "Which of the following is generally considered 'good debt'?",
+            "options": [
+              "A student loan for a university degree",
+              "Credit card debt from shopping",
+              "A loan from a friend for a concert",
+              "A payday loan"
+            ],
+            "correctAnswer": "A student loan for a university degree",
+            "explanation": "This is an investment in your future earning potential, so it's often categorized as good debt."
+          },
+          {
+            "id": 40302,
+            "type": "selection",
+            "text": "Credit card debt used for a luxury vacation is an example of:",
+            "options": ["Good debt", "Bad debt", "Investment debt", "No debt"],
+            "correctAnswer": "Bad debt",
+            "explanation": "This is borrowing money for consumption on an item that has no future financial value, often at a high interest rate."
+          },
+          {
+            "id": 40303,
+            "type": "selection",
+            "text": "What is a depreciating asset?",
+            "options": [
+              "An asset that increases in value over time",
+              "An asset that loses value over time",
+              "An asset that is difficult to sell",
+              "An asset that is illegal"
+            ],
+            "correctAnswer": "An asset that loses value over time",
+            "explanation": "Most cars are classic examples of depreciating assets; they are worth less as soon as you start using them."
+          }
+        ]
+      },
+      {
+        "id": 4,
+        "article": {
+          "title": "Managing Credit Card Debt",
+          "content": "Credit cards often have high interest rates, which can make debt grow quickly if you only make the minimum payment. The minimum payment is mostly interest, with very little going toward the actual amount you owe (the principal). To get out of credit card debt, you should always try to pay more than the minimum. Two popular strategies are the 'avalanche' method (paying off the highest-interest card first) and the 'snowball' method (paying off the smallest balance first for a psychological win)."
+        },
+        "questions": [
+          {
+            "id": 40401,
+            "type": "selection",
+            "text": "Why is making only the minimum payment on a credit card a bad idea?",
+            "options": [
+              "It is illegal",
+              "Most of the payment goes to interest, so the debt decreases very slowly",
+              "It improves your credit score",
+              "The bank will close your account"
+            ],
+            "correctAnswer": "Most of the payment goes to interest, so the debt decreases very slowly",
+            "explanation": "High interest rates mean that a minimum payment barely touches the principal, keeping you in debt for a long time."
+          },
+          {
+            "id": 40402,
+            "type": "selection",
+            "text": "The 'avalanche' method for paying off debt prioritizes the debt with the:",
+            "options": [
+              "Smallest balance",
+              "Largest balance",
+              "Highest interest rate",
+              "Lowest interest rate"
+            ],
+            "correctAnswer": "Highest interest rate",
+            "explanation": "Mathematically, this method saves you the most money on interest over time."
+          },
+          {
+            "id": 40403,
+            "type": "selection",
+            "text": "The 'snowball' method focuses on paying off the ______ balance first.",
+            "options": ["highest interest", "newest", "oldest", "smallest"],
+            "correctAnswer": "smallest",
+            "explanation": "This method is designed to provide quick wins and build momentum, which helps people stay motivated."
+          },
+          {
+            "id": 40404,
+            "type": "fill-in-the-blank",
+            "text": "To get out of debt faster, you should always pay ______ than the minimum payment.",
+            "options": ["less", "exactly", "more", "double"],
+            "correctAnswer": "more",
+            "explanation": "Any amount paid above the minimum goes directly toward reducing your principal balance."
+          }
+        ]
+      },
+      {
+        "id": 5,
+        "article": {
+          "title": "How to Build Good Credit",
+          "content": "Building a good credit history takes time and responsible habits. Start by paying every single bill on time, every time. Keep your credit utilization low—this means using only a small percentage (ideally under 30%) of your available credit limit on your credit cards. Avoid opening too many new accounts at once. And finally, keep old credit accounts open, even if you don't use them often, as this lengthens your credit history, which is a positive factor."
+        },
+        "questions": [
+          {
+            "id": 40501,
+            "type": "selection",
+            "text": "What is the most important habit for building good credit?",
+            "options": [
+              "Paying bills on time",
+              "Using 100% of your credit limit",
+              "Opening many new cards",
+              "Closing old accounts"
+            ],
+            "correctAnswer": "Paying bills on time",
+            "explanation": "As mentioned before, payment history is the single largest component of your credit score."
+          },
+          {
+            "id": 40502,
+            "type": "selection",
+            "text": "What does 'low credit utilization' mean?",
+            "options": [
+              "Never using your credit card",
+              "Using a large percentage of your credit limit",
+              "Using a small percentage of your credit limit",
+              "Having a low credit limit"
+            ],
+            "correctAnswer": "Using a small percentage of your credit limit",
+            "explanation": "Lenders see low utilization as a sign that you are not over-reliant on credit."
+          },
+          {
+            "id": 40503,
+            "type": "selection",
+            "text": "Why is it often a good idea to keep old credit accounts open?",
+            "options": [
+              "It looks bad to close accounts",
+              "It lowers your credit utilization",
+              "It lengthens the average age of your credit history",
+              "You get more rewards"
+            ],
+            "correctAnswer": "It lengthens the average age of your credit history",
+            "explanation": "A longer credit history is generally positive for your credit score, showing you have more experience managing credit."
+          },
+          {
+            "id": 40504,
+            "type": "fill-in-the-blank",
+            "text": "You should aim to keep your credit utilization under ______.",
+            "options": ["10%", "30%", "50%", "100%"],
+            "correctAnswer": "30%",
+            "explanation": "While lower is always better, under 30% is a common guideline for maintaining a healthy score."
+          }
+        ]
+      }
+    ]
+  },
+  {
+    "id": 5,
+    "title": "Investing Basics",
+    "levels": [
+      {
+        "id": 1,
+        "article": {
+          "title": "Why Invest?",
+          "content": "While saving is about safely storing money for short-term goals and emergencies, investing is about growing your money for long-term goals. When you invest, you are putting your money to work, giving it the potential to grow faster than inflation (the rate at which the cost of goods rises). The goal of investing is to build wealth over time, for goals like retirement or financial independence."
+        },
+        "questions": [
+          {
+            "id": 50101,
+            "type": "selection",
+            "text": "What is the primary goal of investing?",
+            "options": [
+              "To keep money perfectly safe",
+              "To spend money quickly",
+              "To grow your money and build wealth over time",
+              "To hide money from the government"
+            ],
+            "correctAnswer": "To grow your money and build wealth over time",
+            "explanation": "Investing involves taking on some risk for the potential of higher returns than a savings account."
+          },
+          {
+            "id": 50102,
+            "type": "selection",
+            "text": "Investing is typically for ______ goals.",
+            "options": ["short-term", "daily", "long-term", "immediate"],
+            "correctAnswer": "long-term",
+            "explanation": "Due to market fluctuations, investing is best for goals that are several years or decades away."
+          },
+          {
+            "id": 50103,
+            "type": "selection",
+            "text": "Investing aims to grow your money faster than what?",
+            "options": [
+              "Savings accounts",
+              "Inflation",
+              "Your salary",
+              "The stock market"
+            ],
+            "correctAnswer": "Inflation",
+            "explanation": "If your money doesn't grow faster than inflation, you are actually losing purchasing power over time."
+          }
+        ]
+      },
+      {
+        "id": 2,
+        "article": {
+          "title": "Understanding Risk and Reward",
+          "content": "The fundamental principle of investing is the relationship between risk and reward. Generally, the higher the potential return (reward), the higher the risk of losing money. A high-risk investment has the potential for huge gains but also for significant losses. A low-risk investment, like a government bond, is much safer but will offer a lower return. A balanced investment portfolio typically includes a mix of different risk levels."
+        },
+        "questions": [
+          {
+            "id": 50201,
+            "type": "selection",
+            "text": "In investing, higher potential reward usually comes with...",
+            "options": ["No risk", "Lower risk", "Higher risk", "A guarantee"],
+            "correctAnswer": "Higher risk",
+            "explanation": "This is the core trade-off in all investing. There is no such thing as a high-reward, no-risk investment."
+          },
+          {
+            "id": 50202,
+            "type": "selection",
+            "text": "Which of these is likely the LOWEST risk investment?",
+            "options": [
+              "Shares in a brand new tech startup",
+              "A government bond",
+              "A single popular stock",
+              "Cryptocurrency"
+            ],
+            "correctAnswer": "A government bond",
+            "explanation": "Government bonds are backed by the government, making them one of the safest investments available, though with lower returns."
+          },
+          {
+            "id": 50203,
+            "type": "fill-in-the-blank",
+            "text": "A balanced portfolio includes a ______ of different risk levels.",
+            "options": ["concentration", "rejection", "mix", "small number"],
+            "correctAnswer": "mix",
+            "explanation": "Mixing risk levels helps balance the potential for growth with the need for safety."
+          }
+        ]
+      },
+      {
+        "id": 3,
+        "article": {
+          "title": "What are Stocks and Bonds?",
+          "content": "Two of the most common types of investments are stocks and bonds. When you buy a stock (also called a share or equity), you are buying a small piece of ownership in a company. If the company does well, the value of your stock may go up. When you buy a bond, you are essentially lending money to a government or a company. In return, they promise to pay you back the loan with regular interest payments. Generally, stocks are considered riskier than bonds."
+        },
+        "questions": [
+          {
+            "id": 50301,
+            "type": "selection",
+            "text": "When you buy a stock, you are buying:",
+            "options": [
+              "A loan to a company",
+              "A piece of ownership in a company",
+              "A guarantee of profit",
+              "A physical product from the company"
+            ],
+            "correctAnswer": "A piece of ownership in a company",
+            "explanation": "Owning a stock, or share, makes you a part-owner of the business."
+          },
+          {
+            "id": 50302,
+            "type": "selection",
+            "text": "When you buy a bond, you are:",
+            "options": [
+              "Lending money to an entity",
+              "Buying a part of a company",
+              "Taking on high risk for high reward",
+              "Betting on a company's failure"
+            ],
+            "correctAnswer": "Lending money to an entity",
+            "explanation": "A bond is a form of debt, where you act as the lender."
+          },
+          {
+            "id": 50303,
+            "type": "selection",
+            "text": "Which is generally considered the riskier investment?",
+            "options": [
+              "Stocks",
+              "Bonds",
+              "They are equally risky",
+              "Neither has any risk"
+            ],
+            "correctAnswer": "Stocks",
+            "explanation": "Stock prices can be very volatile, while bond payments are more predictable, making stocks the riskier asset class."
+          },
+          {
+            "id": 50304,
+            "type": "selection",
+            "text": "What is another name for a stock?",
+            "options": ["Debt", "Loan", "Share", "Note"],
+            "correctAnswer": "Share",
+            "explanation": "The terms stock, share, and equity are often used interchangeably."
+          }
+        ]
+      },
+      {
+        "id": 4,
+        "article": {
+          "title": "Diversification: The Free Lunch",
+          "content": "In investing, there's a famous saying: 'Don't put all your eggs in one basket.' This is the principle of diversification. It means spreading your investments across various assets (stocks, bonds), industries (tech, healthcare, energy), and geographies (different countries). If one investment performs poorly, your other investments can help offset the loss. Diversification is the single best way to reduce risk without necessarily reducing your expected returns."
+        },
+        "questions": [
+          {
+            "id": 50401,
+            "type": "selection",
+            "text": "The phrase 'Don't put all your eggs in one basket' refers to:",
+            "options": ["Savings", "Budgeting", "Diversification", "Credit"],
+            "correctAnswer": "Diversification",
+            "explanation": "It's a simple analogy for the most important risk-management strategy in investing."
+          },
+          {
+            "id": 50402,
+            "type": "selection",
+            "text": "What is the main goal of diversification?",
+            "options": [
+              "To guarantee high returns",
+              "To reduce risk",
+              "To concentrate on one stock",
+              "To invest only in your home country"
+            ],
+            "correctAnswer": "To reduce risk",
+            "explanation": "By spreading your investments, the failure of any single one has a smaller impact on your overall portfolio."
+          },
+          {
+            "id": 50403,
+            "type": "selection",
+            "text": "Which portfolio is the MOST diversified?",
+            "options": [
+              "100% in one company's stock",
+              "100% in stocks from the tech industry",
+              "A mix of stocks and bonds across different industries and countries",
+              "100% in government bonds"
+            ],
+            "correctAnswer": "A mix of stocks and bonds across different industries and countries",
+            "explanation": "This portfolio is spread across different asset classes, industries, and geographies, making it highly diversified."
+          }
+        ]
+      },
+      {
+        "id": 5,
+        "article": {
+          "title": "Mutual Funds and ETFs",
+          "content": "For most people, picking individual stocks is difficult and risky. That's where mutual funds and exchange-traded funds (ETFs) come in. These are investment products that pool money from many investors to purchase a diversified portfolio of stocks, bonds, or other assets. When you buy a share of a mutual fund or ETF, you are instantly diversified across all the assets the fund holds. They are a simple and effective way for beginners to start investing."
+        },
+        "questions": [
+          {
+            "id": 50501,
+            "type": "selection",
+            "text": "What is the main benefit of buying a mutual fund or ETF?",
+            "options": [
+              "Guaranteed high returns",
+              "Instant diversification",
+              "Ownership in one company",
+              "It is free"
+            ],
+            "correctAnswer": "Instant diversification",
+            "explanation": "With a single purchase, you can own a small piece of hundreds or even thousands of different companies."
+          },
+          {
+            "id": 50502,
+            "type": "selection",
+            "text": "Mutual funds and ETFs pool money from ______.",
+            "options": [
+              "one wealthy person",
+              "the government",
+              "many investors",
+              "a single bank"
+            ],
+            "correctAnswer": "many investors",
+            "explanation": "This pooling of resources allows the fund to buy a wide variety of assets."
+          },
+          {
+            "id": 50503,
+            "type": "fill-in-the-blank",
+            "text": "ETFs and mutual funds are a good starting point for ______.",
+            "options": [
+              "expert traders",
+              "retirees only",
+              "beginners",
+              "millionaires"
+            ],
+            "correctAnswer": "beginners",
+            "explanation": "They simplify the process of investing and provide built-in diversification, which is ideal for new investors."
+          },
+          {
+            "id": 50504,
+            "type": "selection",
+            "text": "An ETF that tracks the S&P 500 would invest in:",
+            "options": [
+              "One company",
+              "Bonds only",
+              "500 of the largest U.S. companies",
+              "International companies"
+            ],
+            "correctAnswer": "500 of the largest U.S. companies",
+            "explanation": "This type of fund, called an index fund, aims to replicate the performance of a specific market index like the S&P 500."
+          }
+        ]
+      }
+    ]
+  }
+]

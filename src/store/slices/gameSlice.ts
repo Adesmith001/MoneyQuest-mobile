@@ -10,6 +10,7 @@ const initialState: GameState = {
   streak: 0,
   isQuestionActive: false,
   questionProgress: 0,
+  health: 5,
 };
 
 const gameSlice = createSlice({
@@ -30,6 +31,12 @@ const gameSlice = createSlice({
     },
     addXP: (state, action: PayloadAction<number>) => {
       state.xp += action.payload;
+    },
+    addHealth: (state, action: PayloadAction<number>) => {
+      state.health = Math.min(5, state.health + action.payload); // Cap health at 5
+    },
+    removeHealth: (state, action: PayloadAction<number>) => {
+      state.health = Math.max(0, state.health - action.payload);
     },
     setXP: (state, action: PayloadAction<number>) => {
       state.xp = action.payload;
@@ -69,6 +76,8 @@ export const {
   setCurrentQuestion,
   updateProgress,
   addXP,
+  addHealth,
+  removeHealth,
   setXP,
   updateStreak,
   setQuestionActive,

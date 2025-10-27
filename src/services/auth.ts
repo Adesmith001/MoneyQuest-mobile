@@ -24,18 +24,18 @@ class AuthService {
     username?: string
   ): Promise<any> {
     let newAccount: any = null;
-    
+
     try {
       console.log('Creating Appwrite account for:', { email, name });
       console.log('Password length:', password.length);
       console.log('Appwrite endpoint:', client.config.endpoint);
       console.log('Appwrite project ID:', client.config.project);
-      
+
       // Validate inputs
       if (!email || !password || !name) {
         throw new Error('Email, password, and name are required');
       }
-      
+
       if (password.length < 8) {
         throw new Error('Password must be at least 8 characters long');
       }
@@ -51,7 +51,7 @@ class AuthService {
         console.log('Appwrite account created successfully:', newAccount.$id);
       } catch (accountError: any) {
         console.error('Account creation failed:', accountError);
-        
+
         // Handle specific Appwrite errors
         if (accountError.code === 409) {
           throw new Error('An account with this email already exists. Please use a different email or try signing in.');
@@ -60,7 +60,7 @@ class AuthService {
         } else if (accountError.message) {
           throw new Error(`Account creation failed: ${accountError.message}`);
         }
-        
+
         throw accountError;
       }
 
@@ -71,35 +71,35 @@ class AuthService {
         console.log('User document created successfully');
       } catch (docError: any) {
         console.error('User document creation failed:', docError);
-        
+
         // If user document creation fails, we should delete the account to maintain consistency
         try {
           console.log('Attempting to clean up account due to document creation failure...');
-          await account.deleteSession('current').catch(() => {}); // Clean up any session
+          await account.deleteSession('current').catch(() => { }); // Clean up any session
           // Note: We can't delete the account directly, but we can warn the user
         } catch (cleanupError) {
           console.error('Cleanup failed:', cleanupError);
         }
-        
+
         if (docError.code === 404) {
           throw new Error('Database or collection not found. Please contact support.');
         } else if (docError.code === 401) {
           throw new Error('Permission denied. Please contact support.');
         }
-        
+
         throw new Error(`Account created but profile setup failed. Please try signing in and complete your profile setup. Error: ${docError.message}`);
       }
 
       return newAccount;
     } catch (error) {
       console.error("Create account error:", error);
-      
+
       // Log more specific error details
       if (error instanceof Error) {
         console.error("Error message:", error.message);
         console.error("Error stack:", error.stack);
       }
-      
+
       throw error;
     }
   }
@@ -120,7 +120,7 @@ class AuthService {
 
       // Create email session
       await account.createEmailPasswordSession(email, password);
-      
+
       // Get current user after session is created
       const user = await this.getCurrentUser();
       return user;
@@ -150,17 +150,17 @@ class AuthService {
       } catch (error) {
         return null;
       }
-      
+
       if (!session) {
         return null;
       }
 
       // Get the account info
       const account_info = await account.get();
-      
+
       // Get the user document from your database using userId field
       const userDoc = await this.getUserDocument(account_info.$id);
-      
+
       if (!userDoc) {
         return null;
       }
@@ -250,20 +250,20 @@ class AuthService {
   ): Promise<void> {
     try {
       const currentDate = new Date().toISOString();
-      
+
       console.log('Creating user document with configuration:');
       console.log('DB_ID:', DB_ID);
       console.log('COLLECTIONS.USERS:', COLLECTIONS.USERS);
       console.log('userId:', userId);
-      
+
       if (!DB_ID) {
         throw new Error('Database ID is not configured');
       }
-      
+
       if (!COLLECTIONS.USERS) {
         throw new Error('Users collection ID is not configured');
       }
-      
+
       const userData: any = {
         email,
         name,
@@ -296,7 +296,7 @@ class AuthService {
         userId, // Use the Appwrite user ID as the document ID
         userData
       );
-      
+
       console.log('User document created successfully with ID:', document.$id);
     } catch (error: any) {
       console.error("Create user document error:", error);
@@ -423,10 +423,10 @@ class AuthService {
     avatar: string;
   }): Promise<any> {
     let newAccount: any = null;
-    
+
     try {
       console.log('Creating Appwrite account with onboarding data for:', { email, name });
-      
+
       // Step 1: Create the account
       newAccount = await account.create(
         ID.unique(),
@@ -434,15 +434,15 @@ class AuthService {
         password,
         name
       );
-      
+
       console.log('Appwrite account created successfully:', newAccount.$id);
-      
+
       // Step 2: Immediately sign in the user after account creation
       await account.createEmailPasswordSession(email, password);
-      
+
       // Step 3: Now get the current user (session is established)
       const user = await account.get();
-      
+
       // Step 4: Create user document with ALL data including onboarding
       console.log('Creating user document with onboarding data...');
       const userDocument = await databases.createDocument(
@@ -471,9 +471,9 @@ class AuthService {
           monthlyXP: 0,
         }
       );
-      
+
       console.log('User document created successfully with onboarding data');
-      
+
       // Step 5: Return the combined user data
       return {
         currentUser: user,
@@ -502,10 +502,10 @@ class AuthService {
           $updatedAt: user.$updatedAt,
         }
       };
-      
+
     } catch (error: any) {
       console.error('Create account with onboarding error:', error);
-      
+
       // Clean up any created session if document creation failed
       if (newAccount && newAccount.$id) {
         try {
@@ -518,7 +518,7 @@ class AuthService {
           console.error('Session cleanup failed:', cleanupError);
         }
       }
-      
+
       throw new Error(`Account creation failed: ${error.message}`);
     }
   }
@@ -563,51 +563,51 @@ class AuthService {
     }
   }
 
- // Send password recovery email
-async sendPasswordRecovery(email: string): Promise<void> {
-  try {
-    const recoveryUrl = `https://reliable-twilight-323604.netlify.app/`;
-    await account.createRecovery(email, recoveryUrl);
-  } catch (error: any) {
-    console.error("Send password recovery error:", error);
-    if (error.code === 404) {
-      throw new Error("No account found with this email address.");
-    } else if (error.code === 429) {
-      throw new Error("Too many requests. Please wait before trying again.");
-    } else if (error.code === 400 && error.message?.includes('Invalid `url` param')) {
-      throw new Error("Password reset is not properly configured. Please contact support.");
+  // Send password recovery email
+  async sendPasswordRecovery(email: string): Promise<void> {
+    try {
+      const recoveryUrl = `https://reliable-twilight-323604.netlify.app/`;
+      await account.createRecovery(email, recoveryUrl);
+    } catch (error: any) {
+      console.error("Send password recovery error:", error);
+      if (error.code === 404) {
+        throw new Error("No account found with this email address.");
+      } else if (error.code === 429) {
+        throw new Error("Too many requests. Please wait before trying again.");
+      } else if (error.code === 400 && error.message?.includes('Invalid `url` param')) {
+        throw new Error("Password reset is not properly configured. Please contact support.");
+      }
+      throw new Error(error.message || "Failed to send recovery email. Please try again.");
     }
-    throw new Error(error.message || "Failed to send recovery email. Please try again.");
   }
-}
 
-// Complete password recovery
-async completePasswordRecovery(
-  userId: string,
-  secret: string,
-  password: string,
-  confirmPassword: string
-): Promise<void> {
-  try {
-    if (password !== confirmPassword) {
-      throw new Error("Passwords do not match.");
+  // Complete password recovery
+  async completePasswordRecovery(
+    userId: string,
+    secret: string,
+    password: string,
+    confirmPassword: string
+  ): Promise<void> {
+    try {
+      if (password !== confirmPassword) {
+        throw new Error("Passwords do not match.");
+      }
+
+      if (password.length < 8) {
+        throw new Error("Password must be at least 8 characters long.");
+      }
+
+      await account.updateRecovery(userId, secret, password);
+    } catch (error: any) {
+      console.error("Complete password recovery error:", error);
+      if (error.code === 401) {
+        throw new Error("Invalid or expired recovery code. Please request a new password reset.");
+      } else if (error.code === 400) {
+        throw new Error("Invalid password format.");
+      }
+      throw new Error(error.message || "Failed to reset password. Please try again.");
     }
-    
-    if (password.length < 8) {
-      throw new Error("Password must be at least 8 characters long.");
-    }
-    
-    await account.updateRecovery(userId, secret, password);
-  } catch (error: any) {
-    console.error("Complete password recovery error:", error);
-    if (error.code === 401) {
-      throw new Error("Invalid or expired recovery code. Please request a new password reset.");
-    } else if (error.code === 400) {
-      throw new Error("Invalid password format.");
-    }
-    throw new Error(error.message || "Failed to reset password. Please try again.");
   }
-}
 
   // Create verification for email
   async createEmailVerification(): Promise<void> {
@@ -638,13 +638,11 @@ async completePasswordRecovery(
       const redirectURL = Linking.createURL("oauth/success");
       const failureURL = Linking.createURL("oauth/failure");
 
-      const authUrl = `${
-        client.config.endpoint
-      }/account/sessions/oauth2/google?project=${
-        client.config.project
-      }&success=${encodeURIComponent(redirectURL)}&failure=${encodeURIComponent(
-        failureURL
-      )}`;
+      const authUrl = `${client.config.endpoint
+        }/account/sessions/oauth2/google?project=${client.config.project
+        }&success=${encodeURIComponent(redirectURL)}&failure=${encodeURIComponent(
+          failureURL
+        )}`;
 
       const result = await WebBrowser.openAuthSessionAsync(
         authUrl,

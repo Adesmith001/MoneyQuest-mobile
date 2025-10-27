@@ -1,13 +1,13 @@
-import React from 'react';
-import { createBottomTabNavigator } from '@react-navigation/bottom-tabs';
-import { View, StyleSheet } from 'react-native';
-import { Ionicons } from '@expo/vector-icons';
+import React from "react";
+import { createBottomTabNavigator } from "@react-navigation/bottom-tabs";
+import { View, StyleSheet } from "react-native";
+import { Ionicons } from "@expo/vector-icons";
 // Tab Screens
-import HomeScreen from '../screens/main/HomeScreen';
-import DailyStreakScreen from '../screens/main/DailyStreakScreen';
-import LeaderboardScreen from '../screens/main/LeaderboardScreen'; // Import LeaderboardScreen
-import ProfileStackNavigator from './ProfileStackNavigator';
-import ProfileTabIcon from './ProfileTabIcon';
+import HomeScreen from "../screens/main/HomeScreen";
+import DailyStreakScreen from "../screens/main/DailyStreakScreen";
+import LeaderboardScreen from "../screens/main/LeaderboardScreen";
+import ProfileStackNavigator from "./ProfileStackNavigator";
+import ProfileTabIcon from "./ProfileTabIcon";
 
 const Tab = createBottomTabNavigator();
 
@@ -18,8 +18,8 @@ const MainTabNavigator: React.FC = () => {
         headerShown: false,
         tabBarShowLabel: false,
         tabBarStyle: styles.tabBar,
-        tabBarActiveTintColor: '#FF6B35',
-        tabBarInactiveTintColor: '#6C757D',
+        tabBarActiveTintColor: "#FF6B35",
+        tabBarInactiveTintColor: "#6C757D",
       })}
     >
       <Tab.Screen
@@ -27,11 +27,15 @@ const MainTabNavigator: React.FC = () => {
         component={HomeScreen}
         options={{
           tabBarIcon: ({ color, size, focused }) => (
-            <Ionicons name={focused ? 'home' : 'home-outline'} size={size} color={color} />
+            <Ionicons
+              name={focused ? "home" : "home-outline"}
+              size={size}
+              color={color}
+            />
           ),
         }}
       />
-      <Tab.Screen
+      {/* <Tab.Screen
         name="Leaderboard"
         component={LeaderboardScreen}
         options={{
@@ -39,13 +43,17 @@ const MainTabNavigator: React.FC = () => {
             <Ionicons name={focused ? 'trophy' : 'trophy-outline'} size={size} color={color} />
           ),
         }}
-      />
+      /> */}
       <Tab.Screen
         name="Streak"
         component={DailyStreakScreen}
         options={{
           tabBarIcon: ({ color, size, focused }) => (
-            <Ionicons name={focused ? 'flame' : 'flame-outline'} size={size} color={color} />
+            <Ionicons
+              name={focused ? "flame" : "flame-outline"}
+              size={size}
+              color={color}
+            />
           ),
         }}
       />
@@ -62,13 +70,14 @@ const MainTabNavigator: React.FC = () => {
 
 const styles = StyleSheet.create({
   tabBar: {
-    backgroundColor: '#FFFFFF',
+    backgroundColor: "#FFFFFF",
     borderTopWidth: 0,
     elevation: 5,
+    paddingTop: 10,
     height: 70,
   },
   focusedIconContainer: {
-    backgroundColor: 'rgba(255, 107, 53, 0.1)',
+    backgroundColor: "rgba(255, 107, 53, 0.1)",
     borderRadius: 16,
     padding: 12,
   },

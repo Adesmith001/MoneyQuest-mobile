@@ -4,6 +4,8 @@ import StreakService, { StreakData } from '../../services/streak';
 export interface StreakState {
   currentStreak: number;
   totalStreak: number;
+  longestStreak: number;
+  weeklyStreak: number;
   daysThisMonth: number;
   streakStartDate: string;
   lastLoginDate: string;
@@ -15,6 +17,8 @@ export interface StreakState {
 const initialState: StreakState = {
   currentStreak: 0,
   totalStreak: 0,
+  longestStreak: 0,
+  weeklyStreak: 0,
   daysThisMonth: 0,
   streakStartDate: '',
   lastLoginDate: '',
@@ -74,6 +78,18 @@ export const checkTodayLogin = createAsyncThunk(
   }
 );
 
+export const getWeeklyStreak = createAsyncThunk(
+  'streak/getWeeklyStreak',
+  async (userId: string, { rejectWithValue }) => {
+    try {
+      const weeklyStreak = await StreakService.getWeeklyStreak(userId);
+      return weeklyStreak;
+    } catch (error: any) {
+      return rejectWithValue(error.message);
+    }
+  }
+);
+
 const streakSlice = createSlice({
   name: 'streak',
   initialState,
@@ -84,13 +100,15 @@ const streakSlice = createSlice({
     resetStreakState: (state) => {
       return initialState;
     },
-    setStreakData: (state, action: PayloadAction<StreakData>) => {
-      const { currentStreak, totalStreak, lastLoginDate, streakStartDate, loginHistory } = action.payload;
+    setStreakData: (state, action: PayloadAction<StreakData & { longestStreak?: number; weeklyStreak?: number }>) => {
+      const { currentStreak, totalStreak, lastLoginDate, streakStartDate, loginHistory, longestStreak, weeklyStreak } = action.payload;
       state.currentStreak = currentStreak;
       state.totalStreak = totalStreak;
       state.lastLoginDate = lastLoginDate;
       state.streakStartDate = streakStartDate;
       state.loginHistory = loginHistory || [];
+      if (longestStreak !== undefined) state.longestStreak = longestStreak;
+      if (weeklyStreak !== undefined) state.weeklyStreak = weeklyStreak;
     },
   },
   extraReducers: (builder) => {
@@ -108,6 +126,12 @@ const streakSlice = createSlice({
         state.lastLoginDate = streakData.lastLoginDate;
         state.streakStartDate = streakData.streakStartDate;
         state.loginHistory = streakData.loginHistory || [];
+
+        // Also update from stats, which might have more up-to-date calculated values
+        if (stats.currentStreak !== undefined) state.currentStreak = stats.currentStreak;
+        if (stats.totalStreak !== undefined) state.totalStreak = stats.totalStreak;
+        if (stats.longestStreak !== undefined) state.longestStreak = stats.longestStreak;
+        if (stats.weeklyStreak !== undefined) state.weeklyStreak = stats.weeklyStreak;
       })
       .addCase(updateStreakOnLogin.rejected, (state, action) => {
         state.isLoading = false;
@@ -128,6 +152,8 @@ const streakSlice = createSlice({
         state.lastLoginDate = streakData.lastLoginDate;
         state.streakStartDate = streakData.streakStartDate;
         state.loginHistory = streakData.loginHistory || [];
+        if (stats.longestStreak !== undefined) state.longestStreak = stats.longestStreak;
+        if (stats.weeklyStreak !== undefined) state.weeklyStreak = stats.weeklyStreak;
       })
       .addCase(loadStreakData.rejected, (state, action) => {
         state.isLoading = false;
@@ -145,6 +171,8 @@ const streakSlice = createSlice({
         state.currentStreak = stats.currentStreak;
         state.totalStreak = stats.totalStreak;
         state.streakStartDate = stats.streakStartDate;
+        if (stats.longestStreak !== undefined) state.longestStreak = stats.longestStreak;
+        if (stats.weeklyStreak !== undefined) state.weeklyStreak = stats.weeklyStreak;
       })
       .addCase(getStreakStats.rejected, (state, action) => {
         state.isLoading = false;

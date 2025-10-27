@@ -89,12 +89,11 @@ export type RootStackParamList = {
   Question: {
     level: number;
     section: number;
-    questionIndex: number;
+    sectionTitle: string;
   };
   LevelCompletion: {
-    level: number;
-    xpEarned: number;
-    performance: number;
+    xpGained: number;
+    accuracy: number;
   };
   
   // Other Screens
@@ -181,14 +180,14 @@ const AppNavigator: React.FC = () => {
           </>
         ) : (
           // Authenticated Stack
-          <>
+            <>
             <Stack.Screen name="MainApp" component={MainTabNavigator} />
             <Stack.Screen name="MainTabs" component={MainTabNavigator} />
             <Stack.Screen 
               name="Question" 
-              component={QuestionScreen}
+              component={QuestionScreen as any}
               options={{
-                gestureEnabled: false, // Prevent swipe to go back during questions
+              gestureEnabled: false, // Prevent swipe to go back during questions
               }}
             />
             <Stack.Screen name="LevelCompletion" component={LevelCompletionScreen} />
@@ -196,25 +195,25 @@ const AppNavigator: React.FC = () => {
               name="Settings" 
               component={SettingsScreen}
               options={{
-                headerShown: true,
-                title: 'Settings',
+              headerShown: true,
+              title: 'Settings',
               }}
             />
             <Stack.Screen 
               name="EditProfile" 
               component={EditProfileScreen}
               options={{
-                headerShown: false,
+              headerShown: false,
               }}
             />
             <Stack.Screen 
               name="ChangeAvatar" 
               component={ChangeAvatarScreen}
               options={{
-                headerShown: false,
+              headerShown: false,
               }}
             />
-          </>
+            </>
         )}
       </Stack.Navigator>
     </NavigationContainer>

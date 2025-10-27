@@ -10,6 +10,7 @@ export const APPWRITE_QUESTIONS_COLLECTION_ID = 'questions';
 export const APPWRITE_LEADERBOARD_COLLECTION_ID = 'leaderboard';
 export const APPWRITE_LEVELS_COLLECTION_ID = 'levels';
 export const APPWRITE_USER_PROGRESS_COLLECTION_ID = 'user-progress';
+export const APPWRITE_STREAKS_COLLECTION_ID = 'streaks';
 
 // Storage Configuration
 export const APPWRITE_STORAGE_BUCKET_ID = '68cc9284002f457e3428';

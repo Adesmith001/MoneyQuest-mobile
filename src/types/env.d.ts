@@ -7,6 +7,7 @@ declare module '@env' {
   export const APPWRITE_LEADERBOARD_COLLECTION_ID: string;
   export const APPWRITE_LEVELS_COLLECTION_ID: string;
   export const APPWRITE_USER_PROGRESS_COLLECTION_ID: string;
+  export const APPWRITE_STREAKS_COLLECTION_ID: string;
   export const APPWRITE_STORAGE_BUCKET_ID: string;
   export const GOOGLE_CLIENT_ID: string;
   export const FACEBOOK_APP_ID: string;

@@ -1,6 +1,6 @@
 export interface User {
   $id: string;
-  userId?: string; 
+  userId?: string;
   email: string;
   name: string;
   username?: string;
@@ -20,8 +20,8 @@ export interface User {
   totalQuestionsAnswered: number;
   correctAnswers: number;
   monthlyXP: number;
-  activeDays?:string;
-  $createdAt: string;  
+  activeDays?: string;
+  $createdAt: string;
   $updatedAt: string;
 }
 
@@ -99,6 +99,7 @@ export interface GameState {
   streak: number;
   isQuestionActive: boolean;
   questionProgress: number;
+  health: number;
 }
 
 export interface QuestionAnswer {

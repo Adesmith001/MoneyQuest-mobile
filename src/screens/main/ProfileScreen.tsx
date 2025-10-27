@@ -27,7 +27,7 @@ interface Props {
 const ProfileScreen: React.FC<Props> = ({ navigation }) => {
   const dispatch = useDispatch();
   const { user } = useSelector((state: RootState) => state.auth);
-  const { currentStreak, totalStreak, daysThisMonth } = useSelector(
+  const { currentStreak, totalStreak, daysThisMonth, weeklyStreak } = useSelector(
     (state: RootState) => state.streak
   );
   const [isInviteModalVisible, setInviteModalVisible] = useState(false);
@@ -97,7 +97,7 @@ const ProfileScreen: React.FC<Props> = ({ navigation }) => {
                   <Text style={styles.statIcon}>🔥</Text>
                 </View>
                 <View style={styles.statBottomRow}>
-                  <Text style={styles.statValue}>{userData.currentStreak}</Text>
+                  <Text style={styles.statValue}>{weeklyStreak}</Text>
                   <Text style={styles.statLabel}>Current streak</Text>
                 </View>
               </View>
