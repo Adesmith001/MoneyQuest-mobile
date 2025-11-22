@@ -12,11 +12,13 @@ import {
 import { useSelector, useDispatch } from "react-redux";
 import { Ionicons } from "@expo/vector-icons";
 import { RootState } from "../../store";
-import { formatXP } from "../../utils";
+import { formatXP, formatMonthlyXP, formatLifeRegenTime, getDaysUntilMonthEnd } from "../../utils";
 import { getAvatarById } from "../../utils/avatarUtils";
 import InviteFriendsModal from "../../components/modals/InviteFriendsModal";
 import CustomButton from "../../components/CustomButton";
 import { loadStreakData } from "../../store/slices/streakSlice";
+import { livesService } from "../../services/lives";
+import { levelProgressService } from "../../services/levelProgress";
 
 const { width: screenWidth } = Dimensions.get("window");
 
@@ -31,13 +33,55 @@ const ProfileScreen: React.FC<Props> = ({ navigation }) => {
     (state: RootState) => state.streak
   );
   const [isInviteModalVisible, setInviteModalVisible] = useState(false);
+  const [currentLives, setCurrentLives] = useState(user?.lives || 5);
+  const [lifeRegenTime, setLifeRegenTime] = useState('');
 
   useEffect(() => {
     // Load streak data when component mounts
     if (user?.$id) {
       dispatch(loadStreakData(user.$id) as any);
     }
+
+    // Check if monthly XP should be reset
+    if (user && levelProgressService.shouldResetMonthlyXP(user)) {
+      levelProgressService.resetMonthlyXP(user.$id);
+    }
   }, [user?.$id, dispatch]);
+
+  // Update lives and regeneration timer
+  useEffect(() => {
+    if (!user) return;
+
+    const updateLivesTimer = () => {
+      try {
+        // Ensure lives and lastLifeRegenTime have valid values
+        const currentLivesValue = typeof user.lives === 'number' ? user.lives : 5;
+        const regenTime = user.lastLifeRegenTime || new Date().toISOString();
+
+        const { lives } = livesService.calculateCurrentLives(
+          currentLivesValue,
+          regenTime
+        );
+        setCurrentLives(lives);
+
+        const timeRemaining = livesService.getTimeUntilNextLife(
+          lives,
+          regenTime
+        );
+        setLifeRegenTime(formatLifeRegenTime(timeRemaining));
+      } catch (error) {
+        console.error('Error updating lives timer:', error);
+        // Set default values on error
+        setCurrentLives(5);
+        setLifeRegenTime('Full');
+      }
+    };
+
+    updateLivesTimer();
+    const interval = setInterval(updateLivesTimer, 1000); // Update every second
+
+    return () => clearInterval(interval);
+  }, [user]);
 
   if (!user) {
     return (
@@ -53,10 +97,12 @@ const ProfileScreen: React.FC<Props> = ({ navigation }) => {
     avatar: user?.avatar,
     level: user?.level,
     xp: user?.xp,
+    monthlyXP: user?.monthlyXP || 0,
     currentStreak: currentStreak,
     totalStreak: totalStreak,
     daysThisMonth: daysThisMonth,
-    lifePoints: 50,
+    lives: currentLives,
+    maxLives: livesService.getMaxLives(),
   };
 
   const handleEditProfile = () => {
@@ -110,9 +156,12 @@ const ProfileScreen: React.FC<Props> = ({ navigation }) => {
                   </View>
                   <View style={styles.statBottomRow}>
                     <Text style={styles.statValue}>
-                      {formatXP(userData.xp)}
+                      {formatXP(userData.monthlyXP)}
                     </Text>
-                    <Text style={styles.statLabel}>Total XP</Text>
+                    <Text style={styles.statLabel}>Monthly XP</Text>
+                    <Text style={styles.statSubLabel}>
+                      {getDaysUntilMonthEnd()} days left
+                    </Text>
                   </View>
                 </View>
               {/* </View> */}
@@ -127,8 +176,15 @@ const ProfileScreen: React.FC<Props> = ({ navigation }) => {
                   <Text style={styles.statIcon}>❤️</Text>
                 </View>
                 <View style={styles.statBottomRow}>
-                  <Text style={styles.statValue}>{userData.lifePoints}</Text>
-                  <Text style={styles.statLabel}>Life Points</Text>
+                  <Text style={styles.statValue}>
+                    {userData.lives}/{userData.maxLives}
+                  </Text>
+                  <Text style={styles.statLabel}>Lives</Text>
+                  {userData.lives < userData.maxLives && (
+                    <Text style={styles.statSubLabel}>
+                      Next in {lifeRegenTime}
+                    </Text>
+                  )}
                 </View>
               </View>
             </View>
@@ -268,6 +324,12 @@ const styles = StyleSheet.create({
     fontSize: 12,
     color: "#AFAFAF",
     fontWeight: "800",
+  },
+  statSubLabel: {
+    fontSize: 10,
+    color: "#CCCCCC",
+    fontWeight: "600",
+    marginTop: 2,
   },
   inviteButton: {
     marginHorizontal: 20,

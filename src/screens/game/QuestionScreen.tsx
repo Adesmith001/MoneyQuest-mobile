@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef } from "react";
+import React, { useState, useEffect } from "react";
 import {
   View,
   Text,
@@ -8,224 +8,198 @@ import {
   ScrollView,
   ActivityIndicator,
   Image,
+  Alert,
 } from "react-native";
 import { useDispatch, useSelector } from "react-redux";
-import { Audio } from "expo-av";
 import { COLORS, FONT_SIZES, SPACING } from "../../constants";
-import lessons from "../../data/lessons.json";
 import {
   nextQuestion,
   nextLevel,
   addHealth,
   addXP,
   removeHealth,
-  setCurrentSection,
-  setCurrentLevel,
 } from "../../store/slices/gameSlice";
 import CorrectAnswerModal from "../../components/modals/CorrectAnswerModal";
 import IncorrectAnswerModal from "../../components/modals/IncorrectAnswerModal";
 import { RootState } from "../../store";
 import ProgressBar from "../../components/progressBar";
 import CustomButton from "../../components/CustomButton";
+import questionService from "../../services/questions";
+import { backendApi } from "../../services/backendApi";
+import { databases, DB_ID, COLLECTIONS } from "../../services/appwrite";
+import { BackendQuestion } from "../../types";
+import { getNextLevel } from "../../config/learningPath";
 
 interface Props {
   navigation: any;
   route: {
     params: {
-      level: number;
-      section: number;
+      levelId: string;
+      sectionId: string;
+      levelTitle: string;
       sectionTitle: string;
     };
   };
 }
 
-interface Question {
-  id: number;
-  type: "selection" | "fill-in-the-blank" | "audio" | "matching";
-  text: string;
-  audioUrl?: string;
-  options?: string[];
-  correctAnswer: string | string[];
-  explanation?: string;
-  pairs?: { left: string; right: string }[]; // For matching questions
-}
-
-interface Article {
-  title: string;
-  content: string;
-}
-
 const QuestionScreen: React.FC<Props> = ({ navigation, route }) => {
-  const { level, section, sectionTitle } = route.params;
+  const { levelId, sectionId, levelTitle, sectionTitle } = route.params;
   const dispatch = useDispatch();
+  const { user } = useSelector((state: RootState) => state.auth);
   const { health } = useSelector((state: RootState) => state.game);
 
-  const [lessonData, setLessonData] = useState<{
-    article: Article;
-    questions: Question[];
-  } | null>(null);
+  const [questions, setQuestions] = useState<BackendQuestion[]>([]);
+  const [levelData, setLevelData] = useState<any>(null);
   const [currentQuestionIndex, setCurrentQuestionIndex] = useState(0);
   const [selectedAnswer, setSelectedAnswer] = useState<string>("");
   const [isLoading, setIsLoading] = useState(true);
-  const [showArticle, setShowArticle] = useState(true);
 
   const [isCorrectModalVisible, setCorrectModalVisible] = useState(false);
   const [isIncorrectModalVisible, setIncorrectModalVisible] = useState(false);
 
   const [correctAnswersCount, setCorrectAnswersCount] = useState(0);
   const [xpGained, setXpGained] = useState(0);
+  const [startTime, setStartTime] = useState<number>(Date.now());
 
-  const [sound, setSound] = useState<Audio.Sound | null>(null);
-  const [isPlaying, setIsPlaying] = useState(false);
-
-  // For matching questions
-  const [matchingPairs, setMatchingPairs] = useState<{ [key: string]: string }>({});
-  const [selectedLeft, setSelectedLeft] = useState<string | null>(null);
-
-  async function playSound(url: string) {
-    if (sound) {
-      await sound.replayAsync();
-      setIsPlaying(true);
-      return;
-    }
-    try {
-      const { sound: soundObject } = await Audio.Sound.createAsync({
-        uri: url,
-      });
-      soundObject.setOnPlaybackStatusUpdate(onPlaybackStatusUpdate);
-      setSound(soundObject);
-      await soundObject.playAsync();
-      setIsPlaying(true);
-    } catch (error) {
-      console.error("Failed to load sound", error);
-    }
-  }
-
-  const onPlaybackStatusUpdate = (status: any) => {
-    if (status.didJustFinish) {
-      setIsPlaying(false);
-    }
-  };
-
+  // Load level data and questions from backend
   useEffect(() => {
-    return sound
-      ? () => {
-          sound.unloadAsync();
-        }
-      : undefined;
-  }, [sound]);
+    async function loadLevelData() {
+      try {
+        setIsLoading(true);
+        
+        // Get level details
+        const levelDetails = await backendApi.getLevelDetails(levelId);
+        setLevelData(levelDetails);
 
-  useEffect(() => {
-    const currentSectionData = lessons.find((s) => s.id === section);
-    const currentLevelData = currentSectionData?.levels.find(
-      (l) => l.id === level
-    );
-    if (currentLevelData) {
-      setLessonData(currentLevelData as any);
+        // Get questions for this level (10 questions, mixed difficulty)
+        const levelQuestions = await questionService.getQuestionsForLevel(
+          levelId,
+          10,
+          'mixed'
+        );
+        setQuestions(levelQuestions);
+        
+        setStartTime(Date.now());
+      } catch (error) {
+        console.error('Failed to load level:', error);
+        Alert.alert(
+          'Error',
+          'Failed to load questions. Please try again.',
+          [{ text: 'Go Back', onPress: () => navigation.goBack() }]
+        );
+      } finally {
+        setIsLoading(false);
+      }
     }
-    setIsLoading(false);
-  }, [level, section]);
 
-  const handleAnswerSelect = (answer: string) => {
+    loadLevelData();
+  }, [levelId]);
+
+  const handleAnswerSelect = (answerKey: string) => {
     if (!isCorrectModalVisible && !isIncorrectModalVisible) {
-      setSelectedAnswer(answer);
+      setSelectedAnswer(answerKey);
     }
   };
 
-  const handleMatchingSelect = (item: string, side: 'left' | 'right') => {
-    if (side === 'left') {
-      setSelectedLeft(item);
-    } else if (selectedLeft) {
-      // Create or update the pair
-      setMatchingPairs(prev => ({
-        ...prev,
-        [selectedLeft]: item
-      }));
-      setSelectedLeft(null);
+  const handleSubmit = async () => {
+    if (!selectedAnswer || !user) return;
+
+    const currentQuestion = questions[currentQuestionIndex];
+    const isCorrect = selectedAnswer === currentQuestion.correct_answer;
+
+    try {
+      // Record answer and update lives/XP
+      const result = await questionService.recordAnswer(
+        user.$id,
+        levelId,
+        selectedAnswer,
+        currentQuestion.correct_answer,
+        isCorrect,
+        5 // Time spent in seconds (you can track this properly)
+      );
+
+      if (isCorrect) {
+        dispatch(addXP(result.xpEarned));
+        setXpGained(xpGained + result.xpEarned);
+        setCorrectAnswersCount(correctAnswersCount + 1);
+        setCorrectModalVisible(true);
+      } else {
+        dispatch(removeHealth(1));
+        setIncorrectModalVisible(true);
+      }
+    } catch (error) {
+      console.error('Error recording answer:', error);
+      Alert.alert('Error', 'Failed to save your answer. Please try again.');
     }
   };
 
-  const checkMatchingAnswer = () => {
-    const currentQuestion = lessonData?.questions[currentQuestionIndex];
-    if (!currentQuestion || !currentQuestion.pairs) return false;
-
-    // Check if all pairs are matched correctly
-    const correctPairs = currentQuestion.pairs;
-    const userMatchedAll = correctPairs.every(pair => 
-      matchingPairs[pair.left] === pair.right
-    );
-
-    return userMatchedAll && Object.keys(matchingPairs).length === correctPairs.length;
-  };
-
-  const handleSubmit = () => {
-    const currentQuestion = lessonData?.questions[currentQuestionIndex];
-    
-    let isCorrect = false;
-
-    if (currentQuestion?.type === "matching") {
-      isCorrect = checkMatchingAnswer();
-    } else {
-      if (!selectedAnswer) return;
-      isCorrect = selectedAnswer === currentQuestion?.correctAnswer;
-    }
-
-    if (isCorrect) {
-      dispatch(addXP(10));
-      dispatch(addHealth(1));
-      setXpGained(xpGained + 10);
-      setCorrectAnswersCount(correctAnswersCount + 1);
-      setCorrectModalVisible(true);
-    } else {
-      dispatch(removeHealth(1));
-      setIncorrectModalVisible(true);
-    }
-  };
-
-  const handleContinue = () => {
+  const handleContinue = async () => {
     setCorrectModalVisible(false);
     setIncorrectModalVisible(false);
     setSelectedAnswer("");
-    setMatchingPairs({});
-    setSelectedLeft(null);
 
-    if (currentQuestionIndex < (lessonData?.questions.length ?? 0) - 1) {
+    if (currentQuestionIndex < questions.length - 1) {
       setCurrentQuestionIndex(currentQuestionIndex + 1);
       dispatch(nextQuestion());
     } else {
-      const currentSectionData = lessons.find((s) => s.id === section);
-      
-      // FIXED: Check if this is the last level in the section
-      const isLastLevelInSection = level >= (currentSectionData?.levels.length ?? 0);
+      // Level completed - submit results
+      if (!user) return;
 
-      if (isLastLevelInSection) {
-        // Check if there's a next section
-        const nextSectionExists = lessons.find((s) => s.id === section + 1);
-        
-        if (nextSectionExists) {
-          // Move to the next section
-          dispatch(setCurrentSection(section + 1));
-          dispatch(setCurrentLevel(1));
-        } else {
-          // User has completed all sections
-          dispatch(nextLevel());
+      const timeSpentMinutes = Math.round((Date.now() - startTime) / 60000);
+      const accuracy = Math.round((correctAnswersCount / questions.length) * 100);
+
+      try {
+        // Submit level completion to backend
+        const result = await questionService.submitLevelQuiz(
+          user.$id,
+          levelId,
+          correctAnswersCount,
+          questions.length,
+          timeSpentMinutes
+        );
+
+        // Update user's XP and progress in Appwrite
+        const currentTotalXP = user.totalXP || 0;
+        const currentMonthlyXP = user.monthlyXP || 0;
+        const newTotalXP = currentTotalXP + xpGained;
+        const newMonthlyXP = currentMonthlyXP + xpGained;
+
+        const updateData: any = {
+          totalXP: newTotalXP,
+          monthlyXP: newMonthlyXP,
+          updatedAt: new Date().toISOString(),
+        };
+
+        // Update current level if passed and there's a next level
+        if (result.passed && result.next_level_id) {
+          const nextLevelInfo = getNextLevel(levelId);
+          if (nextLevelInfo) {
+            updateData.currentLevelId = result.next_level_id;
+            updateData.currentSectionId = nextLevelInfo.section.sectionId;
+          }
         }
-      } else {
-        // Move to the next level in the same section
-        dispatch(nextLevel());
-      }
 
-      const accuracy = Math.round(
-        (correctAnswersCount / (lessonData?.questions.length ?? 1)) * 100
-      );
-      navigation.replace("LevelCompletion", {
-        xpGained: xpGained,
-        accuracy,
-      });
+        await databases.updateDocument(DB_ID, COLLECTIONS.USERS, user.$id, updateData);
+
+        dispatch(nextLevel());
+        navigation.replace("LevelCompletion", {
+          xpGained: xpGained,
+          accuracy,
+          passed: result.passed,
+          nextLevelId: result.next_level_id,
+        });
+      } catch (error) {
+        console.error('Error submitting level:', error);
+        // Still navigate to completion screen even if submission fails
+        navigation.replace("LevelCompletion", {
+          xpGained: xpGained,
+          accuracy,
+        });
+      }
     }
   };
 
-  if (isLoading || !lessonData) {
+  if (isLoading || questions.length === 0) {
     return (
       <SafeAreaView style={styles.container}>
         <ActivityIndicator size="large" color={COLORS.primary} />
@@ -233,32 +207,37 @@ const QuestionScreen: React.FC<Props> = ({ navigation, route }) => {
     );
   }
 
-  if (showArticle) {
-    return (
-      <SafeAreaView style={styles.container}>
-        <ScrollView contentContainerStyle={styles.articleContainer}>
-          <Text style={styles.articleTitle}>{lessonData.article.title}</Text>
-          <Text style={styles.articleContent}>
-            {lessonData.article.content}
-          </Text>
-        </ScrollView>
-        <View style={styles.footer}>
-          <CustomButton
-            title="Start Questions"
-            onPress={() => setShowArticle(false)}
-          />
-        </View>
-      </SafeAreaView>
-    );
-  }
+  const currentQuestion = questions[currentQuestionIndex];
+  const progress = ((currentQuestionIndex + 1) / questions.length) * 100;
+  const canSubmit = !!selectedAnswer;
 
-  const currentQuestion = lessonData.questions[currentQuestionIndex];
-  const progress =
-    ((currentQuestionIndex + 1) / lessonData.questions.length) * 100;
+  // Convert backend question format to options array for rendering
+  const optionsArray = currentQuestion
+    ? [
+        { key: 'A', value: currentQuestion.option_a },
+        { key: 'B', value: currentQuestion.option_b },
+        { key: 'C', value: currentQuestion.option_c },
+        { key: 'D', value: currentQuestion.option_d },
+      ]
+    : [];
 
-  const canSubmit = currentQuestion.type === "matching" 
-    ? Object.keys(matchingPairs).length === (currentQuestion.pairs?.length ?? 0)
-    : !!selectedAnswer;
+  // Get explanation for the selected answer
+  const getExplanation = (answerKey: string): string => {
+    if (!currentQuestion) return 'No explanation available.';
+    
+    switch (answerKey) {
+      case 'A':
+        return currentQuestion.explanation_a;
+      case 'B':
+        return currentQuestion.explanation_b;
+      case 'C':
+        return currentQuestion.explanation_c;
+      case 'D':
+        return currentQuestion.explanation_d;
+      default:
+        return 'No explanation available.';
+    }
+  };
 
   return (
     <SafeAreaView style={styles.container}>
@@ -274,93 +253,32 @@ const QuestionScreen: React.FC<Props> = ({ navigation, route }) => {
       </View>
 
       <ScrollView contentContainerStyle={styles.content}>
-        {currentQuestion.type === "audio" && currentQuestion.audioUrl && (
-          <View style={styles.audioPlayerContainer}>
-            <Image
-              source={require("../../../assets/sound-waves.png")}
-              style={styles.soundWaveIcon}
-            />
+        <Text style={styles.questionText}>{currentQuestion.question_text}</Text>
+
+        <View style={styles.optionsContainer}>
+          {optionsArray.map((option) => (
             <TouchableOpacity
-              style={styles.playButton}
-              onPress={() => playSound(currentQuestion.audioUrl!)}
+              key={option.key}
+              style={[
+                styles.optionButton,
+                selectedAnswer === option.key && styles.selectedOption,
+              ]}
+              onPress={() => handleAnswerSelect(option.key)}
             >
-              <Image
-                source={
-                  isPlaying
-                    ? require("../../../assets/pause.png")
-                    : require("../../../assets/play.png")
-                }
-                style={styles.playIcon}
-              />
-            </TouchableOpacity>
-          </View>
-        )}
-
-        <Text style={styles.questionText}>{currentQuestion.text}</Text>
-
-        {/* Matching Question Type */}
-        {currentQuestion.type === "matching" && currentQuestion.pairs && (
-          <View style={styles.matchingContainer}>
-            <View style={styles.matchingColumn}>
-              <Text style={styles.matchingColumnTitle}>Match these:</Text>
-              {currentQuestion.pairs.map((pair, idx) => (
-                <TouchableOpacity
-                  key={`${pair.left}-${idx}`}
-                  style={[
-                    styles.matchingItem,
-                    selectedLeft === pair.left && styles.selectedMatchingItem,
-                    matchingPairs[pair.left] && styles.matchedItem,
-                  ]}
-                  onPress={() => handleMatchingSelect(pair.left, 'left')}
-                >
-                  <Text style={styles.matchingItemText}>{pair.left}</Text>
-                </TouchableOpacity>
-              ))}
-            </View>
-            
-            <View style={styles.matchingColumn}>
-              <Text style={styles.matchingColumnTitle}>With these:</Text>
-              {currentQuestion.pairs.map((pair, idx) => (
-                <TouchableOpacity
-                  key={`${pair.right}-${idx}`}
-                  style={[
-                    styles.matchingItem,
-                    Object.values(matchingPairs).includes(pair.right) && styles.matchedItem,
-                  ]}
-                  onPress={() => handleMatchingSelect(pair.right, 'right')}
-                  disabled={!selectedLeft}
-                >
-                  <Text style={styles.matchingItemText}>{pair.right}</Text>
-                </TouchableOpacity>
-              ))}
-            </View>
-          </View>
-        )}
-
-        {/* Regular Options (for selection, fill-in-the-blank, and audio) */}
-        {currentQuestion.type !== "matching" && (
-          <View style={styles.optionsContainer}>
-            {currentQuestion.options?.map((option) => (
-              <TouchableOpacity
-                key={option}
-                style={[
-                  styles.optionButton,
-                  selectedAnswer === option && styles.selectedOption,
-                ]}
-                onPress={() => handleAnswerSelect(option)}
-              >
+              <View style={styles.optionContent}>
+                <Text style={styles.optionLabel}>{option.key}.</Text>
                 <Text
                   style={[
                     styles.optionText,
-                    selectedAnswer === option && styles.selectedOptionText,
+                    selectedAnswer === option.key && styles.selectedOptionText,
                   ]}
                 >
-                  {option}
+                  {option.value}
                 </Text>
-              </TouchableOpacity>
-            ))}
-          </View>
-        )}
+              </View>
+            </TouchableOpacity>
+          ))}
+        </View>
       </ScrollView>
 
       <View style={styles.footer}>
@@ -380,11 +298,9 @@ const QuestionScreen: React.FC<Props> = ({ navigation, route }) => {
         onContinue={() => {
           setIncorrectModalVisible(false);
           setSelectedAnswer("");
-          setMatchingPairs({});
-          setSelectedLeft(null);
         }}
-        chosenAnswer={selectedAnswer || "No answer selected"}
-        explanation={currentQuestion.explanation || "No explanation available."}
+        chosenAnswer={selectedAnswer ? optionsArray.find(o => o.key === selectedAnswer)?.value || selectedAnswer : "No answer selected"}
+        explanation={getExplanation(selectedAnswer)}
       />
     </SafeAreaView>
   );
@@ -467,10 +383,22 @@ const styles = StyleSheet.create({
     backgroundColor: COLORS.primary,
     borderColor: COLORS.primary,
   },
+  optionContent: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: SPACING.sm,
+  },
+  optionLabel: {
+    fontSize: FONT_SIZES.lg,
+    fontWeight: "bold",
+    color: COLORS.text,
+    minWidth: 30,
+  },
   optionText: {
     fontSize: FONT_SIZES.md,
     fontWeight: "600",
     color: COLORS.text,
+    flex: 1,
   },
   selectedOptionText: {
     color: COLORS.card,
@@ -504,76 +432,6 @@ const styles = StyleSheet.create({
     fontSize: FONT_SIZES.md,
     lineHeight: 26,
     color: "#000000",
-  },
-  audioPlayerContainer: {
-    alignItems: "center",
-    marginVertical: SPACING.lg,
-  },
-  soundWaveIcon: {
-    width: 150,
-    height: 50,
-    resizeMode: "contain",
-    marginBottom: SPACING.md,
-  },
-  playButton: {
-    width: 70,
-    height: 70,
-    borderRadius: 35,
-    backgroundColor: COLORS.primary,
-    alignItems: "center",
-    justifyContent: "center",
-  },
-  playIcon: {
-    width: 30,
-    height: 30,
-    resizeMode: "contain",
-    tintColor: COLORS.card,
-  },
-  // Matching question styles
-  matchingContainer: {
-    flexDirection: "row",
-    justifyContent: "space-between",
-    gap: SPACING.md,
-  },
-  matchingColumn: {
-    flex: 1,
-  },
-  matchingColumnTitle: {
-    fontSize: FONT_SIZES.md,
-    fontWeight: "bold",
-    marginBottom: SPACING.sm,
-    textAlign: "center",
-    color: COLORS.text,
-  },
-  matchingItem: {
-    backgroundColor: COLORS.card,
-    borderRadius: 8,
-    padding: SPACING.md,
-    marginBottom: SPACING.sm,
-    borderWidth: 2,
-    borderColor: "transparent",
-    minHeight: 50,
-    justifyContent: "center",
-  },
-  selectedMatchingItem: {
-    borderColor: COLORS.primary,
-    backgroundColor: COLORS.primary + "20",
-  },
-  matchedItem: {
-    backgroundColor: "#4CAF50" + "20",
-    borderColor: "#4CAF50",
-  },
-  matchingItemText: {
-    fontSize: FONT_SIZES.md,
-    color: COLORS.text,
-    textAlign: "center",
-  },
-  matchingArrow: {
-    fontSize: FONT_SIZES.sm,
-    color: COLORS.primary,
-    marginTop: SPACING.xs,
-    textAlign: "center",
-    fontWeight: "600",
   },
 });
 

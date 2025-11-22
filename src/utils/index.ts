@@ -135,3 +135,110 @@ export const throttle = <T extends (...args: any[]) => any>(
     }
   }) as T;
 };
+
+// ============================================
+// XP MANAGEMENT UTILITIES
+// ============================================
+
+/**
+ * Check if it's a new month compared to last update
+ * @param lastUpdateDate - ISO string of last update
+ * @returns True if current month is different from last update
+ */
+export const isNewMonth = (lastUpdateDate: string): boolean => {
+  const lastUpdate = new Date(lastUpdateDate);
+  const now = new Date();
+  
+  return (
+    lastUpdate.getMonth() !== now.getMonth() ||
+    lastUpdate.getFullYear() !== now.getFullYear()
+  );
+};
+
+/**
+ * Get the current month key (e.g., "2025-11")
+ * @returns Month key string
+ */
+export const getCurrentMonthKey = (): string => {
+  const now = new Date();
+  const year = now.getFullYear();
+  const month = (now.getMonth() + 1).toString().padStart(2, '0');
+  return `${year}-${month}`;
+};
+
+/**
+ * Get month name from month key
+ * @param monthKey - Month key (e.g., "2025-11")
+ * @returns Month name (e.g., "November 2025")
+ */
+export const getMonthNameFromKey = (monthKey: string): string => {
+  const [year, month] = monthKey.split('-');
+  const date = new Date(parseInt(year), parseInt(month) - 1, 1);
+  return date.toLocaleDateString('en-US', { year: 'numeric', month: 'long' });
+};
+
+/**
+ * Calculate days until month end
+ * @returns Number of days remaining in current month
+ */
+export const getDaysUntilMonthEnd = (): number => {
+  const now = new Date();
+  const year = now.getFullYear();
+  const month = now.getMonth();
+  const lastDayOfMonth = new Date(year, month + 1, 0).getDate();
+  const currentDay = now.getDate();
+  return lastDayOfMonth - currentDay;
+};
+
+/**
+ * Format XP with monthly reset info
+ * @param monthlyXP - XP for current month
+ * @param totalXP - Total XP (also resets monthly)
+ * @returns Formatted string
+ */
+export const formatMonthlyXP = (monthlyXP: number, totalXP: number): string => {
+  const daysLeft = getDaysUntilMonthEnd();
+  return `${formatXP(monthlyXP)} XP this month (${daysLeft} days left)`;
+};
+
+/**
+ * Calculate XP needed to reach a rank on leaderboard
+ * @param currentXP - User's current XP
+ * @param targetRankXP - XP of user at target rank
+ * @returns XP difference
+ */
+export const calculateXPToRank = (currentXP: number, targetRankXP: number): number => {
+  return Math.max(0, targetRankXP - currentXP);
+};
+
+// ============================================
+// LIVES MANAGEMENT UTILITIES
+// ============================================
+
+/**
+ * Format lives display (e.g., "3/5 ❤️")
+ * @param currentLives - Current lives
+ * @param maxLives - Maximum lives (default: 5)
+ * @returns Formatted string
+ */
+export const formatLives = (currentLives: number, maxLives: number = 5): string => {
+  const hearts = '❤️'.repeat(currentLives) + '🤍'.repeat(maxLives - currentLives);
+  return `${hearts} (${currentLives}/${maxLives})`;
+};
+
+/**
+ * Format time until next life
+ * @param milliseconds - Time in milliseconds
+ * @returns Formatted string like "45:30" or "Full"
+ */
+export const formatLifeRegenTime = (milliseconds: number): string => {
+  if (milliseconds === 0) {
+    return 'Full';
+  }
+
+  const totalSeconds = Math.ceil(milliseconds / 1000);
+  const minutes = Math.floor(totalSeconds / 60);
+  const seconds = totalSeconds % 60;
+
+  return `${minutes.toString().padStart(2, '0')}:${seconds.toString().padStart(2, '0')}`;
+};

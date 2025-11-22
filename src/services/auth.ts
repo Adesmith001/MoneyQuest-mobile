@@ -229,6 +229,11 @@ class AuthService {
         totalQuestionsAnswered: userDoc.totalQuestionsAnswered || 0,
         correctAnswers: userDoc.correctAnswers || 0,
         monthlyXP: userDoc.monthlyXP || 0,
+        totalXP: userDoc.totalXP || 0,
+        lives: userDoc.lives !== undefined ? userDoc.lives : 5,
+        lastLifeRegenTime: userDoc.lastLifeRegenTime || new Date().toISOString(),
+        currentLevelId: userDoc.currentLevelId,
+        currentSectionId: userDoc.currentSectionId,
         $createdAt: userDoc.$createdAt,
         $updatedAt: userDoc.$updatedAt,
       };
@@ -275,6 +280,13 @@ class AuthService {
         totalQuestionsAnswered: 0,
         correctAnswers: 0,
         monthlyXP: 0,
+        totalXP: 0,
+        // Lives system - start with 5 lives
+        lives: 5,
+        lastLifeRegenTime: currentDate,
+        // Current level/section tracking (will be set when user starts)
+        currentLevelId: null,
+        currentSectionId: null,
         // createdAt: currentDate,
         // updatedAt: currentDate,
       };

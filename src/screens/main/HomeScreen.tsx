@@ -1,4 +1,4 @@
-import React, { useEffect } from "react";
+import React, { useEffect, useState } from "react";
 import {
   View,
   Text,
@@ -8,6 +8,8 @@ import {
   TouchableOpacity,
   Dimensions,
   Image,
+  ActivityIndicator,
+  Alert,
 } from "react-native";
 import Svg, { Path } from "react-native-svg";
 import { useSelector, useDispatch } from "react-redux";
@@ -17,77 +19,122 @@ import {
   setCurrentLevel,
   setCurrentSection,
 } from "../../store/slices/gameSlice";
-import lessonsData from "../../data/lessons.json";
+import { backendApi } from "../../services/backendApi";
+import { databases, DB_ID, COLLECTIONS } from "../../services/appwrite";
+import { BackendLevel } from "../../types";
 
 interface Props {
   navigation: any;
 }
 
 interface LevelNode {
-  id: number;
+  id: string; // Now UUID from backend
   sectionTitle: string;
+  levelTitle: string;
   isUnlocked: boolean;
   isCompleted: boolean;
   isCurrent: boolean;
-  sectionId: number;
-  levelId: number;
+  sectionId: string; // Now UUID
+  levelId: string; // Now UUID
+}
+
+interface Section {
+  id: string;
+  title: string;
+  levels: LevelNode[];
 }
 
 const { width: screenWidth, height: screenHeight } = Dimensions.get("window");
 
 const HomeScreen: React.FC<Props> = ({ navigation }) => {
   const { user } = useSelector((state: RootState) => state.auth);
-  const { currentLevel, currentSection } = useSelector(
-    (state: RootState) => state.game
-  );
   const dispatch = useDispatch();
 
-  // Save user progress when component mounts or changes
+  const [sections, setSections] = useState<Section[]>([]);
+  const [isLoading, setIsLoading] = useState(true);
+
+  // Fetch sections and levels from backend
   useEffect(() => {
-    // Redux store with redux-persist automatically saves state
-    // This ensures user can return to their previous progress
-  }, [currentLevel, currentSection]);
+    async function fetchLearningPath() {
+      try {
+        setIsLoading(true);
+        
+        // Get all sections (documents) from backend
+        const backendSections = await backendApi.getSections();
+        console.log('Fetched sections:', backendSections);
 
-  // Calculate user progress dynamically
-  const calculateUserProgress = (sectionId: number, levelId: number) => {
-    if (
-      sectionId < currentSection ||
-      (sectionId === currentSection && levelId < currentLevel)
-    ) {
-      // Completed levels
-      return { isUnlocked: true, isCompleted: true, isCurrent: false };
-    } else if (sectionId === currentSection && levelId === currentLevel) {
-      // Current level
-      return { isUnlocked: true, isCompleted: false, isCurrent: true };
-    } else {
-      // Locked levels - only unlock the very next level
-      const isNextLevel =
-        (sectionId === currentSection && levelId === currentLevel + 1) ||
-        (sectionId === currentSection + 1 &&
-          levelId === 1 &&
-          currentLevel ===
-            lessonsData.find((s) => s.id === currentSection)?.levels.length);
+        const sectionsData: Section[] = [];
 
-      return {
-        isUnlocked: isNextLevel,
-        isCompleted: false,
-        isCurrent: false,
+        for (const section of backendSections) {
+          try {
+            // Fetch levels for this section using document_id
+            const levels = await backendApi.getSectionLevels(section.document_id);
+            console.log(`Levels for ${section.title}:`, levels);
+            
+            if (levels.length === 0) continue;
+
+            const levelNodes: LevelNode[] = levels.map((level) => {
+              // Use the section_id from the level for progress tracking
+              const progress = calculateLevelProgress(level.section_id, level.level_id);
+              
+              return {
+                id: level.level_id,
+                sectionTitle: section.title,
+                levelTitle: level.title,
+                sectionId: level.section_id,
+                levelId: level.level_id,
+                ...progress,
+              };
+            });
+
+            sectionsData.push({
+              id: section.document_id,
+              title: section.title,
+              levels: levelNodes,
+            });
+          } catch (error) {
+            console.error(`Failed to fetch levels for section ${section.title}:`, error);
+          }
+        }
+
+        setSections(sectionsData);
+      } catch (error) {
+        console.error('Failed to fetch learning path:', error);
+        Alert.alert(
+          'Error',
+          'Failed to load learning path. Please check your connection and try again.'
+        );
+      } finally {
+        setIsLoading(false);
+      }
+    }
+
+    fetchLearningPath();
+  }, [user]);
+
+  // Calculate level progress based on user's current position
+  const calculateLevelProgress = (sectionId: string, levelId: string) => {
+    const currentSectionId = user?.currentSectionId;
+    const currentLevelId = user?.currentLevelId;
+
+    // If no progress, start at first level
+    if (!currentSectionId || !currentLevelId) {
+      return { 
+        isUnlocked: sections.length === 0 || (sectionId === sections[0]?.id && levelId === sections[0]?.levels[0]?.id),
+        isCompleted: false, 
+        isCurrent: sections.length === 0 || (sectionId === sections[0]?.id && levelId === sections[0]?.levels[0]?.id),
       };
     }
-  };
 
-  // Define the learning path sections based on the lessons.json file
-  const sections: LevelNode[][] = lessonsData.map((section) => {
-    return section.levels.map((level) => {
-      return {
-        id: parseInt(`${section.id}${level.id}`), // Create a unique ID
-        sectionTitle: section.title,
-        sectionId: section.id,
-        levelId: level.id,
-        ...calculateUserProgress(section.id, level.id),
-      };
-    });
-  });
+    const isCurrent = sectionId === currentSectionId && levelId === currentLevelId;
+    
+    // TODO: Implement proper completed level tracking with backend progress API
+    // For now, we'll use simple logic
+    const isCompleted = false; // Would need to check getUserLevelProgress
+    const isUnlocked = isCurrent; // Only current level is unlocked for now
+
+    return { isUnlocked, isCompleted, isCurrent };
+  };
 
   const renderLevelNode = (
     node: LevelNode,
@@ -97,15 +144,29 @@ const HomeScreen: React.FC<Props> = ({ navigation }) => {
   ) => {
     const isLeftSide = index % 2 === 0;
 
-    const handleNodePress = () => {
+    const handleNodePress = async () => {
       if (node.isUnlocked || node.isCurrent) {
-        // Update Redux state to save progress
-        dispatch(setCurrentLevel(node.levelId));
-        dispatch(setCurrentSection(node.sectionId));
+        // Update user's current progress in Appwrite
+        try {
+          if (user?.$id) {
+            await databases.updateDocument(
+              DB_ID,
+              COLLECTIONS.USERS,
+              user.$id,
+              {
+                currentLevelId: node.levelId,
+                currentSectionId: node.sectionId,
+              }
+            );
+          }
+        } catch (error) {
+          console.error('Failed to update progress:', error);
+        }
 
         navigation.navigate("Question", {
-          level: node.levelId,
-          section: node.sectionId,
+          levelId: node.levelId,
+          sectionId: node.sectionId,
+          levelTitle: node.levelTitle,
           sectionTitle: node.sectionTitle,
         });
       }
@@ -189,9 +250,9 @@ const HomeScreen: React.FC<Props> = ({ navigation }) => {
     );
   };
 
-  const renderSection = (section: LevelNode[], sectionIndex: number) => {
+  const renderSection = (section: Section, sectionIndex: number) => {
     return (
-      <View key={sectionIndex} style={styles.pageContainer}>
+      <View key={section.id} style={styles.pageContainer}>
         {/* Cloud decorations */}
         <View style={styles.cloudsContainer}>
           <Text style={[styles.cloud, { top: 20, left: 30 }]}>☁️</Text>
@@ -218,10 +279,10 @@ const HomeScreen: React.FC<Props> = ({ navigation }) => {
             <View style={styles.sectionHeader}>
               <View style={styles.sectionHeaderContent}>
                 <Text style={styles.sectionTitle}>
-                  Section {sectionIndex + 1}
+                  {section.title}
                 </Text>
                 <Text style={styles.sectionSubtitle}>
-                  {section[0].sectionTitle}
+                  {section.levels[0]?.sectionTitle || ''}
                 </Text>
               </View>
               <View style={styles.bookIcon}>
@@ -234,11 +295,11 @@ const HomeScreen: React.FC<Props> = ({ navigation }) => {
           </View>
 
           <View style={styles.levelsContainer}>
-            {section
+            {section.levels
               .slice()
               .reverse()
               .map((node, reverseIndex) => {
-                const originalIndex = section.length - 1 - reverseIndex;
+                const originalIndex = section.levels.length - 1 - reverseIndex;
                 return renderLevelNode(
                   node,
                   originalIndex,
@@ -251,6 +312,17 @@ const HomeScreen: React.FC<Props> = ({ navigation }) => {
       </View>
     );
   };
+
+  if (isLoading) {
+    return (
+      <SafeAreaView style={styles.container}>
+        <View style={styles.loadingContainer}>
+          <ActivityIndicator size="large" color="#FF5C02" />
+          <Text style={styles.loadingText}>Loading learning path...</Text>
+        </View>
+      </SafeAreaView>
+    );
+  }
 
   return (
     <SafeAreaView style={styles.container}>
@@ -270,6 +342,16 @@ const styles = StyleSheet.create({
   container: {
     flex: 1,
     backgroundColor: "#D4E8F5", // Light blue sky background
+  },
+  loadingContainer: {
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  loadingText: {
+    marginTop: 16,
+    fontSize: 16,
+    color: '#333',
   },
   scrollView: {
     flex: 1,

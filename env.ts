@@ -24,3 +24,6 @@ export const OPENAI_API_KEY = 'sk-proj-G1Ijql5J3_JVj2rqe4s5QTLRgwadRfy23oPV_3JM8
 
 // Development Configuration
 export const API_BASE_URL = __DEV__ ? 'http://localhost:3000' : 'https://your-production-url.com';
+
+// MoneyQuest Backend API
+export const MONEYQUEST_API_BASE_URL = 'https://moneyquestproject-demo-production.up.railway.app';
