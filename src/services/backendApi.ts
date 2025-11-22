@@ -4,17 +4,19 @@ import {
   BackendSection,
   BackendLevelDetail,
   BackendQuestion,
+  GeneratedQuestion,
   BackendQuestionResponse,
   BackendSubmitLevelResponse,
   BackendUserProgress,
   BackendTTSRequest,
   BackendTTSResponse,
+  BackendTranscriptionRequest,
+  BackendTranscriptionResponse,
+  BackendTTSStreamRequest,
+  BackendTTSJsonResponse,
+  BackendSectionList,
 } from '../types';
 
-/**
- * MoneyQuest Backend API Service
- * Handles all interactions with the MoneyQuest backend API
- */
 class BackendApiService {
   private baseUrl: string;
 
@@ -57,11 +59,19 @@ class BackendApiService {
   }
 
   /**
-   * Get all available sections/documents
+   * Get all available sections
    */
   async getSections(): Promise<BackendSection[]> {
+    const response = await this.fetchApi<BackendSectionList>('/sections');
+    return response.sections || [];
+  }
+
+  /**
+   * Get all documents (uploaded files)
+   */
+  async getDocuments(): Promise<BackendSection[]> {
     const response = await this.fetchApi<{ documents: BackendSection[]; total: number }>(
-      `/upload/list`
+      '/documents'
     );
     return response.documents || [];
   }
@@ -71,8 +81,8 @@ class BackendApiService {
    * @param sectionId - UUID of the section
    */
   async getSectionLevels(sectionId: string): Promise<BackendLevel[]> {
-    const response = await this.fetchApi<{ total_levels: number; levels: BackendLevel[] }>(
-      `/levels?section_id=${sectionId}`
+    const response = await this.fetchApi<{ section_id: string; levels: BackendLevel[] }>(
+      `/sections/${sectionId}/levels`
     );
     return response.levels || [];
   }
@@ -83,6 +93,16 @@ class BackendApiService {
    */
   async getLevelDetails(levelId: string): Promise<BackendLevelDetail> {
     return await this.fetchApi<BackendLevelDetail>(`/levels/${levelId}`);
+  }
+
+  /**
+   * Get level description and title only (lightweight)
+   * @param levelId - UUID of the level
+   */
+  async getLevelDescription(levelId: string): Promise<{ level_id: string; title: string; description: string }> {
+    return await this.fetchApi<{ level_id: string; title: string; description: string }>(
+      `/levels/${levelId}/description`
+    );
   }
 
   /**
@@ -110,13 +130,10 @@ class BackendApiService {
    * Get previously generated questions for a level
    * @param levelId - UUID of the level
    */
-  async getLevelQuestions(levelId: string): Promise<BackendQuestion[]> {
-    const response = await this.fetchApi<{
-      total_questions: number;
-      questions: BackendQuestion[];
-    }>(`/questions?level_id=${levelId}`);
-    
-    return response.questions || [];
+  async getLevelQuestions(levelId: string): Promise<BackendQuestionResponse> {
+    return await this.fetchApi<BackendQuestionResponse>(
+      `/levels/${levelId}/questions`
+    );
   }
 
   /**
@@ -196,6 +213,132 @@ class BackendApiService {
    */
   async healthCheck(): Promise<{ message: string }> {
     return await this.fetchApi<{ message: string }>('/');
+  }
+
+
+
+  // ============================================
+  // AUDIO SERVICE ENDPOINTS
+  // ============================================
+
+  /**
+   * Transcribe audio from file bytes
+   * @param audioFile - Audio file to transcribe
+   * @param options - Transcription options
+   */
+  async transcribeAudio(
+    audioFile: File | Blob,
+    options: BackendTranscriptionRequest = {}
+  ): Promise<BackendTranscriptionResponse> {
+    const formData = new FormData();
+    formData.append('file', audioFile);
+    
+    if (options.language) formData.append('language', options.language);
+    if (options.prompt) formData.append('prompt', options.prompt);
+    if (options.response_format) formData.append('response_format', options.response_format);
+    if (options.temperature !== undefined) formData.append('temperature', options.temperature.toString());
+
+    const response = await fetch(`${this.baseUrl}/api/audio/transcribe`, {
+      method: 'POST',
+      body: formData,
+    });
+
+    if (!response.ok) {
+      const errorData = await response.json().catch(() => ({}));
+      throw new Error(
+        errorData.detail || `Transcription Error: ${response.status} ${response.statusText}`
+      );
+    }
+
+    return await response.json();
+  }
+
+  /**
+   * Transcribe audio from server file path
+   * @param filePath - Path to audio file on server
+   * @param options - Transcription options
+   */
+  async transcribeAudioFile(
+    filePath: string,
+    options: BackendTranscriptionRequest = {}
+  ): Promise<BackendTranscriptionResponse> {
+    const formData = new URLSearchParams();
+    formData.append('file_path', filePath);
+    
+    if (options.language) formData.append('language', options.language);
+    if (options.prompt) formData.append('prompt', options.prompt);
+    if (options.response_format) formData.append('response_format', options.response_format);
+    if (options.temperature !== undefined) formData.append('temperature', options.temperature.toString());
+
+    return await this.fetchApi<BackendTranscriptionResponse>('/api/audio/transcribe-file', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/x-www-form-urlencoded',
+      },
+      body: formData,
+    });
+  }
+
+  /**
+   * Generate speech with streaming audio response
+   * @param request - TTS request parameters
+   * @returns Audio blob
+   */
+  async generateTTSStream(request: BackendTTSStreamRequest): Promise<Blob> {
+    const formData = new URLSearchParams();
+    formData.append('text', request.text);
+    if (request.voice) formData.append('voice', request.voice);
+    if (request.output_format) formData.append('output_format', request.output_format);
+    if (request.speed) formData.append('speed', request.speed.toString());
+
+    const response = await fetch(`${this.baseUrl}/api/tts/generate`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/x-www-form-urlencoded',
+      },
+      body: formData,
+    });
+
+    if (!response.ok) {
+      const errorData = await response.json().catch(() => ({}));
+      throw new Error(
+        errorData.detail || `TTS Error: ${response.status} ${response.statusText}`
+      );
+    }
+
+    return await response.blob();
+  }
+
+  /**
+   * Generate speech and return JSON with base64 encoded audio
+   * @param request - TTS request parameters
+   */
+  async generateTTSJson(request: BackendTTSStreamRequest): Promise<BackendTTSJsonResponse> {
+    const formData = new URLSearchParams();
+    formData.append('text', request.text);
+    if (request.voice) formData.append('voice', request.voice);
+    if (request.output_format) formData.append('output_format', request.output_format);
+    if (request.speed) formData.append('speed', request.speed.toString());
+
+    return await this.fetchApi<BackendTTSJsonResponse>('/api/tts/generate-json', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/x-www-form-urlencoded',
+      },
+      body: formData,
+    });
+  }
+
+  /**
+   * Play audio from base64 string
+   * @param base64Audio - Base64 encoded audio
+   * @param format - Audio format (mp3, wav, etc.)
+   * @returns Audio element
+   */
+  playAudioFromBase64(base64Audio: string, format: string = 'mp3'): HTMLAudioElement {
+    const audio = new Audio(`data:audio/${format};base64,${base64Audio}`);
+    audio.play();
+    return audio;
   }
 }
 

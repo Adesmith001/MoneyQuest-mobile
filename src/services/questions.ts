@@ -1,5 +1,5 @@
 import { databases, DB_ID, COLLECTIONS, Query } from './appwrite';
-import { Question, BackendQuestion, UserProgress } from '../types';
+import { Question, BackendQuestion, GeneratedQuestion, UserProgress } from '../types';
 import { backendApi } from './backendApi';
 import { levelProgressService } from './levelProgress';
 import { livesService } from './lives';
@@ -15,27 +15,28 @@ class QuestionService {
    * @param levelId - Backend level UUID
    * @param numQuestions - Number of questions to fetch (default: 10)
    * @param difficulty - Difficulty level
-   * @returns Array of questions
+   * @returns Array of questions from the generated response
    */
   async getQuestionsForLevel(
     levelId: string,
     numQuestions: number = 10,
     difficulty: 'easy' | 'medium' | 'hard' | 'mixed' = 'mixed'
-  ): Promise<BackendQuestion[]> {
+  ): Promise<GeneratedQuestion[]> {
     try {
-      // First, try to get existing questions
-      const existingQuestions = await backendApi.getLevelQuestions(levelId);
+      // Try to get existing questions from the backend
+      console.log(`Fetching questions for level ${levelId}`);
+      const response = await backendApi.getLevelQuestions(levelId);
       
-      if (existingQuestions && existingQuestions.length >= numQuestions) {
+      if (response && response.questions && response.questions.length >= numQuestions) {
         // Return a random subset of existing questions
-        return this.shuffleArray(existingQuestions).slice(0, numQuestions);
+        return this.shuffleArray(response.questions).slice(0, numQuestions);
       }
 
       // Generate new questions if not enough exist
       console.log(`Generating ${numQuestions} new questions for level ${levelId}`);
-      const response = await backendApi.generateQuestions(levelId, numQuestions, difficulty);
+      const generateResponse = await backendApi.generateQuestions(levelId, numQuestions, difficulty);
       
-      return response.questions;
+      return generateResponse.questions;
     } catch (error) {
       console.error('Get questions for level error:', error);
       throw error;

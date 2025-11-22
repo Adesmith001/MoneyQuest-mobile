@@ -32,7 +32,7 @@ export interface User {
   $updatedAt: string;
 }
 
-// Backend API Question format
+// Backend API Question format (from database)
 export interface BackendQuestion {
   question_id: number;
   level_id: string;
@@ -48,6 +48,25 @@ export interface BackendQuestion {
   explanation_d: string;
   difficulty?: string;
   created_at?: string;
+}
+
+// Generated Question format (from /generate-questions endpoint)
+export interface GeneratedQuestion {
+  question: string;
+  options: {
+    A: string;
+    B: string;
+    C: string;
+    D: string;
+  };
+  correct_answer: 'A' | 'B' | 'C' | 'D';
+  explanations: {
+    A: string;
+    B: string;
+    C: string;
+    D: string;
+  };
+  difficulty: string;
 }
 
 // Legacy Appwrite Question format (kept for backwards compatibility)
@@ -105,9 +124,15 @@ export interface LeaderboardEntry {
 // Backend API Level format (from /levels endpoint)
 export interface BackendLevel {
   level_id: string;
+  level_number: number;
   title: string;
-  section_id: string;
-  difficulty: number;
+  description: string;
+  content_type?: string;
+  has_quiz: boolean;
+  min_score_to_pass: number;
+  estimated_time_minutes: number;
+  section_id?: string;
+  difficulty?: number;
 }
 
 // Backend API Section format (from /upload/list endpoint - these are documents)
@@ -122,14 +147,17 @@ export interface BackendSection {
 
 export interface BackendLevelDetail {
   level: BackendLevel;
-  section: BackendSection;
+  section: {
+    section_id: string;
+    title: string;
+  };
 }
 
 export interface BackendQuestionResponse {
   level_id: string;
   level_title: string;
   section_title: string;
-  questions: BackendQuestion[];
+  questions: GeneratedQuestion[];
   total_generated: number;
   sources_used: string[];
 }
@@ -152,6 +180,105 @@ export interface BackendTTSResponse {
   audio_url: string;
   duration_seconds: number;
   message: string;
+}
+
+// Document Management Types
+export interface BackendDocument {
+  document_id: string;
+  title: string;
+  description?: string;
+  category?: string;
+  created_at?: string;
+  updated_at?: string;
+  sections?: BackendDocumentSection[];
+}
+
+export interface BackendDocumentSection {
+  section_id: string;
+  section_number: number;
+  title: string;
+  description?: string;
+}
+
+export interface BackendDocumentList {
+  documents: BackendDocument[];
+  total: number;
+}
+
+export interface BackendUploadResult {
+  message: string;
+  total_files: number;
+  total_size: number;
+  uploads: BackendUploadDetail[];
+}
+
+export interface BackendUploadDetail {
+  id: string;
+  filename: string;
+  sanitized_filename: string;
+  file_type: string;
+  file_size: number;
+  file_hash: string;
+  status: string;
+  message: string;
+  category: string;
+}
+
+export interface BackendStats {
+  database_stats: {
+    total_documents: number;
+    total_sections: number;
+    total_levels: number;
+  };
+  file_stats: {
+    total_files: number;
+    total_size_mb: number;
+  };
+}
+
+// Audio Service Types
+export interface BackendTranscriptionRequest {
+  language?: string;
+  prompt?: string;
+  response_format?: 'json' | 'text' | 'srt' | 'vtt' | 'verbose_json';
+  temperature?: number;
+}
+
+export interface BackendTranscriptionResponse {
+  success: boolean;
+  text?: string;
+  transcription?: any;
+  error?: string;
+  duration?: number;
+  language?: string;
+}
+
+export interface BackendTTSStreamRequest {
+  text: string;
+  voice?: string;
+  output_format?: 'mp3' | 'opus' | 'aac' | 'flac' | 'wav';
+  speed?: number;
+}
+
+export interface BackendTTSJsonResponse {
+  success: boolean;
+  audio_base64?: string;
+  voice?: string;
+  model?: string;
+  text_length?: number;
+  output_format?: string;
+  error?: string;
+}
+
+// Section with levels list
+export interface BackendSectionWithLevels {
+  section_id: string;
+  levels: BackendLevel[];
+}
+
+export interface BackendSectionList {
+  count: number;
+  sections: BackendSection[];
 }
 
 // Legacy types

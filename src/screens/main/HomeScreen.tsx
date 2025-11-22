@@ -74,14 +74,15 @@ const HomeScreen: React.FC<Props> = ({ navigation }) => {
             if (levels.length === 0) continue;
 
             const levelNodes: LevelNode[] = levels.map((level) => {
-              // Use the section_id from the level for progress tracking
-              const progress = calculateLevelProgress(level.section_id, level.level_id);
+              // Use the section_id from the level for progress tracking, fallback to document_id
+              const levelSectionId = level.section_id || section.document_id;
+              const progress = calculateLevelProgress(levelSectionId, level.level_id);
               
               return {
                 id: level.level_id,
                 sectionTitle: section.title,
                 levelTitle: level.title,
-                sectionId: level.section_id,
+                sectionId: levelSectionId,
                 levelId: level.level_id,
                 ...progress,
               };
@@ -227,6 +228,16 @@ const HomeScreen: React.FC<Props> = ({ navigation }) => {
                 />
               )}
             </TouchableOpacity>
+            <Text
+              style={[
+                styles.levelTitle,
+                node.isCurrent && styles.currentLevelTitle,
+                !node.isUnlocked && !node.isCurrent && styles.lockedLevelTitle,
+              ]}
+              numberOfLines={2}
+            >
+              {node.levelTitle}
+            </Text>
           </View>
         </View>
 
@@ -282,7 +293,7 @@ const HomeScreen: React.FC<Props> = ({ navigation }) => {
                   {section.title}
                 </Text>
                 <Text style={styles.sectionSubtitle}>
-                  {section.levels[0]?.sectionTitle || ''}
+                  {section.levels.length} {section.levels.length === 1 ? 'Level' : 'Levels'}
                 </Text>
               </View>
               <View style={styles.bookIcon}>
@@ -448,6 +459,22 @@ const styles = StyleSheet.create({
   nodeWrapper: {
     width: screenWidth / 2,
     alignItems: "center",
+  },
+  levelTitle: {
+    fontSize: 12,
+    fontWeight: "600",
+    color: "#333",
+    textAlign: "center",
+    marginTop: 8,
+    paddingHorizontal: 8,
+    maxWidth: screenWidth / 2 - 40,
+  },
+  currentLevelTitle: {
+    color: "#FF5722",
+    fontWeight: "bold",
+  },
+  lockedLevelTitle: {
+    color: "#999",
   },
   levelNode: {
     width: 50,

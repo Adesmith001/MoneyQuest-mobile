@@ -27,7 +27,7 @@ import CustomButton from "../../components/CustomButton";
 import questionService from "../../services/questions";
 import { backendApi } from "../../services/backendApi";
 import { databases, DB_ID, COLLECTIONS } from "../../services/appwrite";
-import { BackendQuestion } from "../../types";
+import { GeneratedQuestion } from "../../types";
 import { getNextLevel } from "../../config/learningPath";
 
 interface Props {
@@ -48,7 +48,7 @@ const QuestionScreen: React.FC<Props> = ({ navigation, route }) => {
   const { user } = useSelector((state: RootState) => state.auth);
   const { health } = useSelector((state: RootState) => state.game);
 
-  const [questions, setQuestions] = useState<BackendQuestion[]>([]);
+  const [questions, setQuestions] = useState<GeneratedQuestion[]>([]);
   const [levelData, setLevelData] = useState<any>(null);
   const [currentQuestionIndex, setCurrentQuestionIndex] = useState(0);
   const [selectedAnswer, setSelectedAnswer] = useState<string>("");
@@ -211,13 +211,13 @@ const QuestionScreen: React.FC<Props> = ({ navigation, route }) => {
   const progress = ((currentQuestionIndex + 1) / questions.length) * 100;
   const canSubmit = !!selectedAnswer;
 
-  // Convert backend question format to options array for rendering
+  // Convert GeneratedQuestion format to options array for rendering
   const optionsArray = currentQuestion
     ? [
-        { key: 'A', value: currentQuestion.option_a },
-        { key: 'B', value: currentQuestion.option_b },
-        { key: 'C', value: currentQuestion.option_c },
-        { key: 'D', value: currentQuestion.option_d },
+        { key: 'A', value: currentQuestion.options.A },
+        { key: 'B', value: currentQuestion.options.B },
+        { key: 'C', value: currentQuestion.options.C },
+        { key: 'D', value: currentQuestion.options.D },
       ]
     : [];
 
@@ -225,18 +225,7 @@ const QuestionScreen: React.FC<Props> = ({ navigation, route }) => {
   const getExplanation = (answerKey: string): string => {
     if (!currentQuestion) return 'No explanation available.';
     
-    switch (answerKey) {
-      case 'A':
-        return currentQuestion.explanation_a;
-      case 'B':
-        return currentQuestion.explanation_b;
-      case 'C':
-        return currentQuestion.explanation_c;
-      case 'D':
-        return currentQuestion.explanation_d;
-      default:
-        return 'No explanation available.';
-    }
+    return currentQuestion.explanations[answerKey as 'A' | 'B' | 'C' | 'D'] || 'No explanation available.';
   };
 
   return (
@@ -253,7 +242,12 @@ const QuestionScreen: React.FC<Props> = ({ navigation, route }) => {
       </View>
 
       <ScrollView contentContainerStyle={styles.content}>
-        <Text style={styles.questionText}>{currentQuestion.question_text}</Text>
+        <View style={styles.levelInfoContainer}>
+          <Text style={styles.sectionTitleText}>{sectionTitle}</Text>
+          <Text style={styles.levelTitleText}>{levelTitle}</Text>
+        </View>
+        
+        <Text style={styles.questionText}>{currentQuestion.question}</Text>
 
         <View style={styles.optionsContainer}>
           {optionsArray.map((option) => (
@@ -342,6 +336,26 @@ const styles = StyleSheet.create({
     flexGrow: 1,
     padding: SPACING.md,
     justifyContent: "center",
+  },
+  levelInfoContainer: {
+    backgroundColor: COLORS.primary,
+    borderRadius: 12,
+    padding: SPACING.md,
+    marginBottom: SPACING.lg,
+    alignItems: "center",
+  },
+  sectionTitleText: {
+    fontSize: FONT_SIZES.md,
+    fontWeight: "600",
+    color: COLORS.card,
+    textAlign: "center",
+    marginBottom: SPACING.xs,
+  },
+  levelTitleText: {
+    fontSize: FONT_SIZES.lg,
+    fontWeight: "bold",
+    color: COLORS.card,
+    textAlign: "center",
   },
   sectionTitle: {
     fontSize: FONT_SIZES.lg,
