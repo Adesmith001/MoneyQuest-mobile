@@ -67,15 +67,21 @@ const HomeScreen: React.FC<Props> = ({ navigation }) => {
 
         for (const section of backendSections) {
           try {
-            // Fetch levels for this section using document_id
-            const levels = await backendApi.getSectionLevels(section.document_id);
+            // Skip sections without a valid section_id
+            if (!section.section_id) {
+              console.warn(`Section "${section.title}" has no section_id, skipping...`);
+              continue;
+            }
+
+            // Fetch levels for this section using section_id
+            const levels = await backendApi.getSectionLevels(section.section_id);
             console.log(`Levels for ${section.title}:`, levels);
             
             if (levels.length === 0) continue;
 
             const levelNodes: LevelNode[] = levels.map((level) => {
-              // Use the section_id from the level for progress tracking, fallback to document_id
-              const levelSectionId = level.section_id || section.document_id;
+              // Use the section_id from the level for progress tracking
+              const levelSectionId = level.section_id || section.section_id!;
               const progress = calculateLevelProgress(levelSectionId, level.level_id);
               
               return {
@@ -89,7 +95,7 @@ const HomeScreen: React.FC<Props> = ({ navigation }) => {
             });
 
             sectionsData.push({
-              id: section.document_id,
+              id: section.section_id,
               title: section.title,
               levels: levelNodes,
             });

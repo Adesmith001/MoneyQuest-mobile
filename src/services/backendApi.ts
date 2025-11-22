@@ -76,10 +76,6 @@ class BackendApiService {
     return response.documents || [];
   }
 
-  /**
-   * Get all levels within a specific section
-   * @param sectionId - UUID of the section
-   */
   async getSectionLevels(sectionId: string): Promise<BackendLevel[]> {
     const response = await this.fetchApi<{ section_id: string; levels: BackendLevel[] }>(
       `/sections/${sectionId}/levels`

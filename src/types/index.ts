@@ -143,6 +143,7 @@ export interface BackendSection {
   description?: string;
   created_at?: string;
   updated_at?: string;
+  section_id?: string;
 }
 
 export interface BackendLevelDetail {
