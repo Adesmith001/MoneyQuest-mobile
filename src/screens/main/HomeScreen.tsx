@@ -22,6 +22,7 @@ import {
 import { backendApi } from "../../services/backendApi";
 import { databases, DB_ID, COLLECTIONS, Query } from "../../services/appwrite";
 import { BackendLevel } from "../../types";
+import { useFocusEffect } from "@react-navigation/native";
 
 interface Props {
   navigation: any;
@@ -54,27 +55,30 @@ const HomeScreen: React.FC<Props> = ({ navigation }) => {
   const [isLoading, setIsLoading] = useState(true);
   const [completedLevels, setCompletedLevels] = useState<Set<string>>(new Set());
 
-  // Fetch sections and levels from backend
-  useEffect(() => {
-    async function fetchLearningPath() {
-      try {
-        setIsLoading(true);
-        
-        // Fetch user's completed levels from Appwrite
-        if (user?.$id) {
-          try {
-            const progressDocs = await databases.listDocuments(
-              DB_ID,
-              COLLECTIONS.USER_PROGRESS,
-              [Query.equal('userId', user.$id), Query.equal('isCompleted', true)]
-            );
-            const completed = new Set(progressDocs.documents.map(doc => doc.level));
-            setCompletedLevels(completed);
-            console.log('Completed levels:', Array.from(completed));
-          } catch (error) {
-            console.error('Failed to fetch completed levels:', error);
+  // Fetch sections and levels from backend when screen is focused
+  useFocusEffect(
+    React.useCallback(() => {
+      async function fetchLearningPath() {
+        try {
+          setIsLoading(true);
+          
+          // Fetch user's completed levels from Appwrite
+          if (user?.$id) {
+            try {
+              const progressDocs = await databases.listDocuments(
+                DB_ID,
+                COLLECTIONS.USER_PROGRESS,
+                [Query.equal('userId', user.$id), Query.equal('isCompleted', true)]
+              );
+              const completed = new Set(progressDocs.documents.map(doc => doc.level));
+              setCompletedLevels(completed);
+              console.log('Completed levels:', Array.from(completed));
+              console.log('Current Level ID from user:', user.currentLevelId);
+              console.log('Current Section ID from user:', user.currentSectionId);
+            } catch (error) {
+              console.error('Failed to fetch completed levels:', error);
+            }
           }
-        }
         
         // Get all sections (documents) from backend
         const backendSections = await backendApi.getSections();
@@ -134,7 +138,8 @@ const HomeScreen: React.FC<Props> = ({ navigation }) => {
     }
 
     fetchLearningPath();
-  }, [user]);
+    }, [user?.$id, user?.currentLevelId, user?.currentSectionId])
+  );
 
   // Calculate level progress based on user's current position
   const calculateLevelProgress = (sectionId: string, levelId: string, levelIndex: number, sectionLevels: any[]) => {

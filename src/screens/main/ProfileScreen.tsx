@@ -10,6 +10,7 @@ import {
   Image,
 } from "react-native";
 import { useSelector, useDispatch } from "react-redux";
+import { useFocusEffect } from "@react-navigation/native";
 import { Ionicons } from "@expo/vector-icons";
 import { RootState } from "../../store";
 import { formatXP, formatMonthlyXP, formatLifeRegenTime, getDaysUntilMonthEnd } from "../../utils";
@@ -19,6 +20,7 @@ import CustomButton from "../../components/CustomButton";
 import { loadStreakData } from "../../store/slices/streakSlice";
 import { livesService } from "../../services/lives";
 import { levelProgressService } from "../../services/levelProgress";
+import { updateUser } from "../../store/slices/authSlice";
 
 const { width: screenWidth } = Dimensions.get("window");
 
@@ -34,6 +36,32 @@ const ProfileScreen: React.FC<Props> = ({ navigation }) => {
   );
   const [isInviteModalVisible, setInviteModalVisible] = useState(false);
   const [lifeRegenTime, setLifeRegenTime] = useState('');
+
+  // Refresh lives when screen is focused
+  useFocusEffect(
+    React.useCallback(() => {
+      const refreshUserLives = async () => {
+        if (!user?.$id) return;
+        
+        try {
+          const { lives, lastLifeRegenTime } = await livesService.refreshLives(
+            user.$id,
+            user.lives || 5,
+            user.lastLifeRegenTime || new Date().toISOString()
+          );
+          
+          // Update Redux store with new lives if changed
+          if (lives !== user.lives || lastLifeRegenTime !== user.lastLifeRegenTime) {
+            dispatch(updateUser({ lives, lastLifeRegenTime }));
+          }
+        } catch (error) {
+          console.error('Failed to refresh lives:', error);
+        }
+      };
+
+      refreshUserLives();
+    }, [user?.$id, user?.lives, user?.lastLifeRegenTime, dispatch])
+  );
 
   useEffect(() => {
     // Load streak data when component mounts

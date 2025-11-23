@@ -2,11 +2,11 @@ import { databases, DB_ID, COLLECTIONS } from './appwrite';
 import { User } from '../types';
 
 const MAX_LIVES = 5;
-const LIFE_REGEN_TIME_MS = 60 * 60 * 1000; // 1 hour in milliseconds
+const LIFE_REGEN_TIME_MS = 5 * 60 * 1000; // 5 minute in milliseconds
 
 /**
  * Lives Management Service
- * Handles the lives system: max 5 lives, regenerates 1 per hour
+ * Handles the lives system: max 5 lives, regenerates 1 every 5 minute (for testing)
  */
 class LivesService {
   /**
@@ -202,9 +202,13 @@ class LivesService {
       lastRegenTime
     );
 
-    // Only update database if lives have changed
-    if (lives !== currentLives) {
+    // Update database if lives have changed OR if enough time has passed for potential regen
+    const timeUntilNext = this.getTimeUntilNextLife(lives, lastLifeRegenTime);
+    const shouldUpdate = lives !== currentLives || (timeUntilNext === 0 && lives < MAX_LIVES);
+
+    if (shouldUpdate) {
       await this.updateUserLives(userId, lives, lastLifeRegenTime);
+      console.log(`✅ Lives synced to Appwrite: ${lives}/${MAX_LIVES}`);
     }
 
     return { lives, lastLifeRegenTime };

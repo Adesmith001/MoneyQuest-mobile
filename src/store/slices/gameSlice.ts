@@ -38,6 +38,9 @@ const gameSlice = createSlice({
     removeHealth: (state, action: PayloadAction<number>) => {
       state.health = Math.max(0, state.health - action.payload);
     },
+    setHealth: (state, action: PayloadAction<number>) => {
+      state.health = Math.max(0, Math.min(5, action.payload)); // Set health within valid range
+    },
     setXP: (state, action: PayloadAction<number>) => {
       state.xp = action.payload;
     },
@@ -78,6 +81,7 @@ export const {
   addXP,
   addHealth,
   removeHealth,
+  setHealth,
   setXP,
   updateStreak,
   setQuestionActive,

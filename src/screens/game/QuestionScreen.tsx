@@ -18,8 +18,9 @@ import {
   addHealth,
   addXP,
   removeHealth,
+  setHealth,
 } from "../../store/slices/gameSlice";
-import { refreshUserData } from "../../store/slices/authSlice";
+import { refreshUserData, updateUser } from "../../store/slices/authSlice";
 import CorrectAnswerModal from "../../components/modals/CorrectAnswerModal";
 import IncorrectAnswerModal from "../../components/modals/IncorrectAnswerModal";
 import { RootState } from "../../store";
@@ -31,6 +32,7 @@ import { databases, DB_ID, COLLECTIONS, Query } from "../../services/appwrite";
 import { GeneratedQuestion } from "../../types";
 import { getNextLevel } from "../../config/learningPath";
 import soundService from "../../services/soundService";
+import livesService from "../../services/lives";
 
 interface Props {
   navigation: any;
@@ -64,6 +66,17 @@ const QuestionScreen: React.FC<Props> = ({ navigation, route }) => {
   const [correctAnswersCount, setCorrectAnswersCount] = useState(0);
   const [xpGained, setXpGained] = useState(0);
   const [startTime, setStartTime] = useState<number>(Date.now());
+
+  // Initialize health from user's actual lives when component mounts
+  useEffect(() => {
+    if (user?.lives !== undefined) {
+      const { lives } = livesService.calculateCurrentLives(
+        user.lives,
+        user.lastLifeRegenTime || new Date().toISOString()
+      );
+      dispatch(setHealth(lives));
+    }
+  }, [user?.lives, user?.lastLifeRegenTime, dispatch]);
 
   // Load level data and questions from backend
   useEffect(() => {
@@ -228,7 +241,18 @@ const QuestionScreen: React.FC<Props> = ({ navigation, route }) => {
         setCorrectModalVisible(true);
       } else {
         soundService.playSound('incorrect'); // Play incorrect sound
-        dispatch(removeHealth(1));
+        
+        // Deduct life using livesService and update Appwrite
+        const { lives, lastLifeRegenTime, canContinue } = await livesService.deductLife(
+          user.$id,
+          user.lives || 5,
+          user.lastLifeRegenTime || new Date().toISOString()
+        );
+        
+        // Update Redux with new lives
+        dispatch(setHealth(lives));
+        dispatch(updateUser({ lives, lastLifeRegenTime }));
+        
         setIncorrectModalVisible(true);
       }
       
@@ -342,9 +366,19 @@ const QuestionScreen: React.FC<Props> = ({ navigation, route }) => {
           const newLives = Math.min((user.lives || 5) + 1, 5); // Cap at 5 lives
           updateData.lives = newLives;
           dispatch(addHealth(1));
+          
+          // Update Redux store with new currentLevelId
+          dispatch(updateUser({ 
+            currentLevelId: result.next_level_id,
+            currentSectionId: sectionId,
+            lives: newLives
+          }));
         }
 
         await databases.updateDocument(DB_ID, COLLECTIONS.USERS, user.$id, updateData);
+
+        // Refresh user data to ensure everything is in sync
+        dispatch(refreshUserData(user.$id) as any);
 
         dispatch(nextLevel());
         navigation.replace("LevelCompletion", {
