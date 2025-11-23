@@ -5,11 +5,13 @@ import CustomButton from "../CustomButton";
 interface CorrectAnswerModalProps {
   visible: boolean;
   onContinue: () => void;
+  explanation?: string;
 }
 
 const CorrectAnswerModal: React.FC<CorrectAnswerModalProps> = ({
   visible,
   onContinue,
+  explanation,
 }) => {
   return (
     <Modal
@@ -27,6 +29,11 @@ const CorrectAnswerModal: React.FC<CorrectAnswerModalProps> = ({
           />
           <Text style={styles.modalTitle}>Correct</Text>
           <Text style={styles.modalSubtitle}>Keep going! 🚀</Text>
+          {explanation && (
+            <View style={styles.explanationContainer}>
+              <Text style={styles.explanationText}>{explanation}</Text>
+            </View>
+          )}
           <CustomButton title="Continue" onPress={onContinue} />
         </View>
       </View>
@@ -79,6 +86,17 @@ const styles = StyleSheet.create({
     fontSize: 16,
     color: "#666",
     marginBottom: 20,
+  },
+  explanationContainer: {
+    marginBottom: 20,
+    alignItems: "center",
+    paddingHorizontal: 15,
+  },
+  explanationText: {
+    fontSize: 14,
+    color: "#333",
+    textAlign: "center",
+    lineHeight: 20,
   },
 });
 

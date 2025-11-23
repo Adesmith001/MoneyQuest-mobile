@@ -14,6 +14,7 @@ import { AppDispatch, RootState } from '../../store';
 import { updateUser } from '../../store/slices/authSlice';
 import { avatars } from '../../utils/avatarUtils';
 import CustomButton from '../../components/CustomButton';
+import { databases, DB_ID, COLLECTIONS } from '../../services/appwrite';
 
 interface Props {
   navigation: any;
@@ -23,19 +24,43 @@ const ChangeAvatarScreen: React.FC<Props> = ({ navigation }) => {
   const dispatch = useDispatch<AppDispatch>();
   const { user, isLoading } = useSelector((state: RootState) => state.auth);
   const [selectedAvatar, setSelectedAvatar] = useState(user?.avatar || '');
+  const [isSaving, setIsSaving] = useState(false);
 
-  const handleSaveAvatar = () => {
+  const handleSaveAvatar = async () => {
     if (selectedAvatar === user?.avatar) {
       navigation.goBack();
       return;
     }
 
+    if (!user?.$id) {
+      Alert.alert('Error', 'User not found. Please log in again.');
+      return;
+    }
+
     try {
+      setIsSaving(true);
+      
+      // Update avatar in Appwrite
+      await databases.updateDocument(
+        DB_ID,
+        COLLECTIONS.USERS,
+        user.$id,
+        {
+          avatar: selectedAvatar,
+          updatedAt: new Date().toISOString(),
+        }
+      );
+
+      // Update Redux store
       dispatch(updateUser({ avatar: selectedAvatar }));
+      
       Alert.alert('Success', 'Avatar updated successfully!');
       navigation.goBack();
     } catch (error) {
+      console.error('Failed to update avatar:', error);
       Alert.alert('Error', 'Failed to update avatar. Please try again.');
+    } finally {
+      setIsSaving(false);
     }
   };
 
@@ -62,9 +87,9 @@ const ChangeAvatarScreen: React.FC<Props> = ({ navigation }) => {
       </ScrollView>
       <View style={styles.buttonContainer}>
         <CustomButton
-          title={isLoading ? 'Saving...' : 'Save'}
+          title={isSaving ? 'Saving...' : 'Save'}
           onPress={handleSaveAvatar}
-          disabled={isLoading}
+          disabled={isSaving || isLoading}
         />
       </View>
     </SafeAreaView>

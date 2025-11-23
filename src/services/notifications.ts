@@ -1,7 +1,7 @@
 import * as Notifications from 'expo-notifications';
 import { Platform } from 'react-native';
 
-// Configure notifications
+// Configure how notifications should be handled when the app is in foreground
 Notifications.setNotificationHandler({
   handleNotification: async () => ({
     shouldShowAlert: true,
@@ -13,7 +13,9 @@ Notifications.setNotificationHandler({
 });
 
 class NotificationService {
-  // Request notification permissions
+  /**
+   * Request notification permissions
+   */
   async requestPermissions(): Promise<boolean> {
     try {
       const { status: existingStatus } = await Notifications.getPermissionsAsync();
@@ -25,163 +27,146 @@ class NotificationService {
       }
 
       if (finalStatus !== 'granted') {
-        console.log('Failed to get push token for push notification!');
+        console.log('❌ Notification permission denied');
         return false;
       }
 
+      // For Android, create a notification channel
       if (Platform.OS === 'android') {
         await Notifications.setNotificationChannelAsync('default', {
           name: 'default',
           importance: Notifications.AndroidImportance.MAX,
           vibrationPattern: [0, 250, 250, 250],
-          lightColor: '#FF231F7C',
+          lightColor: '#FF6B35',
         });
       }
 
+      console.log('✅ Notification permission granted');
       return true;
     } catch (error) {
-      console.error('Request permissions error:', error);
+      console.error('Failed to request permissions:', error);
       return false;
     }
   }
 
-  // Schedule daily reminder notification
-  async scheduleDailyReminder(): Promise<void> {
-    try {
-      // Cancel existing notifications
-      await Notifications.cancelAllScheduledNotificationsAsync();
-
-      // Schedule daily notification at 8 PM
-      await Notifications.scheduleNotificationAsync({
-        content: {
-          title: "Don't break your streak! 🔥",
-          body: "Complete today's financial lesson to maintain your learning streak!",
-          data: { type: 'daily_reminder' },
-        },
-        trigger: {
-          type: Notifications.SchedulableTriggerInputTypes.CALENDAR,
-          hour: 20,
-          minute: 0,
-          repeats: true,
-        },
-      });
-
-      console.log('Daily reminder scheduled');
-    } catch (error) {
-      console.error('Schedule daily reminder error:', error);
-    }
-  }
-
-  // Schedule streak reminder (when user hasn't logged in)
-  async scheduleStreakReminder(streakCount: number): Promise<void> {
-    try {
-      await Notifications.scheduleNotificationAsync({
-        content: {
-          title: `${streakCount} day streak at risk! ⚠️`,
-          body: "Don't lose your amazing progress! Open the app now to continue learning.",
-          data: { type: 'streak_reminder', streak: streakCount },
-        },
-        trigger: {
-          type: Notifications.SchedulableTriggerInputTypes.TIME_INTERVAL,
-          seconds: 3600, // 1 hour from now
-        },
-      });
-
-      console.log('Streak reminder scheduled');
-    } catch (error) {
-      console.error('Schedule streak reminder error:', error);
-    }
-  }
-
-  // Send achievement notification
-  async sendAchievementNotification(title: string, message: string, xpEarned?: number): Promise<void> {
-    try {
-      await Notifications.scheduleNotificationAsync({
-        content: {
-          title,
-          body: xpEarned ? `${message} (+${xpEarned} XP)` : message,
-          data: { type: 'achievement', xp: xpEarned },
-        },
-        trigger: null, // Send immediately
-      });
-
-      console.log('Achievement notification sent');
-    } catch (error) {
-      console.error('Send achievement notification error:', error);
-    }
-  }
-
-  // Send level completion notification
-  async sendLevelCompletionNotification(level: number, xpEarned: number): Promise<void> {
-    try {
-      await this.sendAchievementNotification(
-        `Level ${level} Complete! 🎉`,
-        `Congratulations! You've mastered level ${level}.`,
-        xpEarned
-      );
-    } catch (error) {
-      console.error('Send level completion notification error:', error);
-    }
-  }
-
-  // Send leaderboard update notification
-  async sendLeaderboardNotification(newRank: number, previousRank?: number): Promise<void> {
-    try {
-      let message = `You're now ranked #${newRank} on the leaderboard!`;
-      
-      if (previousRank && newRank < previousRank) {
-        message = `You moved up to #${newRank} on the leaderboard! (from #${previousRank})`;
-      }
-
-      await this.sendAchievementNotification(
-        'Leaderboard Update! 🏆',
-        message
-      );
-    } catch (error) {
-      console.error('Send leaderboard notification error:', error);
-    }
-  }
-
-  // Cancel all notifications
-  async cancelAllNotifications(): Promise<void> {
-    try {
-      await Notifications.cancelAllScheduledNotificationsAsync();
-      console.log('All notifications cancelled');
-    } catch (error) {
-      console.error('Cancel all notifications error:', error);
-    }
-  }
-
-  // Handle notification response (when user taps notification)
-  setupNotificationResponseHandler(): void {
-    Notifications.addNotificationResponseReceivedListener(response => {
-      const data = response.notification.request.content.data;
-      
-      switch (data.type) {
-        case 'daily_reminder':
-        case 'streak_reminder':
-          // Navigate to main learning screen
-          // You'll implement navigation logic here
-          console.log('Navigate to learning screen');
-          break;
-        case 'achievement':
-          // Maybe show achievement modal
-          console.log('Show achievement modal');
-          break;
-        default:
-          console.log('Unknown notification type:', data.type);
-      }
-    });
-  }
-
-  // Get notification permissions status
-  async getPermissionsStatus(): Promise<string> {
+  /**
+   * Get current permission status
+   */
+  async getPermissionsStatus(): Promise<'granted' | 'denied' | 'undetermined'> {
     try {
       const { status } = await Notifications.getPermissionsAsync();
       return status;
     } catch (error) {
-      console.error('Get permissions status error:', error);
+      console.error('Failed to get permissions status:', error);
       return 'undetermined';
+    }
+  }
+
+  /**
+   * Schedule daily reminder notifications at peak hours
+   */
+  async scheduleDailyReminder() {
+    try {
+      await Notifications.cancelAllScheduledNotificationsAsync();
+
+      // Peak hours to send notifications
+      const peakHours = [
+        { hour: 10, minute: 0, title: "Morning Learning! ☀️", body: "Start your day with a financial lesson!" },
+        { hour: 14, minute: 0, title: "Afternoon Break! 📚", body: "Time for your daily financial literacy lesson!" },
+        { hour: 19, minute: 0, title: "Evening Learning! 🌙", body: "Complete today's lesson before bed!" },
+      ];
+
+      // Schedule notification for each peak hour
+      for (const peak of peakHours) {
+        await Notifications.scheduleNotificationAsync({
+          content: {
+            title: peak.title,
+            body: peak.body,
+            sound: true,
+            priority: Notifications.AndroidNotificationPriority.HIGH,
+          },
+          trigger: {
+            type: Notifications.SchedulableTriggerInputTypes.CALENDAR,
+            hour: peak.hour,
+            minute: peak.minute,
+            repeats: true,
+          },
+        });
+      }
+
+      console.log('✅ Daily reminders scheduled for 10am, 2pm, and 7pm');
+    } catch (error) {
+      console.error('Failed to schedule notification:', error);
+    }
+  }
+
+  /**
+   * Schedule a notification for when lives are full
+   */
+  async scheduleLifeFullNotification(minutesUntilFull: number) {
+    try {
+      await Notifications.scheduleNotificationAsync({
+        content: {
+          title: "Lives Restored! ❤️",
+          body: "Your lives are full! Time to continue your learning journey.",
+          sound: true,
+        },
+        trigger: {
+          type: Notifications.SchedulableTriggerInputTypes.TIME_INTERVAL,
+          seconds: minutesUntilFull * 60,
+          repeats: false,
+        },
+      });
+
+      console.log(`✅ Life full notification scheduled for ${minutesUntilFull} minutes`);
+    } catch (error) {
+      console.error('Failed to schedule life notification:', error);
+    }
+  }
+
+  /**
+   * Send immediate notification (for testing or special events)
+   */
+  async sendImmediateNotification(title: string, body: string) {
+    try {
+      await Notifications.scheduleNotificationAsync({
+        content: {
+          title,
+          body,
+          sound: true,
+        },
+        trigger: null, // Send immediately
+      });
+
+      console.log('✅ Immediate notification sent');
+    } catch (error) {
+      console.error('Failed to send notification:', error);
+    }
+  }
+
+  /**
+   * Cancel all scheduled notifications
+   */
+  async cancelAllNotifications() {
+    try {
+      await Notifications.cancelAllScheduledNotificationsAsync();
+      console.log('✅ All notifications cancelled');
+    } catch (error) {
+      console.error('Failed to cancel notifications:', error);
+    }
+  }
+
+  /**
+   * Get all scheduled notifications (for debugging)
+   */
+  async getScheduledNotifications() {
+    try {
+      const notifications = await Notifications.getAllScheduledNotificationsAsync();
+      console.log('📅 Scheduled notifications:', notifications);
+      return notifications;
+    } catch (error) {
+      console.error('Failed to get scheduled notifications:', error);
+      return [];
     }
   }
 }

@@ -33,7 +33,6 @@ const ProfileScreen: React.FC<Props> = ({ navigation }) => {
     (state: RootState) => state.streak
   );
   const [isInviteModalVisible, setInviteModalVisible] = useState(false);
-  const [currentLives, setCurrentLives] = useState(user?.lives || 5);
   const [lifeRegenTime, setLifeRegenTime] = useState('');
 
   useEffect(() => {
@@ -46,7 +45,18 @@ const ProfileScreen: React.FC<Props> = ({ navigation }) => {
     if (user && levelProgressService.shouldResetMonthlyXP(user)) {
       levelProgressService.resetMonthlyXP(user.$id);
     }
-  }, [user?.$id, dispatch]);
+
+    // Log Appwrite data
+    console.log('=== APPWRITE USER DATA ===');
+    console.log('Monthly XP from Appwrite:', user?.monthlyXP);
+    console.log('Lives from Appwrite:', user?.lives);
+    console.log('Total XP from Appwrite:', user?.totalXP);
+    console.log('XP from Appwrite:', user?.xp);
+    console.log('Current Streak from Redux:', currentStreak);
+    console.log('Weekly Streak from Redux:', weeklyStreak);
+    console.log('Full User Object:', JSON.stringify(user, null, 2));
+    console.log('========================');
+  }, [user?.$id, user?.monthlyXP, user?.lives, user?.totalXP, user?.xp, currentStreak, weeklyStreak, dispatch]);
 
   // Update lives and regeneration timer
   useEffect(() => {
@@ -54,25 +64,18 @@ const ProfileScreen: React.FC<Props> = ({ navigation }) => {
 
     const updateLivesTimer = () => {
       try {
-        // Ensure lives and lastLifeRegenTime have valid values
+        // Use lives directly from user object (Appwrite)
         const currentLivesValue = typeof user.lives === 'number' ? user.lives : 5;
         const regenTime = user.lastLifeRegenTime || new Date().toISOString();
 
-        const { lives } = livesService.calculateCurrentLives(
-          currentLivesValue,
-          regenTime
-        );
-        setCurrentLives(lives);
-
         const timeRemaining = livesService.getTimeUntilNextLife(
-          lives,
+          currentLivesValue,
           regenTime
         );
         setLifeRegenTime(formatLifeRegenTime(timeRemaining));
       } catch (error) {
         console.error('Error updating lives timer:', error);
         // Set default values on error
-        setCurrentLives(5);
         setLifeRegenTime('Full');
       }
     };
@@ -81,7 +84,7 @@ const ProfileScreen: React.FC<Props> = ({ navigation }) => {
     const interval = setInterval(updateLivesTimer, 1000); // Update every second
 
     return () => clearInterval(interval);
-  }, [user]);
+  }, [user, user?.lives, user?.lastLifeRegenTime]);
 
   if (!user) {
     return (
@@ -101,7 +104,7 @@ const ProfileScreen: React.FC<Props> = ({ navigation }) => {
     currentStreak: currentStreak,
     totalStreak: totalStreak,
     daysThisMonth: daysThisMonth,
-    lives: currentLives,
+    lives: user?.lives || 5,
     maxLives: livesService.getMaxLives(),
   };
 

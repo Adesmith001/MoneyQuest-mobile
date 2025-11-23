@@ -138,6 +138,18 @@ export const checkAuthStatus = createAsyncThunk(
   }
 );
 
+export const refreshUserData = createAsyncThunk(
+  'auth/refreshUserData',
+  async (userId: string, { rejectWithValue }) => {
+    try {
+      const userDocument = await AuthService.getUserDocument(userId);
+      return userDocument;
+    } catch (error: any) {
+      return rejectWithValue(error.message);
+    }
+  }
+);
+
 export const updateProfilePicture = createAsyncThunk(
   'auth/updateProfilePicture',
   async ({ userId, imageUri }: { userId: string; imageUri: string }, { rejectWithValue }) => {
@@ -368,6 +380,12 @@ const authSlice = createSlice({
         state.isAuthenticated = false;
         state.user = null;
         state.error = action.payload as string;
+      })
+      // Refresh User Data
+      .addCase(refreshUserData.fulfilled, (state, action) => {
+        if (state.user && action.payload) {
+          state.user = action.payload;
+        }
       });
   },
 });

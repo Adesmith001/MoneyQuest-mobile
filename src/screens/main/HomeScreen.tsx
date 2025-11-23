@@ -20,7 +20,7 @@ import {
   setCurrentSection,
 } from "../../store/slices/gameSlice";
 import { backendApi } from "../../services/backendApi";
-import { databases, DB_ID, COLLECTIONS } from "../../services/appwrite";
+import { databases, DB_ID, COLLECTIONS, Query } from "../../services/appwrite";
 import { BackendLevel } from "../../types";
 
 interface Props {
@@ -52,12 +52,29 @@ const HomeScreen: React.FC<Props> = ({ navigation }) => {
 
   const [sections, setSections] = useState<Section[]>([]);
   const [isLoading, setIsLoading] = useState(true);
+  const [completedLevels, setCompletedLevels] = useState<Set<string>>(new Set());
 
   // Fetch sections and levels from backend
   useEffect(() => {
     async function fetchLearningPath() {
       try {
         setIsLoading(true);
+        
+        // Fetch user's completed levels from Appwrite
+        if (user?.$id) {
+          try {
+            const progressDocs = await databases.listDocuments(
+              DB_ID,
+              COLLECTIONS.USER_PROGRESS,
+              [Query.equal('userId', user.$id), Query.equal('isCompleted', true)]
+            );
+            const completed = new Set(progressDocs.documents.map(doc => doc.level));
+            setCompletedLevels(completed);
+            console.log('Completed levels:', Array.from(completed));
+          } catch (error) {
+            console.error('Failed to fetch completed levels:', error);
+          }
+        }
         
         // Get all sections (documents) from backend
         const backendSections = await backendApi.getSections();
@@ -79,10 +96,10 @@ const HomeScreen: React.FC<Props> = ({ navigation }) => {
             
             if (levels.length === 0) continue;
 
-            const levelNodes: LevelNode[] = levels.map((level) => {
+            const levelNodes: LevelNode[] = levels.map((level, levelIndex) => {
               // Use the section_id from the level for progress tracking
               const levelSectionId = level.section_id || section.section_id!;
-              const progress = calculateLevelProgress(levelSectionId, level.level_id);
+              const progress = calculateLevelProgress(levelSectionId, level.level_id, levelIndex, levels);
               
               return {
                 id: level.level_id,
@@ -120,25 +137,34 @@ const HomeScreen: React.FC<Props> = ({ navigation }) => {
   }, [user]);
 
   // Calculate level progress based on user's current position
-  const calculateLevelProgress = (sectionId: string, levelId: string) => {
+  const calculateLevelProgress = (sectionId: string, levelId: string, levelIndex: number, sectionLevels: any[]) => {
     const currentSectionId = user?.currentSectionId;
     const currentLevelId = user?.currentLevelId;
 
-    // If no progress, start at first level
+    // Check if this level is completed
+    const isCompleted = completedLevels.has(levelId);
+
+    // If no progress, only unlock first level of first section
     if (!currentSectionId || !currentLevelId) {
+      const isFirstLevel = levelIndex === 0 && sectionId === sections[0]?.id;
       return { 
-        isUnlocked: sections.length === 0 || (sectionId === sections[0]?.id && levelId === sections[0]?.levels[0]?.id),
-        isCompleted: false, 
-        isCurrent: sections.length === 0 || (sectionId === sections[0]?.id && levelId === sections[0]?.levels[0]?.id),
+        isUnlocked: isFirstLevel || isCompleted,
+        isCompleted, 
+        isCurrent: isFirstLevel,
       };
     }
 
     const isCurrent = sectionId === currentSectionId && levelId === currentLevelId;
     
-    // TODO: Implement proper completed level tracking with backend progress API
-    // For now, we'll use simple logic
-    const isCompleted = false; // Would need to check getUserLevelProgress
-    const isUnlocked = isCurrent; // Only current level is unlocked for now
+    // Check if previous level is completed to unlock this level
+    let isUnlocked = isCurrent || isCompleted;
+    if (levelIndex > 0) {
+      const previousLevel = sectionLevels[levelIndex - 1];
+      isUnlocked = isUnlocked || completedLevels.has(previousLevel.level_id);
+    } else if (levelIndex === 0) {
+      // First level of section is always unlocked
+      isUnlocked = true;
+    }
 
     return { isUnlocked, isCompleted, isCurrent };
   };
@@ -234,16 +260,7 @@ const HomeScreen: React.FC<Props> = ({ navigation }) => {
                 />
               )}
             </TouchableOpacity>
-            <Text
-              style={[
-                styles.levelTitle,
-                node.isCurrent && styles.currentLevelTitle,
-                !node.isUnlocked && !node.isCurrent && styles.lockedLevelTitle,
-              ]}
-              numberOfLines={2}
-            >
-              {node.levelTitle}
-            </Text>
+            {/* Removed level title display - users can see it when they click */}
           </View>
         </View>
 

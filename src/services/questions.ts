@@ -28,19 +28,45 @@ class QuestionService {
       const response = await backendApi.getLevelQuestions(levelId);
       
       if (response && response.questions && response.questions.length >= numQuestions) {
-        // Return a random subset of existing questions
-        return this.shuffleArray(response.questions).slice(0, numQuestions);
+        // Transform and return a random subset of existing questions
+        const transformed = this.transformBackendQuestions(response.questions);
+        return this.shuffleArray(transformed).slice(0, numQuestions);
       }
 
       // Generate new questions if not enough exist
       console.log(`Generating ${numQuestions} new questions for level ${levelId}`);
       const generateResponse = await backendApi.generateQuestions(levelId, numQuestions, difficulty);
       
-      return generateResponse.questions;
+      return this.transformBackendQuestions(generateResponse.questions);
     } catch (error) {
       console.error('Get questions for level error:', error);
       throw error;
     }
+  }
+
+  /**
+   * Transform backend question format to app format
+   */
+  private transformBackendQuestions(backendQuestions: any[]): GeneratedQuestion[] {
+    return backendQuestions.map((q: any) => ({
+      question_id: q.question_id,
+      level_id: q.level_id,
+      question: q.question_text || q.question,
+      options: {
+        A: q.option_a || q.options?.A,
+        B: q.option_b || q.options?.B,
+        C: q.option_c || q.options?.C,
+        D: q.option_d || q.options?.D,
+      },
+      correct_answer: q.correct_answer,
+      explanations: {
+        A: q.explanation_a || q.explanations?.A || 'No explanation available.',
+        B: q.explanation_b || q.explanations?.B || 'No explanation available.',
+        C: q.explanation_c || q.explanations?.C || 'No explanation available.',
+        D: q.explanation_d || q.explanations?.D || 'No explanation available.',
+      },
+      difficulty: q.difficulty || 'medium',
+    }));
   }
 
   /**
@@ -106,6 +132,7 @@ class QuestionService {
         xp: newXP,
         monthlyXP: newMonthlyXP,
         totalXP: newTotalXP,
+        lives: livesRemaining, // Add this to update lives in Appwrite
         updatedAt: new Date().toISOString(),
       });
 

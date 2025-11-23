@@ -87,8 +87,10 @@ class BackendApiService {
    * Get detailed information about a specific level
    * @param levelId - UUID of the level
    */
-  async getLevelDetails(levelId: string): Promise<BackendLevelDetail> {
-    return await this.fetchApi<BackendLevelDetail>(`/levels/${levelId}`);
+  async getLevelDetails(levelId: string): Promise<BackendLevel> {
+    const response = await this.fetchApi<{ level: BackendLevel } | BackendLevel>(`/levels/${levelId}`);
+    // Handle both response formats: { level: {...} } or direct level object
+    return 'level' in response ? response.level : response;
   }
 
   /**

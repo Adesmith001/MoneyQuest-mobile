@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import {
   View,
   Text,
@@ -15,7 +15,11 @@ import { useDispatch, useSelector } from "react-redux";
 import { signOut, updateUser } from "../../store/slices/authSlice";
 import { RootState, AppDispatch } from "../../store";
 import CustomButton from "../../components/CustomButton";
-import { getAvatarById } from "../../utils/avatarUtils"; // Import the helper
+import { getAvatarById } from "../../utils/avatarUtils";
+import { databases, DB_ID, COLLECTIONS } from "../../services/appwrite";
+import NotificationService from "../../services/notifications";
+import soundService from "../../services/soundService";
+import { Platform, Linking } from 'react-native';
 
 interface Props {
   navigation: any;
@@ -24,35 +28,115 @@ interface Props {
 const EditProfileScreen: React.FC<Props> = ({ navigation }) => {
   const dispatch = useDispatch<AppDispatch>();
   const { user } = useSelector((state: RootState) => state.auth);
+  
   const [notificationEnabled, setNotificationEnabled] = useState(true);
   const [soundEnabled, setSoundEnabled] = useState(true);
+  const [isLoadingPermissions, setIsLoadingPermissions] = useState(false);
 
   // Editable form state
-  const [name, setName] = useState(user?.name || "Iyanu Babayemi");
-  const [username, setUsername] = useState(user?.username || "iyanubabs");
-  const [email, setEmail] = useState(user?.email || "iyanubabs@gmail.com");
+  const [name, setName] = useState(user?.name || "");
+  const [username, setUsername] = useState(user?.username || "");
+  const [email, setEmail] = useState(user?.email || "");
+
+  // Load current settings on mount
+  useEffect(() => {
+    const loadSettings = async () => {
+      // Load notification status
+      const permissionStatus = await NotificationService.getPermissionsStatus();
+      setNotificationEnabled(permissionStatus === 'granted');
+
+      // Load sound status
+      const soundStatus = soundService.getSoundEnabled();
+      setSoundEnabled(soundStatus);
+    };
+
+    loadSettings();
+  }, []);
+
+  const handleNotificationToggle = async (value: boolean) => {
+    if (value) {
+      // Request permissions
+      setIsLoadingPermissions(true);
+      const granted = await NotificationService.requestPermissions();
+      setIsLoadingPermissions(false);
+
+      if (granted) {
+        setNotificationEnabled(true);
+        // Schedule daily reminders
+        await NotificationService.scheduleDailyReminder();
+        Alert.alert('Success', 'Notifications enabled! You will receive daily reminders.');
+      } else {
+        setNotificationEnabled(false);
+        Alert.alert(
+          'Permission Denied',
+          'Please enable notifications in your device settings to receive reminders.',
+          [
+            { text: 'Cancel', style: 'cancel' },
+            { text: 'Open Settings', onPress: () => {
+              // Open app settings (platform specific)
+              if (Platform.OS === 'ios') {
+                Linking.openURL('app-settings:');
+              } else {
+                Linking.openSettings();
+              }
+            }}
+          ]
+        );
+      }
+    } else {
+      // Disable notifications
+      await NotificationService.cancelAllNotifications();
+      setNotificationEnabled(false);
+      Alert.alert('Disabled', 'Notifications have been turned off.');
+    }
+  };
+
+  const handleSoundToggle = (value: boolean) => {
+    setSoundEnabled(value);
+    soundService.setSoundEnabled(value);
+    
+    // Play a test sound when enabling
+    if (value) {
+      soundService.playSound('click');
+    }
+  };
+
+  const handleSave = async () => {
+    if (!user?.$id) return;
+
+    try {
+      // Update user data in Appwrite
+      await databases.updateDocument(DB_ID, COLLECTIONS.USERS, user.$id, {
+        name,
+        username,
+        email,
+        updatedAt: new Date().toISOString(),
+      });
+
+      // Update Redux store
+      dispatch(updateUser({ name, username, email }));
+
+      Alert.alert("Success", "Profile updated successfully!");
+      navigation.goBack();
+    } catch (error) {
+      console.error("Failed to update profile:", error);
+      Alert.alert("Error", "Failed to update profile. Please try again.");
+    }
+  };
 
   const handleSignOut = () => {
-    Alert.alert("Sign Out", "Are you sure you want to sign out?", [
-      {
-        text: "Cancel",
-        style: "cancel",
-      },
-      {
-        text: "Sign Out",
-        style: "destructive",
-        onPress: async () => {
-          try {
-            // Use the signOut thunk to properly sign out from Appwrite
-            await dispatch(signOut()).unwrap();
-            // Navigation will be handled automatically by auth state change
-          } catch (error) {
-            console.error('Sign out error:', error);
-            Alert.alert('Error', 'Failed to sign out. Please try again.');
-          }
+    Alert.alert(
+      "Sign Out",
+      "Are you sure you want to sign out?",
+      [
+        { text: "Cancel", style: "cancel" },
+        {
+          text: "Sign Out",
+          style: "destructive",
+          onPress: () => dispatch(signOut()),
         },
-      },
-    ]);
+      ]
+    );
   };
 
   const handleDeleteAccount = () => {
@@ -60,60 +144,47 @@ const EditProfileScreen: React.FC<Props> = ({ navigation }) => {
       "Delete Account",
       "Are you sure you want to delete your account? This action cannot be undone.",
       [
-        {
-          text: "Cancel",
-          style: "cancel",
-        },
+        { text: "Cancel", style: "cancel" },
         {
           text: "Delete",
           style: "destructive",
           onPress: () => {
-            // Implement delete account functionality
-            console.log("Delete account");
+            // Implement account deletion logic
+            Alert.alert("Coming Soon", "Account deletion will be implemented soon.");
           },
         },
       ]
     );
   };
 
-  const handleSave = () => {
-    // Update user profile in Redux store
-    dispatch(
-      updateUser({
-        name: name.trim(),
-        username: username.trim(), // Also save the username
-        email: email.trim(),
-      })
-    );
-    Alert.alert("Success", "Profile updated successfully!");
-    navigation.goBack();
-  };
-
   return (
     <SafeAreaView style={styles.container}>
       <View style={styles.header}>
+        <TouchableOpacity
+          onPress={() => navigation.goBack()}
+          style={styles.backButton}
+        >
+          <Text style={styles.backButtonText}>←</Text>
+        </TouchableOpacity>
         <Text style={styles.title}>Edit Profile</Text>
       </View>
 
-      <ScrollView style={styles.content} showsVerticalScrollIndicator={false}>
+      <ScrollView style={styles.content}>
         {/* Avatar Section */}
-        <View style={styles.avatarSection}>
-          <View style={styles.avatar}>
-            {/* Use the user's actual avatar */}
-            <Image source={getAvatarById(user?.avatar)} style={styles.avatarDisplay} />
-          </View>
-          {/* Navigate to ChangeAvatarScreen on press */}
-          <TouchableOpacity
-            style={styles.changeAvatarButton}
-            onPress={() => navigation.navigate('ChangeAvatar')}
-          >
-            <Text style={styles.changeAvatarText}>Change Avatar</Text>
-          </TouchableOpacity>
-        </View>
+        <TouchableOpacity
+          style={styles.avatarSection}
+          onPress={() => navigation.navigate("ChangeAvatar")}
+        >
+          <Image
+            source={getAvatarById(user?.avatar || "")}
+            style={styles.avatar}
+          />
+          <Text style={styles.changeAvatarText}>Change Avatar</Text>
+        </TouchableOpacity>
 
-        {/* Form Fields */}
-        <View style={styles.formSection}>
-          <View style={styles.formField}>
+        {/* Profile Fields */}
+        <View style={styles.fieldsContainer}>
+          <View style={styles.field}>
             <Text style={styles.fieldLabel}>Name</Text>
             <View style={styles.fieldValueContainer}>
               <TextInput
@@ -125,19 +196,20 @@ const EditProfileScreen: React.FC<Props> = ({ navigation }) => {
             </View>
           </View>
 
-          <View style={styles.formField}>
+          <View style={styles.field}>
             <Text style={styles.fieldLabel}>Username</Text>
             <View style={styles.fieldValueContainer}>
               <TextInput
                 style={styles.fieldInput}
                 value={username}
                 onChangeText={setUsername}
-                placeholder="Enter username"
+                placeholder="Enter your username"
+                autoCapitalize="none"
               />
             </View>
           </View>
 
-          <View style={[styles.formField, styles.lastFormField]}>
+          <View style={styles.field}>
             <Text style={styles.fieldLabel}>Email</Text>
             <View style={styles.fieldValueContainer}>
               <TextInput
@@ -155,27 +227,38 @@ const EditProfileScreen: React.FC<Props> = ({ navigation }) => {
         <Text style={styles.settingsTitle}>Settings</Text>
 
         <View style={styles.settingItem}>
-          <Text style={styles.settingLabel}>Notification</Text>
+          <View style={styles.settingInfo}>
+            <Text style={styles.settingLabel}>Notifications</Text>
+            <Text style={styles.settingDescription}>
+              {notificationEnabled ? 'Receive daily learning reminders' : 'Enable to get reminders'}
+            </Text>
+          </View>
           <Switch
             value={notificationEnabled}
-            onValueChange={setNotificationEnabled}
+            onValueChange={handleNotificationToggle}
+            disabled={isLoadingPermissions}
             trackColor={{ false: "#E0E0E0", true: "#FF6B35" }}
             thumbColor={notificationEnabled ? "#FFFFFF" : "#FFFFFF"}
           />
         </View>
 
         <View style={[styles.settingItem]}>
-          <Text style={styles.settingLabel}>Sound</Text>
+          <View style={styles.settingInfo}>
+            <Text style={styles.settingLabel}>Sound Effects</Text>
+            <Text style={styles.settingDescription}>
+              {soundEnabled ? 'Play sounds for actions' : 'Sounds are muted'}
+            </Text>
+          </View>
           <Switch
             value={soundEnabled}
-            onValueChange={setSoundEnabled}
+            onValueChange={handleSoundToggle}
             trackColor={{ false: "#E0E0E0", true: "#FF6B35" }}
             thumbColor={soundEnabled ? "#FFFFFF" : "#FFFFFF"}
           />
         </View>
 
         <CustomButton
-          title={"Save"}
+          title={"Save Changes"}
           onPress={handleSave}
         />
 
@@ -209,7 +292,12 @@ const styles = StyleSheet.create({
     paddingTop: 40,
   },
   backButton: {
-    fontSize: 24,
+    position: "absolute",
+    left: 20,
+    top: 40,
+  },
+  backButtonText: {
+    fontSize: 28,
     color: "#333",
   },
   title: {
@@ -219,109 +307,96 @@ const styles = StyleSheet.create({
   },
   content: {
     flex: 1,
-    backgroundColor: "#FFFFFF",
+    paddingHorizontal: 20,
   },
   avatarSection: {
     alignItems: "center",
-    paddingVertical: 30,
-    backgroundColor: "white",
+    marginVertical: 30,
   },
   avatar: {
-    width: 120,
-    height: 120,
-    backgroundColor: "#F5F0E8", // Use a neutral background
-    borderRadius: 60,
-    justifyContent: "center",
-    alignItems: "center",
-    overflow: 'hidden', // Ensure image stays within the circle
-  },
-  avatarDisplay: {
-    width: '100%',
-    height: '100%',
-  },
-  avatarEmoji: {
-    fontSize: 60,
-  },
-  changeAvatarButton: {
-    paddingVertical: 8,
+    width: 100,
+    height: 100,
+    borderRadius: 50,
   },
   changeAvatarText: {
-    fontSize: 13,
-    color: "#211E54",
+    marginTop: 10,
+    fontSize: 16,
+    color: "#FF6B35",
     fontWeight: "600",
   },
-  formSection: {
-    backgroundColor: "white",
+  fieldsContainer: {
+    marginBottom: 30,
+  },
+  field: {
     marginBottom: 20,
   },
-  formField: {
-    flexDirection: "row",
-    justifyContent: "space-between",
-    alignItems: "center",
-    paddingHorizontal: 20,
-    paddingVertical: 8,
-  },
-  lastFormField: {
-    borderBottomWidth: 0,
-  },
   fieldLabel: {
-    fontSize: 16,
+    fontSize: 14,
     fontWeight: "600",
-    color: "#211E54",
+    color: "#666",
+    marginBottom: 8,
   },
   fieldValueContainer: {
-    backgroundColor: "#F5EAD980",
-    paddingHorizontal: 12,
-    paddingVertical: 8,
-    borderRadius: 8,
-    width: "70%",
-  },
-  fieldValue: {
-    fontSize: 16,
-    color: "#000",
+    backgroundColor: "#F5F5F5",
+    borderRadius: 12,
+    paddingHorizontal: 16,
+    paddingVertical: 4,
   },
   fieldInput: {
     fontSize: 16,
-    color: "#000",
-    flex: 1,
+    color: "#333",
+    paddingVertical: 12,
   },
   settingsTitle: {
-    fontSize: 20,
-    fontWeight: "600",
-    color: "#000000",
-    paddingHorizontal: 20,
+    fontSize: 18,
+    fontWeight: "bold",
+    color: "#333",
+    marginBottom: 16,
   },
   settingItem: {
     flexDirection: "row",
     justifyContent: "space-between",
     alignItems: "center",
-    paddingHorizontal: 20,
-    paddingVertical: 5,
+    paddingVertical: 16,
+    borderBottomWidth: 1,
+    borderBottomColor: "#F0F0F0",
+  },
+  settingInfo: {
+    flex: 1,
+    marginRight: 16,
   },
   settingLabel: {
     fontSize: 16,
-    color: "#000000",
     fontWeight: "600",
+    color: "#333",
+    marginBottom: 4,
+  },
+  settingDescription: {
+    fontSize: 13,
+    color: "#999",
   },
   logoutButton: {
+    marginTop: 30,
+    padding: 16,
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: "#FF6B35",
     alignItems: "center",
-    paddingVertical: 16,
-    marginBottom: 12,
   },
   logoutText: {
     fontSize: 16,
-    color: "#FF9500",
-    fontWeight: "500",
+    fontWeight: "600",
+    color: "#FF6B35",
   },
   deleteButton: {
+    marginTop: 16,
+    marginBottom: 40,
+    padding: 16,
     alignItems: "center",
-    paddingVertical: 16,
-    marginBottom: 30,
   },
   deleteText: {
-    fontSize: 16,
-    color: "#FF9500",
-    fontWeight: "500",
+    fontSize: 14,
+    color: "#999",
   },
 });
 

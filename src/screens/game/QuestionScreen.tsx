@@ -19,6 +19,7 @@ import {
   addXP,
   removeHealth,
 } from "../../store/slices/gameSlice";
+import { refreshUserData } from "../../store/slices/authSlice";
 import CorrectAnswerModal from "../../components/modals/CorrectAnswerModal";
 import IncorrectAnswerModal from "../../components/modals/IncorrectAnswerModal";
 import { RootState } from "../../store";
@@ -26,9 +27,10 @@ import ProgressBar from "../../components/progressBar";
 import CustomButton from "../../components/CustomButton";
 import questionService from "../../services/questions";
 import { backendApi } from "../../services/backendApi";
-import { databases, DB_ID, COLLECTIONS } from "../../services/appwrite";
+import { databases, DB_ID, COLLECTIONS, Query } from "../../services/appwrite";
 import { GeneratedQuestion } from "../../types";
 import { getNextLevel } from "../../config/learningPath";
+import soundService from "../../services/soundService";
 
 interface Props {
   navigation: any;
@@ -53,6 +55,8 @@ const QuestionScreen: React.FC<Props> = ({ navigation, route }) => {
   const [currentQuestionIndex, setCurrentQuestionIndex] = useState(0);
   const [selectedAnswer, setSelectedAnswer] = useState<string>("");
   const [isLoading, setIsLoading] = useState(true);
+  
+  const [viewMode, setViewMode] = useState<'article' | 'quiz'>('article');
 
   const [isCorrectModalVisible, setCorrectModalVisible] = useState(false);
   const [isIncorrectModalVisible, setIncorrectModalVisible] = useState(false);
@@ -71,20 +75,52 @@ const QuestionScreen: React.FC<Props> = ({ navigation, route }) => {
         const levelDetails = await backendApi.getLevelDetails(levelId);
         setLevelData(levelDetails);
 
-        // Get questions for this level (10 questions, mixed difficulty)
+        // Get questions for this level
         const levelQuestions = await questionService.getQuestionsForLevel(
           levelId,
           10,
           'mixed'
         );
         setQuestions(levelQuestions);
+
+        // Check if user has saved progress for this level
+        if (user?.$id) {
+          try {
+            const progressDocs = await databases.listDocuments(
+              DB_ID,
+              COLLECTIONS.USER_PROGRESS,
+              [
+                Query.equal('userId', user.$id),
+                Query.equal('level', levelId),
+                Query.equal('isCompleted', false) // Only get in-progress levels
+              ]
+            );
+
+            if (progressDocs.documents.length > 0) {
+              const progress = progressDocs.documents[0];
+              
+              // Resume from saved question index
+              if (progress.currentQuestionIndex !== undefined) {
+                setCurrentQuestionIndex(progress.currentQuestionIndex);
+                setCorrectAnswersCount(progress.questionsCorrect || 0);
+                setXpGained(progress.xpEarned || 0);
+                
+                // If there's saved progress, skip directly to quiz
+                if (progress.currentQuestionIndex > 0) {
+                  setViewMode('quiz');
+                }
+              }
+            }
+          } catch (error) {
+            console.error('Failed to load saved progress:', error);
+          }
+        }
         
-        setStartTime(Date.now());
       } catch (error) {
         console.error('Failed to load level:', error);
         Alert.alert(
           'Error',
-          'Failed to load questions. Please try again.',
+          'Failed to load content. Please try again.',
           [{ text: 'Go Back', onPress: () => navigation.goBack() }]
         );
       } finally {
@@ -93,11 +129,74 @@ const QuestionScreen: React.FC<Props> = ({ navigation, route }) => {
     }
 
     loadLevelData();
-  }, [levelId]);
+  }, [levelId, user?.$id]);
+
+  // Save progress to Appwrite whenever question index changes
+  useEffect(() => {
+    async function saveProgress() {
+      if (!user?.$id || viewMode !== 'quiz' || isLoading) return;
+
+      try {
+        const progressDocs = await databases.listDocuments(
+          DB_ID,
+          COLLECTIONS.USER_PROGRESS,
+          [
+            Query.equal('userId', user.$id),
+            Query.equal('level', levelId)
+          ]
+        );
+
+        const progressData = {
+          userId: user.$id,
+          level: levelId,
+          section: 1, // You may want to pass this as a parameter
+          currentQuestionIndex,
+          questionsAnswered: currentQuestionIndex + 1,
+          questionsCorrect: correctAnswersCount,
+          xpEarned: xpGained,
+          isCompleted: false,
+          updatedAt: new Date().toISOString(),
+        };
+
+        if (progressDocs.documents.length > 0) {
+          // Update existing progress
+          await databases.updateDocument(
+            DB_ID,
+            COLLECTIONS.USER_PROGRESS,
+            progressDocs.documents[0].$id,
+            progressData
+          );
+        } else {
+          // Create new progress record
+          await databases.createDocument(
+            DB_ID,
+            COLLECTIONS.USER_PROGRESS,
+            'unique()',
+            progressData,
+            [
+              `read("user:${user.$id}")`,    // Only this user can read
+              `update("user:${user.$id}")`,  // Only this user can update
+              `delete("user:${user.$id}")`,  // Only this user can delete
+            ]
+          );
+        }
+      } catch (error) {
+        console.error('Failed to save progress:', error);
+      }
+    }
+
+    saveProgress();
+  }, [currentQuestionIndex, correctAnswersCount, xpGained, viewMode]);
+
+  const handleStartQuiz = () => {
+    setStartTime(Date.now());
+    setViewMode('quiz');
+  };
 
   const handleAnswerSelect = (answerKey: string) => {
     if (!isCorrectModalVisible && !isIncorrectModalVisible) {
       setSelectedAnswer(answerKey);
+      soundService.playSound('click'); // Add sound effect
     }
   };
 
@@ -105,6 +204,9 @@ const QuestionScreen: React.FC<Props> = ({ navigation, route }) => {
     if (!selectedAnswer || !user) return;
 
     const currentQuestion = questions[currentQuestionIndex];
+    // Safety check
+    if (!currentQuestion) return;
+
     const isCorrect = selectedAnswer === currentQuestion.correct_answer;
 
     try {
@@ -119,13 +221,20 @@ const QuestionScreen: React.FC<Props> = ({ navigation, route }) => {
       );
 
       if (isCorrect) {
+        soundService.playSound('correct'); // Play correct sound
         dispatch(addXP(result.xpEarned));
         setXpGained(xpGained + result.xpEarned);
         setCorrectAnswersCount(correctAnswersCount + 1);
         setCorrectModalVisible(true);
       } else {
+        soundService.playSound('incorrect'); // Play incorrect sound
         dispatch(removeHealth(1));
         setIncorrectModalVisible(true);
+      }
+      
+      // Refresh user data to update profile with latest XP and lives
+      if (user?.$id) {
+        dispatch(refreshUserData(user.$id) as any);
       }
     } catch (error) {
       console.error('Error recording answer:', error);
@@ -138,7 +247,18 @@ const QuestionScreen: React.FC<Props> = ({ navigation, route }) => {
     setIncorrectModalVisible(false);
     setSelectedAnswer("");
 
+    // If health is 0, user cannot continue
+    if (health <= 0) {
+      Alert.alert(
+        "Out of Lives",
+        "You have run out of lives. Please wait for them to regenerate or watch an ad.",
+        [{ text: "Go Back", onPress: () => navigation.goBack() }]
+      );
+      return;
+    }
+
     if (currentQuestionIndex < questions.length - 1) {
+      soundService.playSound('buttonPress'); // Button press sound
       setCurrentQuestionIndex(currentQuestionIndex + 1);
       dispatch(nextQuestion());
     } else {
@@ -170,13 +290,58 @@ const QuestionScreen: React.FC<Props> = ({ navigation, route }) => {
           updatedAt: new Date().toISOString(),
         };
 
+        // Mark level as completed in User Progress collection
+        if (result.passed) {
+          try {
+            const existingProgress = await databases.listDocuments(
+              DB_ID,
+              COLLECTIONS.USER_PROGRESS,
+              [Query.equal('userId', user.$id), Query.equal('level', levelId)]
+            );
+
+            if (existingProgress.documents.length > 0) {
+              // Update existing progress
+              await databases.updateDocument(
+                DB_ID,
+                COLLECTIONS.USER_PROGRESS,
+                existingProgress.documents[0].$id,
+                {
+                  isCompleted: true,
+                  completedAt: new Date().toISOString(),
+                }
+              );
+            } else {
+              // Create new progress record
+              await databases.createDocument(
+                DB_ID,
+                COLLECTIONS.USER_PROGRESS,
+                'unique()',
+                {
+                  userId: user.$id,
+                  level: levelId,
+                  section: 1,
+                  questionsAnswered: questions.length,
+                  questionsCorrect: correctAnswersCount,
+                  xpEarned: xpGained,
+                  isCompleted: true,
+                  completedAt: new Date().toISOString(),
+                }
+              );
+            }
+          } catch (progressError) {
+            console.error('Failed to update progress:', progressError);
+          }
+        }
+
         // Update current level if passed and there's a next level
         if (result.passed && result.next_level_id) {
-          const nextLevelInfo = getNextLevel(levelId);
-          if (nextLevelInfo) {
-            updateData.currentLevelId = result.next_level_id;
-            updateData.currentSectionId = nextLevelInfo.section.sectionId;
-          }
+          updateData.currentLevelId = result.next_level_id;
+          updateData.currentSectionId = sectionId; // Keep same section or update if needed
+          
+          // Add 1 life on level completion
+          const newLives = Math.min((user.lives || 5) + 1, 5); // Cap at 5 lives
+          updateData.lives = newLives;
+          dispatch(addHealth(1));
         }
 
         await databases.updateDocument(DB_ID, COLLECTIONS.USERS, user.$id, updateData);
@@ -199,7 +364,7 @@ const QuestionScreen: React.FC<Props> = ({ navigation, route }) => {
     }
   };
 
-  if (isLoading || questions.length === 0) {
+  if (isLoading || !levelData) {
     return (
       <SafeAreaView style={styles.container}>
         <ActivityIndicator size="large" color={COLORS.primary} />
@@ -207,12 +372,57 @@ const QuestionScreen: React.FC<Props> = ({ navigation, route }) => {
     );
   }
 
+  // --- ARTICLE VIEW ---
+  if (viewMode === 'article') {
+    return (
+      <SafeAreaView style={styles.container}>
+        <View style={styles.header}>
+          <TouchableOpacity onPress={() => navigation.goBack()}>
+            <Text style={styles.closeButton}>✕</Text>
+          </TouchableOpacity>
+          <Text style={styles.headerTitle}>{levelData.title}</Text>
+        </View>
+
+        <ScrollView contentContainerStyle={styles.articleContainer}>
+          <Text style={styles.articleTitle}>{levelData.title}</Text>
+          
+          {/* Display content or description */}
+          <Text style={styles.articleContent}>
+            {levelData.content || levelData.description || "No content available for this level."}
+          </Text>
+        </ScrollView>
+
+        <View style={styles.footer}>
+          <CustomButton
+            title="Start Quiz"
+            onPress={handleStartQuiz}
+          />
+        </View>
+      </SafeAreaView>
+    );
+  }
+
+  // --- QUIZ VIEW ---
   const currentQuestion = questions[currentQuestionIndex];
+  
+  // Safety check for empty questions array or undefined question
+  if (!currentQuestion) {
+    return (
+      <SafeAreaView style={styles.container}>
+        <View style={styles.content}>
+          <Text style={styles.questionText}>No questions available for this level.</Text>
+          <CustomButton title="Go Back" onPress={() => navigation.goBack()} />
+        </View>
+      </SafeAreaView>
+    );
+  }
+
   const progress = ((currentQuestionIndex + 1) / questions.length) * 100;
   const canSubmit = !!selectedAnswer;
 
   // Convert GeneratedQuestion format to options array for rendering
-  const optionsArray = currentQuestion
+  // Added safety check for options existence
+  const optionsArray = currentQuestion.options
     ? [
         { key: 'A', value: currentQuestion.options.A },
         { key: 'B', value: currentQuestion.options.B },
@@ -223,7 +433,7 @@ const QuestionScreen: React.FC<Props> = ({ navigation, route }) => {
 
   // Get explanation for the selected answer
   const getExplanation = (answerKey: string): string => {
-    if (!currentQuestion) return 'No explanation available.';
+    if (!currentQuestion || !currentQuestion.explanations) return 'No explanation available.';
     
     return currentQuestion.explanations[answerKey as 'A' | 'B' | 'C' | 'D'] || 'No explanation available.';
   };
@@ -286,6 +496,7 @@ const QuestionScreen: React.FC<Props> = ({ navigation, route }) => {
       <CorrectAnswerModal
         visible={isCorrectModalVisible}
         onContinue={handleContinue}
+        explanation={getExplanation(selectedAnswer)}
       />
       <IncorrectAnswerModal
         visible={isIncorrectModalVisible}
@@ -312,10 +523,17 @@ const styles = StyleSheet.create({
     paddingTop: SPACING.md,
     paddingBottom: SPACING.sm,
   },
+  headerTitle: {
+    fontSize: FONT_SIZES.lg,
+    fontWeight: "bold",
+    color: COLORS.text,
+    marginLeft: SPACING.sm,
+  },
   closeButton: {
     fontSize: 22,
-    color: COLORS.background,
+    color: COLORS.text,
     marginRight: SPACING.md,
+    padding: SPACING.xs,
   },
   healthContainer: {
     flexDirection: "row",
@@ -436,16 +654,18 @@ const styles = StyleSheet.create({
   },
   articleContainer: {
     padding: SPACING.lg,
+    flexGrow: 1,
   },
   articleTitle: {
     fontSize: FONT_SIZES.xxl,
     fontWeight: "bold",
     marginBottom: SPACING.md,
+    color: COLORS.text,
   },
   articleContent: {
     fontSize: FONT_SIZES.md,
     lineHeight: 26,
-    color: "#000000",
+    color: COLORS.text,
   },
 });
 
