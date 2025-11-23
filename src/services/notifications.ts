@@ -63,7 +63,23 @@ class NotificationService {
   }
 
   /**
-   * Schedule daily reminder notifications at peak hours
+   * Calculate seconds until next occurrence of a specific hour
+   */
+  private getSecondsUntilHour(targetHour: number, targetMinute: number = 0): number {
+    const now = new Date();
+    const target = new Date();
+    target.setHours(targetHour, targetMinute, 0, 0);
+
+    // If target time has passed today, schedule for tomorrow
+    if (target <= now) {
+      target.setDate(target.getDate() + 1);
+    }
+
+    return Math.floor((target.getTime() - now.getTime()) / 1000);
+  }
+
+  /**
+   * Schedule daily reminder notifications at peak hours using time intervals
    */
   async scheduleDailyReminder() {
     try {
@@ -78,6 +94,8 @@ class NotificationService {
 
       // Schedule notification for each peak hour
       for (const peak of peakHours) {
+        const secondsUntilNext = this.getSecondsUntilHour(peak.hour, peak.minute);
+        
         await Notifications.scheduleNotificationAsync({
           content: {
             title: peak.title,
@@ -86,18 +104,24 @@ class NotificationService {
             priority: Notifications.AndroidNotificationPriority.HIGH,
           },
           trigger: {
-            type: Notifications.SchedulableTriggerInputTypes.CALENDAR,
-            hour: peak.hour,
-            minute: peak.minute,
-            repeats: true,
+            type: Notifications.SchedulableTriggerInputTypes.TIME_INTERVAL,
+            seconds: secondsUntilNext,
+            repeats: false,
           },
         });
       }
 
-      console.log('✅ Daily reminders scheduled for 10am, 2pm, and 7pm');
+      console.log('✅ Daily reminders scheduled for next occurrence of 10am, 2pm, and 7pm');
     } catch (error) {
       console.error('Failed to schedule notification:', error);
     }
+  }
+
+  /**
+   * Reschedule notifications daily (call this when app opens or after notification fires)
+   */
+  async rescheduleNotifications() {
+    await this.scheduleDailyReminder();
   }
 
   /**

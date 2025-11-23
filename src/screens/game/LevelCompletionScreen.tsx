@@ -1,4 +1,4 @@
-import React from "react";
+import React, { useState, useEffect } from "react";
 import {
   View,
   Text,
@@ -9,6 +9,8 @@ import {
 } from "react-native";
 import CustomButton from "../../components/CustomButton";
 import { COLORS, FONT_SIZES, SPACING } from "../../constants";
+import FeedbackModal from '../../components/modals/FeedbackModal';
+import { openFeedbackForm } from '../../utils/linking';
 
 const { width } = Dimensions.get("window");
 
@@ -24,9 +26,27 @@ interface Props {
 
 const LessonCompleteScreen: React.FC<Props> = ({ navigation, route }) => {
   const { xpGained, accuracy } = route.params;
+  const [isFeedbackModalVisible, setFeedbackModalVisible] = useState(false);
+
+  // Show the feedback modal after a short delay
+  useEffect(() => {
+    // TODO: Add logic here to decide when to show the modal,
+    // e.g., based on level number or user progress.
+    const timer = setTimeout(() => {
+      setFeedbackModalVisible(true);
+    }, 1500); // 1.5-second delay
+
+    return () => clearTimeout(timer);
+  }, []);
 
   const handleContinue = () => {
     navigation.popToTop();
+  };
+
+  const handleRate = () => {
+    openFeedbackForm();
+    setFeedbackModalVisible(false);
+    handleContinue();
   };
 
   return (
@@ -92,6 +112,12 @@ const LessonCompleteScreen: React.FC<Props> = ({ navigation, route }) => {
           <CustomButton title="Continue" onPress={handleContinue} />
         </View>
       </View>
+
+      <FeedbackModal
+        visible={isFeedbackModalVisible}
+        onClose={() => setFeedbackModalVisible(false)}
+        onRate={handleRate}
+      />
     </SafeAreaView>
   );
 };
