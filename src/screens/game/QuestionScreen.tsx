@@ -10,6 +10,7 @@ import {
   Image,
   Alert,
 } from "react-native";
+import { Ionicons } from "@expo/vector-icons";
 import { useDispatch, useSelector } from "react-redux";
 import { COLORS, FONT_SIZES, SPACING } from "../../constants";
 import {
@@ -33,6 +34,7 @@ import { GeneratedQuestion } from "../../types";
 import { getNextLevel } from "../../config/learningPath";
 import soundService from "../../services/soundService";
 import livesService from "../../services/lives";
+import audioService from "../../services/audioService";
 
 interface Props {
   navigation: any;
@@ -66,6 +68,7 @@ const QuestionScreen: React.FC<Props> = ({ navigation, route }) => {
   const [correctAnswersCount, setCorrectAnswersCount] = useState(0);
   const [xpGained, setXpGained] = useState(0);
   const [startTime, setStartTime] = useState<number>(Date.now());
+  const [isPlayingAudio, setIsPlayingAudio] = useState(false);
 
   // Initialize health from user's actual lives when component mounts
   useEffect(() => {
@@ -210,6 +213,20 @@ const QuestionScreen: React.FC<Props> = ({ navigation, route }) => {
     if (!isCorrectModalVisible && !isIncorrectModalVisible) {
       setSelectedAnswer(answerKey);
       soundService.playSound('click'); // Add sound effect
+    }
+  };
+
+  const handlePlayAudio = async () => {
+    if (!questions[currentQuestionIndex] || isPlayingAudio) return;
+
+    try {
+      setIsPlayingAudio(true);
+      await audioService.readQuestion(questions[currentQuestionIndex].question);
+      setIsPlayingAudio(false);
+    } catch (error) {
+      console.error('Failed to play audio:', error);
+      setIsPlayingAudio(false);
+      Alert.alert('Audio Error', 'Failed to play audio. Please try again.');
     }
   };
 
@@ -491,7 +508,20 @@ const QuestionScreen: React.FC<Props> = ({ navigation, route }) => {
           <Text style={styles.levelTitleText}>{levelTitle}</Text>
         </View>
         
-        <Text style={styles.questionText}>{currentQuestion.question}</Text>
+        <View style={styles.questionContainer}>
+          <Text style={styles.questionText}>{currentQuestion.question}</Text>
+          <TouchableOpacity 
+            style={styles.playButton}
+            onPress={handlePlayAudio}
+            disabled={isPlayingAudio}
+          >
+            <Ionicons 
+              name={isPlayingAudio ? "pause-circle" : "play-circle"} 
+              size={40} 
+              color={COLORS.primary} 
+            />
+          </TouchableOpacity>
+        </View>
 
         <View style={styles.optionsContainer}>
           {optionsArray.map((option) => (
@@ -616,12 +646,23 @@ const styles = StyleSheet.create({
     textAlign: "center",
     marginBottom: SPACING.lg,
   },
+  questionContainer: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    marginBottom: SPACING.xl,
+    paddingHorizontal: SPACING.md,
+  },
   questionText: {
     fontSize: FONT_SIZES.xl,
     fontWeight: "500",
     textAlign: "center",
-    marginBottom: SPACING.xl,
+    flex: 1,
     color: COLORS.text,
+  },
+  playButton: {
+    marginLeft: SPACING.sm,
+    padding: SPACING.xs,
   },
   optionsContainer: {
     flexDirection: "row",

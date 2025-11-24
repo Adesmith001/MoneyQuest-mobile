@@ -1,58 +1,90 @@
+import { Audio } from 'expo-av';
 import { backendApi } from './backendApi';
 import {
-  BackendTranscriptionRequest,
-  BackendTranscriptionResponse,
   BackendTTSStreamRequest,
   BackendTTSJsonResponse,
 } from '../types';
 
 /**
- * Audio Service - Handles TTS and Speech-to-Text operations
- * Wraps the backend audio API endpoints
+ * Audio Service - Handles TTS operations for React Native
+ * Uses expo-av for audio playback
  */
 class AudioService {
-  private currentAudio: HTMLAudioElement | null = null;
+  private currentSound: Audio.Sound | null = null;
+  private isInitialized: boolean = false;
+
+  /**
+   * Initialize audio service
+   */
+  async initialize(): Promise<void> {
+    if (this.isInitialized) return;
+
+    try {
+      await Audio.setAudioModeAsync({
+        allowsRecordingIOS: false,
+        playsInSilentModeIOS: true,
+        staysActiveInBackground: false,
+        shouldDuckAndroid: true,
+      });
+      this.isInitialized = true;
+      console.log('✅ Audio service initialized');
+    } catch (error) {
+      console.error('Failed to initialize audio service:', error);
+    }
+  }
 
   // ============================================
   // TEXT-TO-SPEECH (TTS) METHODS
   // ============================================
 
   /**
-   * Generate speech from text and play it (using /tts/generate endpoint)
+   * Generate speech from text and play it
    * @param text - Text to convert to speech
-   * @param voice - Voice selection (default: 'alloy')
+   * @param voice - Voice selection (default: 'Arista')
    * @param speed - Speech speed (0.25 - 4.0, default: 1.0)
    * @param format - Audio format
    */
   async speakText(
     text: string,
-    voice: string = 'alloy',
+    voice: string = 'Arista',
     speed: number = 1.0,
     format: 'mp3' | 'opus' | 'aac' | 'flac' | 'wav' = 'mp3'
-  ): Promise<HTMLAudioElement> {
+  ): Promise<Audio.Sound> {
     try {
-      // Stop any currently playing audio
-      this.stopAudio();
+      // Initialize if needed
+      await this.initialize();
 
-      // Generate audio blob using the /tts/generate endpoint
-      const audioBlob = await backendApi.generateTTSStream({
+      // Stop any currently playing audio
+      await this.stopAudio();
+
+      // Use the stream endpoint which returns audio directly
+      console.log('Generating TTS audio...');
+      const base64Audio = await backendApi.generateTTSStream({
         text,
         voice,
         speed,
         output_format: format,
       });
 
-      // Create audio element and play
-      const audioUrl = URL.createObjectURL(audioBlob);
-      this.currentAudio = new Audio(audioUrl);
-      
-      // Clean up blob URL when audio finishes
-      this.currentAudio.addEventListener('ended', () => {
-        URL.revokeObjectURL(audioUrl);
+      // Create sound from base64 data URI
+      const audioUri = `data:audio/${format};base64,${base64Audio}`;
+      console.log('Creating audio sound...');
+      const { sound } = await Audio.Sound.createAsync(
+        { uri: audioUri },
+        { shouldPlay: true }
+      );
+
+      this.currentSound = sound;
+      console.log('Audio playing...');
+
+      // Clean up when audio finishes
+      sound.setOnPlaybackStatusUpdate((status) => {
+        if (status.isLoaded && status.didJustFinish) {
+          this.cleanup();
+        }
       });
 
-      await this.currentAudio.play();
-      return this.currentAudio;
+      return sound;
     } catch (error) {
       console.error('TTS Error:', error);
       throw error;
@@ -93,10 +125,10 @@ class AudioService {
   async readQuestion(
     questionText: string,
     options: { voice?: string; speed?: number } = {}
-  ): Promise<HTMLAudioElement> {
+  ): Promise<Audio.Sound> {
     return await this.speakText(
       questionText,
-      options.voice || 'alloy',
+      options.voice || 'Arista',
       options.speed || 1.0
     );
   }
@@ -109,10 +141,10 @@ class AudioService {
   async readExplanation(
     explanationText: string,
     options: { voice?: string; speed?: number } = {}
-  ): Promise<HTMLAudioElement> {
+  ): Promise<Audio.Sound> {
     return await this.speakText(
       explanationText,
-      options.voice || 'alloy',
+      options.voice || 'Arista',
       options.speed || 0.9
     );
   }
@@ -120,153 +152,62 @@ class AudioService {
   /**
    * Stop currently playing audio
    */
-  stopAudio(): void {
-    if (this.currentAudio) {
-      this.currentAudio.pause();
-      this.currentAudio.currentTime = 0;
-      this.currentAudio = null;
+  async stopAudio(): Promise<void> {
+    if (this.currentSound) {
+      try {
+        await this.currentSound.stopAsync();
+        await this.currentSound.unloadAsync();
+      } catch (error) {
+        console.error('Error stopping audio:', error);
+      }
+      this.currentSound = null;
     }
   }
 
   /**
    * Pause currently playing audio
    */
-  pauseAudio(): void {
-    if (this.currentAudio) {
-      this.currentAudio.pause();
+  async pauseAudio(): Promise<void> {
+    if (this.currentSound) {
+      try {
+        await this.currentSound.pauseAsync();
+      } catch (error) {
+        console.error('Error pausing audio:', error);
+      }
     }
   }
 
   /**
    * Resume paused audio
    */
-  resumeAudio(): void {
-    if (this.currentAudio) {
-      this.currentAudio.play();
+  async resumeAudio(): Promise<void> {
+    if (this.currentSound) {
+      try {
+        await this.currentSound.playAsync();
+      } catch (error) {
+        console.error('Error resuming audio:', error);
+      }
     }
   }
 
   /**
    * Check if audio is currently playing
    */
-  isPlaying(): boolean {
-    return this.currentAudio !== null && !this.currentAudio.paused;
-  }
-
-  /**
-   * Get current audio element
-   */
-  getCurrentAudio(): HTMLAudioElement | null {
-    return this.currentAudio;
-  }
-
-  // ============================================
-  // SPEECH-TO-TEXT (Transcription) METHODS
-  // ============================================
-
-  /**
-   * Transcribe audio from a file
-   * @param audioFile - Audio file to transcribe
-   * @param options - Transcription options
-   */
-  async transcribeAudioFile(
-    audioFile: File | Blob,
-    options: BackendTranscriptionRequest = {}
-  ): Promise<BackendTranscriptionResponse> {
+  async isPlaying(): Promise<boolean> {
+    if (!this.currentSound) return false;
     try {
-      const result = await backendApi.transcribeAudio(audioFile, options);
-      
-      if (!result.success) {
-        throw new Error(result.error || 'Transcription failed');
-      }
-
-      return result;
+      const status = await this.currentSound.getStatusAsync();
+      return status.isLoaded && status.isPlaying;
     } catch (error) {
-      console.error('Transcription Error:', error);
-      throw error;
+      return false;
     }
   }
 
   /**
-   * Transcribe audio from server file path
-   * @param filePath - Path to audio file on server
-   * @param options - Transcription options
+   * Get current sound object
    */
-  async transcribeServerFile(
-    filePath: string,
-    options: BackendTranscriptionRequest = {}
-  ): Promise<BackendTranscriptionResponse> {
-    try {
-      const result = await backendApi.transcribeAudioFile(filePath, options);
-      
-      if (!result.success) {
-        throw new Error(result.error || 'Transcription failed');
-      }
-
-      return result;
-    } catch (error) {
-      console.error('Server File Transcription Error:', error);
-      throw error;
-    }
-  }
-
-  /**
-   * Record audio from microphone and transcribe
-   * @param durationMs - Recording duration in milliseconds (default: 5000ms)
-   * @param options - Transcription options
-   */
-  async recordAndTranscribe(
-    durationMs: number = 5000,
-    options: BackendTranscriptionRequest = {}
-  ): Promise<BackendTranscriptionResponse> {
-    try {
-      // Request microphone permission
-      const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
-      
-      // Create MediaRecorder
-      const mediaRecorder = new MediaRecorder(stream);
-      const audioChunks: Blob[] = [];
-
-      return new Promise((resolve, reject) => {
-        mediaRecorder.ondataavailable = (event) => {
-          audioChunks.push(event.data);
-        };
-
-        mediaRecorder.onstop = async () => {
-          // Stop all tracks
-          stream.getTracks().forEach(track => track.stop());
-
-          // Create audio blob
-          const audioBlob = new Blob(audioChunks, { type: 'audio/webm' });
-
-          // Transcribe
-          try {
-            const result = await this.transcribeAudioFile(audioBlob, options);
-            resolve(result);
-          } catch (error) {
-            reject(error);
-          }
-        };
-
-        mediaRecorder.onerror = (error) => {
-          stream.getTracks().forEach(track => track.stop());
-          reject(error);
-        };
-
-        // Start recording
-        mediaRecorder.start();
-
-        // Stop after duration
-        setTimeout(() => {
-          if (mediaRecorder.state === 'recording') {
-            mediaRecorder.stop();
-          }
-        }, durationMs);
-      });
-    } catch (error) {
-      console.error('Record and Transcribe Error:', error);
-      throw error;
-    }
+  getCurrentSound(): Audio.Sound | null {
+    return this.currentSound;
   }
 
   // ============================================
@@ -274,38 +215,45 @@ class AudioService {
   // ============================================
 
   /**
-   * Check if browser supports audio recording
-   */
-  isRecordingSupported(): boolean {
-    return !!(navigator.mediaDevices && navigator.mediaDevices.getUserMedia);
-  }
-
-  /**
-   * Check if browser supports audio playback
-   */
-  isPlaybackSupported(): boolean {
-    return typeof Audio !== 'undefined';
-  }
-
-  /**
-   * Available TTS voices (from documentation)
+   * Available TTS voices (PlayAI)
    */
   getAvailableVoices(): string[] {
     return [
-      'alloy',    // Default voice
-      'echo',
-      'fable',
-      'onyx',
-      'nova',
-      'shimmer',
+      'Arista',    // Default voice
+      'Aaliyah',
+      'Adelaide',
+      'Angelo',
+      'Atlas',
+      'Basil',
+      'Briggs',
+      'Calum',
+      'Celeste',
+      'Cheyenne',
+      'Chip',
+      'Cillian',
+      'Deedee',
+      'Eleanor',
+      'Fritz',
+      'Gail',
+      'Indigo',
+      'Jennifer',
+      'Judy',
+      'Mamaw',
+      'Mason',
+      'Mikail',
+      'Mitch',
+      'Nia',
+      'Quinn',
+      'Ruby',
+      'Thunder',
     ];
   }
 
   /**
    * Cleanup all audio resources
    */
-  cleanup(): void {
-    this.stopAudio();
+  async cleanup(): Promise<void> {
+    await this.stopAudio();
   }
 }
 

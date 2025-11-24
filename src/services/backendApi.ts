@@ -280,31 +280,69 @@ class BackendApiService {
   /**
    * Generate speech with streaming audio response
    * @param request - TTS request parameters
-   * @returns Audio blob
+   * @returns Audio URL that can be played
    */
-  async generateTTSStream(request: BackendTTSStreamRequest): Promise<Blob> {
-    const formData = new URLSearchParams();
-    formData.append('text', request.text);
-    if (request.voice) formData.append('voice', request.voice);
-    if (request.output_format) formData.append('output_format', request.output_format);
-    if (request.speed) formData.append('speed', request.speed.toString());
+  async generateTTSStream(request: BackendTTSStreamRequest): Promise<string> {
+    try {
+      const formData = new URLSearchParams();
+      formData.append('text', request.text);
+      if (request.voice) formData.append('voice', request.voice);
+      if (request.output_format) formData.append('output_format', request.output_format);
+      if (request.speed) formData.append('speed', request.speed.toString());
 
-    const response = await fetch(`${this.baseUrl}/api/tts/generate`, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/x-www-form-urlencoded',
-      },
-      body: formData,
-    });
+      const url = `${this.baseUrl}/api/tts/generate`;
+      console.log('TTS Stream Request URL:', url);
+      console.log('TTS Stream Request Body:', formData.toString());
 
-    if (!response.ok) {
-      const errorData = await response.json().catch(() => ({}));
-      throw new Error(
-        errorData.detail || `TTS Error: ${response.status} ${response.statusText}`
-      );
+      const response = await fetch(url, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/x-www-form-urlencoded',
+        },
+        body: formData.toString(),
+      });
+
+      console.log('TTS Stream Response Status:', response.status);
+
+      if (!response.ok) {
+        const errorText = await response.text();
+        console.error('TTS Stream Error Response:', errorText);
+        
+        let errorData;
+        try {
+          errorData = JSON.parse(errorText);
+        } catch {
+          throw new Error(`TTS Error: ${response.status} - ${errorText}`);
+        }
+        
+        throw new Error(
+          errorData.detail || errorData.message || `TTS Error: ${response.status} ${response.statusText}`
+        );
+      }
+
+      // Get the blob and convert to base64
+      const blob = await response.blob();
+      const base64 = await this.blobToBase64(blob);
+      return base64;
+    } catch (error) {
+      console.error('TTS Stream Generation Error:', error);
+      throw error;
     }
+  }
 
-    return await response.blob();
+  /**
+   * Convert blob to base64 string
+   */
+  private async blobToBase64(blob: Blob): Promise<string> {
+    return new Promise((resolve, reject) => {
+      const reader = new FileReader();
+      reader.onloadend = () => {
+        const base64String = (reader.result as string).split(',')[1];
+        resolve(base64String);
+      };
+      reader.onerror = reject;
+      reader.readAsDataURL(blob);
+    });
   }
 
   /**
@@ -312,19 +350,50 @@ class BackendApiService {
    * @param request - TTS request parameters
    */
   async generateTTSJson(request: BackendTTSStreamRequest): Promise<BackendTTSJsonResponse> {
-    const formData = new URLSearchParams();
-    formData.append('text', request.text);
-    if (request.voice) formData.append('voice', request.voice);
-    if (request.output_format) formData.append('output_format', request.output_format);
-    if (request.speed) formData.append('speed', request.speed.toString());
+    try {
+      const formData = new URLSearchParams();
+      formData.append('text', request.text);
+      if (request.voice) formData.append('voice', request.voice);
+      if (request.output_format) formData.append('output_format', request.output_format);
+      if (request.speed) formData.append('speed', request.speed.toString());
 
-    return await this.fetchApi<BackendTTSJsonResponse>('/api/tts/generate-json', {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/x-www-form-urlencoded',
-      },
-      body: formData,
-    });
+      const url = `${this.baseUrl}/api/tts/generate-json`;
+      console.log('TTS Request URL:', url);
+      console.log('TTS Request Body:', formData.toString());
+
+      const response = await fetch(url, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/x-www-form-urlencoded',
+        },
+        body: formData.toString(),
+      });
+
+      console.log('TTS Response Status:', response.status);
+
+      if (!response.ok) {
+        const errorText = await response.text();
+        console.error('TTS Error Response:', errorText);
+        
+        let errorData;
+        try {
+          errorData = JSON.parse(errorText);
+        } catch {
+          throw new Error(`TTS Error: ${response.status} - ${errorText}`);
+        }
+        
+        throw new Error(
+          errorData.detail || errorData.message || `TTS Error: ${response.status} ${response.statusText}`
+        );
+      }
+
+      const data = await response.json();
+      console.log('TTS Response Success:', data.success);
+      return data as BackendTTSJsonResponse;
+    } catch (error) {
+      console.error('TTS JSON Generation Error:', error);
+      throw error;
+    }
   }
 
   /**

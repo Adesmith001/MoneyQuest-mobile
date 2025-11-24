@@ -40,7 +40,7 @@ const IncorrectAnswerModal: React.FC<IncorrectAnswerModalProps> = ({
             </Text>
             <Text style={styles.explanationText}>{explanation}</Text>
           </View>
-          <CustomButton title="Continue" onPress={onContinue} />
+          <CustomButton title="Try Again" onPress={onContinue} />
         </View>
       </View>
     </Modal>
