@@ -67,7 +67,41 @@ export interface GeneratedQuestion {
     D: string;
   };
   difficulty: string;
+  question_type?: 'mcq' | 'scenario' | 'matching' | 'fill_in_gap';
 }
+
+// Scenario Question (multiple-choice with context/story)
+export interface ScenarioQuestion extends GeneratedQuestion {
+  question_type: 'scenario';
+  scenario_context: string; // The story/context for the question
+}
+
+// Matching Question (match items from two columns)
+export interface MatchingQuestion {
+  question_type: 'matching';
+  question: string;
+  left_items: { id: string; text: string }[]; // Items to match from
+  right_items: { id: string; text: string }[]; // Items to match to
+  correct_matches: { [key: string]: string }; // Map of left_id -> right_id
+  explanation: string;
+  difficulty: string;
+}
+
+// Fill in the Gap Question
+export interface FillInGapQuestion {
+  question_type: 'fill_in_gap';
+  question: string; // Question text with blanks marked as {blank1}, {blank2}, etc.
+  blanks: {
+    id: string; // blank1, blank2, etc.
+    correct_answer: string;
+    options?: string[]; // Optional: provide options for each blank
+  }[];
+  explanation: string;
+  difficulty: string;
+}
+
+// Union type for all question types
+export type AnyQuestion = GeneratedQuestion | ScenarioQuestion | MatchingQuestion | FillInGapQuestion;
 
 // Legacy Appwrite Question format (kept for backwards compatibility)
 export interface Question {

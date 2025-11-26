@@ -174,7 +174,7 @@ const ProfileScreen: React.FC<Props> = ({ navigation }) => {
                   <Text style={styles.statIcon}>🔥</Text>
                 </View>
                 <View style={styles.statBottomRow}>
-                  <Text style={styles.statValue}>{weeklyStreak}</Text>
+                  <Text style={styles.statValue}>{currentStreak}</Text>
                   <Text style={styles.statLabel}>Current streak</Text>
                 </View>
               </View>

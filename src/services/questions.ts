@@ -1,5 +1,5 @@
 import { databases, DB_ID, COLLECTIONS, Query } from './appwrite';
-import { Question, BackendQuestion, GeneratedQuestion, UserProgress } from '../types';
+import { Question, BackendQuestion, GeneratedQuestion, UserProgress, AnyQuestion, ScenarioQuestion, MatchingQuestion, FillInGapQuestion } from '../types';
 import { backendApi } from './backendApi';
 import { levelProgressService } from './levelProgress';
 import { livesService } from './lives';
@@ -15,27 +15,31 @@ class QuestionService {
    * @param levelId - Backend level UUID
    * @param numQuestions - Number of questions to fetch (default: 10)
    * @param difficulty - Difficulty level
+   * @param questionType - Type of questions to fetch
+   * @param randomize - Whether to randomize questions
    * @returns Array of questions from the generated response
    */
   async getQuestionsForLevel(
     levelId: string,
     numQuestions: number = 10,
-    difficulty: 'easy' | 'medium' | 'hard' | 'mixed' = 'mixed'
-  ): Promise<GeneratedQuestion[]> {
+    difficulty: 'easy' | 'medium' | 'hard' | 'mixed' = 'mixed',
+    questionType: 'mcq' | 'scenario' | 'matching' | 'fill_in_gap' | 'mixed' = 'mixed',
+    randomize: boolean = true
+  ): Promise<AnyQuestion[]> {
     try {
       // Try to get existing questions from the backend
       console.log(`Fetching questions for level ${levelId}`);
-      const response = await backendApi.getLevelQuestions(levelId);
+      const response = await backendApi.getLevelQuestions(levelId, numQuestions, questionType, randomize);
       
       if (response && response.questions && response.questions.length >= numQuestions) {
-        // Transform and return a random subset of existing questions
+        // Transform and return existing questions
         const transformed = this.transformBackendQuestions(response.questions);
-        return this.shuffleArray(transformed).slice(0, numQuestions);
+        return randomize ? this.shuffleArray(transformed).slice(0, numQuestions) : transformed.slice(0, numQuestions);
       }
 
       // Generate new questions if not enough exist
       console.log(`Generating ${numQuestions} new questions for level ${levelId}`);
-      const generateResponse = await backendApi.generateQuestions(levelId, numQuestions, difficulty);
+      const generateResponse = await backendApi.generateQuestions(levelId, numQuestions, difficulty, questionType, randomize);
       
       return this.transformBackendQuestions(generateResponse.questions);
     } catch (error) {
@@ -46,27 +50,79 @@ class QuestionService {
 
   /**
    * Transform backend question format to app format
+   * Handles multiple question types: MCQ, Scenario, Matching, Fill-in-Gap
    */
-  private transformBackendQuestions(backendQuestions: any[]): GeneratedQuestion[] {
-    return backendQuestions.map((q: any) => ({
-      question_id: q.question_id,
-      level_id: q.level_id,
-      question: q.question_text || q.question,
-      options: {
-        A: q.option_a || q.options?.A,
-        B: q.option_b || q.options?.B,
-        C: q.option_c || q.options?.C,
-        D: q.option_d || q.options?.D,
-      },
-      correct_answer: q.correct_answer,
-      explanations: {
-        A: q.explanation_a || q.explanations?.A || 'No explanation available.',
-        B: q.explanation_b || q.explanations?.B || 'No explanation available.',
-        C: q.explanation_c || q.explanations?.C || 'No explanation available.',
-        D: q.explanation_d || q.explanations?.D || 'No explanation available.',
-      },
-      difficulty: q.difficulty || 'medium',
-    }));
+  private transformBackendQuestions(backendQuestions: any[]): AnyQuestion[] {
+    return backendQuestions.map((q: any) => {
+      const questionType = q.question_type || 'mcq';
+
+      // Handle Matching Questions
+      if (questionType === 'matching') {
+        return {
+          question_type: 'matching',
+          question: q.question_text || q.question,
+          left_items: q.left_items || [],
+          right_items: q.right_items || [],
+          correct_matches: q.correct_matches || {},
+          explanation: q.explanation || 'No explanation available.',
+          difficulty: q.difficulty || 'medium',
+        } as MatchingQuestion;
+      }
+
+      // Handle Fill-in-Gap Questions
+      if (questionType === 'fill_in_gap') {
+        return {
+          question_type: 'fill_in_gap',
+          question: q.question_text || q.question,
+          blanks: q.blanks || [],
+          explanation: q.explanation || 'No explanation available.',
+          difficulty: q.difficulty || 'medium',
+        } as FillInGapQuestion;
+      }
+
+      // Handle Scenario Questions (has scenario_context field)
+      if (questionType === 'scenario' || q.scenario_context) {
+        return {
+          question_type: 'scenario',
+          scenario_context: q.scenario_context || '',
+          question: q.question_text || q.question,
+          options: {
+            A: q.option_a || q.options?.A,
+            B: q.option_b || q.options?.B,
+            C: q.option_c || q.options?.C,
+            D: q.option_d || q.options?.D,
+          },
+          correct_answer: q.correct_answer,
+          explanations: {
+            A: q.explanation_a || q.explanations?.A || 'No explanation available.',
+            B: q.explanation_b || q.explanations?.B || 'No explanation available.',
+            C: q.explanation_c || q.explanations?.C || 'No explanation available.',
+            D: q.explanation_d || q.explanations?.D || 'No explanation available.',
+          },
+          difficulty: q.difficulty || 'medium',
+        } as ScenarioQuestion;
+      }
+
+      // Handle standard MCQ Questions (default)
+      return {
+        question_type: 'mcq',
+        question: q.question_text || q.question,
+        options: {
+          A: q.option_a || q.options?.A,
+          B: q.option_b || q.options?.B,
+          C: q.option_c || q.options?.C,
+          D: q.option_d || q.options?.D,
+        },
+        correct_answer: q.correct_answer,
+        explanations: {
+          A: q.explanation_a || q.explanations?.A || 'No explanation available.',
+          B: q.explanation_b || q.explanations?.B || 'No explanation available.',
+          C: q.explanation_c || q.explanations?.C || 'No explanation available.',
+          D: q.explanation_d || q.explanations?.D || 'No explanation available.',
+        },
+        difficulty: q.difficulty || 'medium',
+      } as GeneratedQuestion;
+    });
   }
 
   /**

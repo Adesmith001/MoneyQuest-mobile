@@ -29,7 +29,7 @@ class AudioService {
       this.isInitialized = true;
       console.log('✅ Audio service initialized');
     } catch (error) {
-      console.error('Failed to initialize audio service:', error);
+      console.error('Failed to initialize audio:', error);
     }
   }
 
@@ -57,36 +57,55 @@ class AudioService {
       // Stop any currently playing audio
       await this.stopAudio();
 
-      // Use the stream endpoint which returns audio directly
-      console.log('Generating TTS audio...');
-      const base64Audio = await backendApi.generateTTSStream({
+      // Call the JSON endpoint to get base64 audio
+      console.log('🎵 Generating TTS audio...');
+      console.log('Text:', text.substring(0, 50) + '...');
+      console.log('Voice:', voice);
+      
+      const response = await backendApi.generateTTSJson({
         text,
         voice,
         speed,
         output_format: format,
       });
 
-      // Create sound from base64 data URI
-      const audioUri = `data:audio/${format};base64,${base64Audio}`;
-      console.log('Creating audio sound...');
+      console.log('✅ TTS Response received');
+      console.log('Success:', response.success);
+      console.log('Voice used:', response.voice);
+      console.log('Format:', response.output_format);
+
+      if (!response.success || !response.audio_base64) {
+        throw new Error('Failed to generate audio - no base64 data received');
+      }
+
+      // Convert base64 to data URI for React Native
+      // expo-av can play audio directly from data URI
+      const audioUri = `data:audio/${response.output_format};base64,${response.audio_base64}`;
+      
+      console.log('🔊 Creating audio player...');
       const { sound } = await Audio.Sound.createAsync(
         { uri: audioUri },
         { shouldPlay: true }
       );
 
       this.currentSound = sound;
-      console.log('Audio playing...');
+      console.log('▶️ Audio playing...');
 
       // Clean up when audio finishes
       sound.setOnPlaybackStatusUpdate((status) => {
-        if (status.isLoaded && status.didJustFinish) {
-          this.cleanup();
+        if (status.isLoaded) {
+          if (status.didJustFinish) {
+            console.log('✅ Audio finished playing');
+            this.cleanup();
+          }
+        } else if (status.error) {
+          console.error('Audio playback error:', status.error);
         }
       });
 
       return sound;
     } catch (error) {
-      console.error('TTS Error:', error);
+      console.error('❌ TTS Error:', error);
       throw error;
     }
   }
@@ -210,9 +229,19 @@ class AudioService {
     return this.currentSound;
   }
 
-  // ============================================
-  // UTILITY METHODS
-  // ============================================
+  /**
+   * Cleanup current sound
+   */
+  private async cleanup(): Promise<void> {
+    if (this.currentSound) {
+      try {
+        await this.currentSound.unloadAsync();
+      } catch (error) {
+        console.error('Error during cleanup:', error);
+      }
+      this.currentSound = null;
+    }
+  }
 
   /**
    * Available TTS voices (PlayAI)
@@ -247,13 +276,6 @@ class AudioService {
       'Ruby',
       'Thunder',
     ];
-  }
-
-  /**
-   * Cleanup all audio resources
-   */
-  async cleanup(): Promise<void> {
-    await this.stopAudio();
   }
 }
 

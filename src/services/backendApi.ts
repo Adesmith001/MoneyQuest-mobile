@@ -108,11 +108,15 @@ class BackendApiService {
    * @param levelId - UUID of the level
    * @param numQuestions - Number of questions to generate (default: 5, max: 20)
    * @param difficulty - Difficulty level: "easy", "medium", "hard", "mixed"
+   * @param questionType - Type of questions: "mcq", "scenario", "matching", "fill_in_gap", "mixed"
+   * @param randomize - Whether to randomize the questions (default: true)
    */
   async generateQuestions(
     levelId: string,
     numQuestions: number = 10,
-    difficulty: 'easy' | 'medium' | 'hard' | 'mixed' = 'mixed'
+    difficulty: 'easy' | 'medium' | 'hard' | 'mixed' = 'mixed',
+    questionType: 'mcq' | 'scenario' | 'matching' | 'fill_in_gap' | 'mixed' = 'mixed',
+    randomize: boolean = true
   ): Promise<BackendQuestionResponse> {
     return await this.fetchApi<BackendQuestionResponse>('/generate-questions', {
       method: 'POST',
@@ -120,6 +124,8 @@ class BackendApiService {
         level_id: levelId,
         num_questions: numQuestions,
         difficulty: difficulty,
+        question_type: questionType,
+        randomize: randomize,
       }),
     });
   }
@@ -127,11 +133,27 @@ class BackendApiService {
   /**
    * Get previously generated questions for a level
    * @param levelId - UUID of the level
+   * @param limit - Maximum number of questions to return
+   * @param questionType - Filter by question type
+   * @param randomize - Whether to randomize the returned questions
    */
-  async getLevelQuestions(levelId: string): Promise<BackendQuestionResponse> {
-    return await this.fetchApi<BackendQuestionResponse>(
-      `/levels/${levelId}/questions`
-    );
+  async getLevelQuestions(
+    levelId: string,
+    limit?: number,
+    questionType?: 'mcq' | 'scenario' | 'matching' | 'fill_in_gap' | 'mixed',
+    randomize: boolean = true
+  ): Promise<BackendQuestionResponse> {
+    const params = new URLSearchParams();
+    if (limit) params.append('limit', limit.toString());
+    if (questionType) params.append('question_type', questionType);
+    if (randomize !== undefined) params.append('randomize', randomize.toString());
+    
+    const queryString = params.toString();
+    const endpoint = queryString 
+      ? `/levels/${levelId}/questions?${queryString}`
+      : `/levels/${levelId}/questions`;
+    
+    return await this.fetchApi<BackendQuestionResponse>(endpoint);
   }
 
   /**

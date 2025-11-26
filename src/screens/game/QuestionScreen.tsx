@@ -30,11 +30,14 @@ import CustomButton from "../../components/CustomButton";
 import questionService from "../../services/questions";
 import { backendApi } from "../../services/backendApi";
 import { databases, DB_ID, COLLECTIONS, Query } from "../../services/appwrite";
-import { GeneratedQuestion } from "../../types";
+import { AnyQuestion, GeneratedQuestion, ScenarioQuestion, MatchingQuestion, FillInGapQuestion } from "../../types";
 import { getNextLevel } from "../../config/learningPath";
 import soundService from "../../services/soundService";
 import livesService from "../../services/lives";
 import audioService from "../../services/audioService";
+import ScenarioQuestionComponent from "../../components/questions/ScenarioQuestion";
+import MatchingQuestionComponent from "../../components/questions/MatchingQuestion";
+import FillInGapQuestionComponent from "../../components/questions/FillInGapQuestion";
 
 interface Props {
   navigation: any;
@@ -54,11 +57,17 @@ const QuestionScreen: React.FC<Props> = ({ navigation, route }) => {
   const { user } = useSelector((state: RootState) => state.auth);
   const { health } = useSelector((state: RootState) => state.game);
 
-  const [questions, setQuestions] = useState<GeneratedQuestion[]>([]);
+  const [questions, setQuestions] = useState<AnyQuestion[]>([]);
   const [levelData, setLevelData] = useState<any>(null);
   const [currentQuestionIndex, setCurrentQuestionIndex] = useState(0);
   const [selectedAnswer, setSelectedAnswer] = useState<string>("");
   const [isLoading, setIsLoading] = useState(true);
+  
+  // State for matching questions
+  const [matchingAnswers, setMatchingAnswers] = useState<{ [key: string]: string }>({});
+  
+  // State for fill-in-gap questions
+  const [fillInGapAnswers, setFillInGapAnswers] = useState<{ [key: string]: string }>({});
   
   const [viewMode, setViewMode] = useState<'article' | 'quiz'>('article');
 
@@ -231,21 +240,44 @@ const QuestionScreen: React.FC<Props> = ({ navigation, route }) => {
   };
 
   const handleSubmit = async () => {
-    if (!selectedAnswer || !user) return;
-
     const currentQuestion = questions[currentQuestionIndex];
-    // Safety check
-    if (!currentQuestion) return;
+    if (!currentQuestion || !user) return;
 
-    const isCorrect = selectedAnswer === currentQuestion.correct_answer;
+    let isCorrect = false;
+    let userAnswer: any = selectedAnswer;
+
+    // Determine correctness based on question type
+    if (currentQuestion.question_type === 'matching') {
+      const matchingQ = currentQuestion as MatchingQuestion;
+      // Check if all matches are correct
+      isCorrect = Object.keys(matchingQ.correct_matches).every(
+        leftId => matchingAnswers[leftId] === matchingQ.correct_matches[leftId]
+      );
+      userAnswer = JSON.stringify(matchingAnswers);
+    } else if (currentQuestion.question_type === 'fill_in_gap') {
+      const fillGapQ = currentQuestion as FillInGapQuestion;
+      // Check if all blanks are filled correctly
+      isCorrect = fillGapQ.blanks.every(
+        blank => fillInGapAnswers[blank.id]?.toLowerCase().trim() === blank.correct_answer.toLowerCase().trim()
+      );
+      userAnswer = JSON.stringify(fillInGapAnswers);
+    } else {
+      // MCQ or Scenario questions
+      const mcqQ = currentQuestion as GeneratedQuestion | ScenarioQuestion;
+      if (!selectedAnswer) return;
+      isCorrect = selectedAnswer === mcqQ.correct_answer;
+      userAnswer = selectedAnswer;
+    }
 
     try {
       // Record answer and update lives/XP
       const result = await questionService.recordAnswer(
         user.$id,
         levelId,
-        selectedAnswer,
-        currentQuestion.correct_answer,
+        userAnswer,
+        currentQuestion.question_type === 'mcq' || currentQuestion.question_type === 'scenario' 
+          ? (currentQuestion as GeneratedQuestion).correct_answer 
+          : 'correct',
         isCorrect,
         5 // Time spent in seconds (you can track this properly)
       );
@@ -287,6 +319,8 @@ const QuestionScreen: React.FC<Props> = ({ navigation, route }) => {
     setCorrectModalVisible(false);
     setIncorrectModalVisible(false);
     setSelectedAnswer("");
+    setMatchingAnswers({});
+    setFillInGapAnswers({});
 
     // If health is 0, user cannot continue
     if (health <= 0) {
@@ -431,11 +465,11 @@ const QuestionScreen: React.FC<Props> = ({ navigation, route }) => {
           <TouchableOpacity onPress={() => navigation.goBack()}>
             <Text style={styles.closeButton}>✕</Text>
           </TouchableOpacity>
-          <Text style={styles.headerTitle}>{levelData.title}</Text>
+          <Text style={styles.headerTitle}>{sectionTitle}</Text>
         </View>
 
         <ScrollView contentContainerStyle={styles.articleContainer}>
-          <Text style={styles.articleTitle}>{levelData.title}</Text>
+          {/* <Text style={styles.articleTitle}>{levelData.title}</Text> */}
           
           {/* Display content or description */}
           <Text style={styles.articleContent}>
@@ -469,24 +503,130 @@ const QuestionScreen: React.FC<Props> = ({ navigation, route }) => {
   }
 
   const progress = ((currentQuestionIndex + 1) / questions.length) * 100;
-  const canSubmit = !!selectedAnswer;
+  
+  // Determine if user can submit based on question type
+  let canSubmit = false;
+  if (currentQuestion.question_type === 'matching') {
+    const matchingQ = currentQuestion as MatchingQuestion;
+    canSubmit = Object.keys(matchingQ.correct_matches).length === Object.keys(matchingAnswers).length;
+  } else if (currentQuestion.question_type === 'fill_in_gap') {
+    const fillGapQ = currentQuestion as FillInGapQuestion;
+    canSubmit = fillGapQ.blanks.every(blank => fillInGapAnswers[blank.id]);
+  } else {
+    canSubmit = !!selectedAnswer;
+  }
 
-  // Convert GeneratedQuestion format to options array for rendering
-  // Added safety check for options existence
-  const optionsArray = currentQuestion.options
-    ? [
-        { key: 'A', value: currentQuestion.options.A },
-        { key: 'B', value: currentQuestion.options.B },
-        { key: 'C', value: currentQuestion.options.C },
-        { key: 'D', value: currentQuestion.options.D },
-      ]
-    : [];
+  // Get explanation based on question type
+  const getExplanation = (): string => {
+    if (currentQuestion.question_type === 'matching') {
+      return (currentQuestion as MatchingQuestion).explanation || 'No explanation available.';
+    } else if (currentQuestion.question_type === 'fill_in_gap') {
+      return (currentQuestion as FillInGapQuestion).explanation || 'No explanation available.';
+    } else {
+      const mcqQ = currentQuestion as GeneratedQuestion | ScenarioQuestion;
+      if (!mcqQ.explanations || !selectedAnswer) return 'No explanation available.';
+      return mcqQ.explanations[selectedAnswer as 'A' | 'B' | 'C' | 'D'] || 'No explanation available.';
+    }
+  };
 
-  // Get explanation for the selected answer
-  const getExplanation = (answerKey: string): string => {
-    if (!currentQuestion || !currentQuestion.explanations) return 'No explanation available.';
-    
-    return currentQuestion.explanations[answerKey as 'A' | 'B' | 'C' | 'D'] || 'No explanation available.';
+  // Get user's chosen answer text for incorrect modal
+  const getChosenAnswerText = (): string => {
+    if (currentQuestion.question_type === 'matching') {
+      return 'Your matches were incorrect';
+    } else if (currentQuestion.question_type === 'fill_in_gap') {
+      return 'Some of your answers were incorrect';
+    } else {
+      const mcqQ = currentQuestion as GeneratedQuestion | ScenarioQuestion;
+      const optionsArray = [
+        { key: 'A', value: mcqQ.options.A },
+        { key: 'B', value: mcqQ.options.B },
+        { key: 'C', value: mcqQ.options.C },
+        { key: 'D', value: mcqQ.options.D },
+      ];
+      return selectedAnswer ? optionsArray.find(o => o.key === selectedAnswer)?.value || selectedAnswer : "No answer selected";
+    }
+  };
+
+  // Render question based on type
+  const renderQuestion = () => {
+    if (currentQuestion.question_type === 'scenario') {
+      return (
+        <ScenarioQuestionComponent
+          question={currentQuestion as ScenarioQuestion}
+          selectedAnswer={selectedAnswer}
+          onAnswerSelect={handleAnswerSelect}
+          disabled={isCorrectModalVisible || isIncorrectModalVisible}
+        />
+      );
+    } else if (currentQuestion.question_type === 'matching') {
+      return (
+        <MatchingQuestionComponent
+          question={currentQuestion as MatchingQuestion}
+          userMatches={matchingAnswers}
+          onMatchChange={(leftId, rightId) => {
+            if (rightId === null) {
+              const newMatches = { ...matchingAnswers };
+              delete newMatches[leftId];
+              setMatchingAnswers(newMatches);
+            } else {
+              setMatchingAnswers({ ...matchingAnswers, [leftId]: rightId });
+            }
+          }}
+          disabled={isCorrectModalVisible || isIncorrectModalVisible}
+        />
+      );
+    } else if (currentQuestion.question_type === 'fill_in_gap') {
+      return (
+        <FillInGapQuestionComponent
+          question={currentQuestion as FillInGapQuestion}
+          userAnswers={fillInGapAnswers}
+          onAnswerChange={(blankId, answer) => {
+            setFillInGapAnswers({ ...fillInGapAnswers, [blankId]: answer });
+          }}
+          disabled={isCorrectModalVisible || isIncorrectModalVisible}
+        />
+      );
+    } else {
+      // Standard MCQ
+      const mcqQ = currentQuestion as GeneratedQuestion;
+      const optionsArray = [
+        { key: 'A', value: mcqQ.options.A },
+        { key: 'B', value: mcqQ.options.B },
+        { key: 'C', value: mcqQ.options.C },
+        { key: 'D', value: mcqQ.options.D },
+      ];
+
+      return (
+        <>
+          <Text style={styles.questionText}>{mcqQ.question}</Text>
+          <View style={styles.optionsContainer}>
+            {optionsArray.map((option) => (
+              <TouchableOpacity
+                key={option.key}
+                style={[
+                  styles.optionButton,
+                  selectedAnswer === option.key && styles.selectedOption,
+                ]}
+                onPress={() => handleAnswerSelect(option.key)}
+                disabled={isCorrectModalVisible || isIncorrectModalVisible}
+              >
+                <View style={styles.optionContent}>
+                  <Text style={styles.optionLabel}>{option.key}.</Text>
+                  <Text
+                    style={[
+                      styles.optionText,
+                      selectedAnswer === option.key && styles.selectedOptionText,
+                    ]}
+                  >
+                    {option.value}
+                  </Text>
+                </View>
+              </TouchableOpacity>
+            ))}
+          </View>
+        </>
+      );
+    }
   };
 
   return (
@@ -509,7 +649,6 @@ const QuestionScreen: React.FC<Props> = ({ navigation, route }) => {
         </View>
         
         <View style={styles.questionContainer}>
-          <Text style={styles.questionText}>{currentQuestion.question}</Text>
           <TouchableOpacity 
             style={styles.playButton}
             onPress={handlePlayAudio}
@@ -523,30 +662,7 @@ const QuestionScreen: React.FC<Props> = ({ navigation, route }) => {
           </TouchableOpacity>
         </View>
 
-        <View style={styles.optionsContainer}>
-          {optionsArray.map((option) => (
-            <TouchableOpacity
-              key={option.key}
-              style={[
-                styles.optionButton,
-                selectedAnswer === option.key && styles.selectedOption,
-              ]}
-              onPress={() => handleAnswerSelect(option.key)}
-            >
-              <View style={styles.optionContent}>
-                <Text style={styles.optionLabel}>{option.key}.</Text>
-                <Text
-                  style={[
-                    styles.optionText,
-                    selectedAnswer === option.key && styles.selectedOptionText,
-                  ]}
-                >
-                  {option.value}
-                </Text>
-              </View>
-            </TouchableOpacity>
-          ))}
-        </View>
+        {renderQuestion()}
       </ScrollView>
 
       <View style={styles.footer}>
@@ -560,16 +676,18 @@ const QuestionScreen: React.FC<Props> = ({ navigation, route }) => {
       <CorrectAnswerModal
         visible={isCorrectModalVisible}
         onContinue={handleContinue}
-        explanation={getExplanation(selectedAnswer)}
+        explanation={getExplanation()}
       />
       <IncorrectAnswerModal
         visible={isIncorrectModalVisible}
         onContinue={() => {
           setIncorrectModalVisible(false);
           setSelectedAnswer("");
+          setMatchingAnswers({});
+          setFillInGapAnswers({});
         }}
-        chosenAnswer={selectedAnswer ? optionsArray.find(o => o.key === selectedAnswer)?.value || selectedAnswer : "No answer selected"}
-        explanation={getExplanation(selectedAnswer)}
+        chosenAnswer={getChosenAnswerText()}
+        explanation={getExplanation()}
       />
     </SafeAreaView>
   );
@@ -665,12 +783,10 @@ const styles = StyleSheet.create({
     padding: SPACING.xs,
   },
   optionsContainer: {
-    flexDirection: "row",
-    flexWrap: "wrap",
-    justifyContent: "space-between",
+    gap: SPACING.md,
   },
   optionButton: {
-    width: "48%",
+    width: "100%",
     backgroundColor: COLORS.card,
     borderRadius: 10,
     padding: SPACING.lg,
