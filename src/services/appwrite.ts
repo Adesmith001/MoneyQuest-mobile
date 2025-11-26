@@ -21,7 +21,8 @@ console.log('Project ID:', APPWRITE_PROJECT_ID);
 
 client
   .setEndpoint(APPWRITE_ENDPOINT || 'https://fra.cloud.appwrite.io/v1')
-  .setProject(APPWRITE_PROJECT_ID);
+  .setProject(APPWRITE_PROJECT_ID)
+  .setPlatform('com.expo.moneyquest'); 
 
 // Initialize services
 export const account = new Account(client);
