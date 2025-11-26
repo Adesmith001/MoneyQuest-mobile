@@ -4,7 +4,7 @@
     "slug": "moneyquest",
     "version": "1.0.0",
     "orientation": "portrait",
-    "icon": "./assets/logo.png",
+    "icon": "./assets/logo-black.png",
     "scheme": "moneyquest",
     "userInterfaceStyle": "light",
     "splash": {
@@ -16,7 +16,7 @@
       "package": "com.expo.moneyquest",
       "versionCode": 1,
       "adaptiveIcon": {
-        "foregroundImage": "./assets/logo.png",
+        "foregroundImage": "./assets/logo-black.png",
         "backgroundColor": "#ffffff"
       },
       "permissions": [
