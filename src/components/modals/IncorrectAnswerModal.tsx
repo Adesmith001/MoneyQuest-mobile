@@ -1,12 +1,15 @@
 import React from "react";
-import { Modal, View, Text, StyleSheet, Image } from "react-native";
+import { Modal, View, Text, StyleSheet, Image, ScrollView } from "react-native";
 import CustomButton from "../CustomButton";
+import { COLORS, SPACING, FONT_SIZES } from "../../constants";
 
 interface IncorrectAnswerModalProps {
   visible: boolean;
   onContinue: () => void;
   chosenAnswer: string;
-  explanation: string;
+  explanation?: string;
+  incorrectMatches?: string[]; // New prop
+  correctMatches?: string[]; // New prop
 }
 
 const IncorrectAnswerModal: React.FC<IncorrectAnswerModalProps> = ({
@@ -14,6 +17,8 @@ const IncorrectAnswerModal: React.FC<IncorrectAnswerModalProps> = ({
   onContinue,
   chosenAnswer,
   explanation,
+  incorrectMatches,
+  correctMatches,
 }) => {
   return (
     <Modal
@@ -31,16 +36,50 @@ const IncorrectAnswerModal: React.FC<IncorrectAnswerModalProps> = ({
           />
           <Text style={styles.modalTitle}>Incorrect</Text>
           <Text style={styles.modalSubtitle}>Don't lose hope 😔</Text>
-          <View style={styles.explanationContainer}>
-            <Text style={styles.incorrectAnswerText}>
-              <Text style={{ textTransform: "capitalize" }}>
-                {chosenAnswer}
-              </Text>{" "}
-              is incorrect
-            </Text>
-            <Text style={styles.explanationText}>{explanation}</Text>
-          </View>
-          <CustomButton title="Try Again" onPress={onContinue} />
+          
+          <ScrollView style={styles.resultsContainer}>
+            {correctMatches && correctMatches.length > 0 && (
+              <View style={styles.matchSection}>
+                <Text style={styles.correctSectionTitle}>
+                  ✅ Correct Matches ({correctMatches.length}):
+                </Text>
+                {correctMatches.map((match, index) => (
+                  <Text key={index} style={styles.correctMatchText}>
+                    • {match}
+                  </Text>
+                ))}
+              </View>
+            )}
+            
+            {incorrectMatches && incorrectMatches.length > 0 && (
+              <View style={styles.matchSection}>
+                <Text style={styles.incorrectSectionTitle}>
+                  ❌ Incorrect Matches ({incorrectMatches.length}):
+                </Text>
+                {incorrectMatches.map((match, index) => (
+                  <Text key={index} style={styles.incorrectMatchText}>
+                    • {match}
+                  </Text>
+                ))}
+              </View>
+            )}
+            
+            {!incorrectMatches && !correctMatches && (
+              <View style={styles.explanationContainer}>
+                <Text style={styles.incorrectAnswerText}>
+                  <Text style={{ textTransform: "capitalize" }}>
+                    {chosenAnswer}
+                  </Text>{" "}
+                  is incorrect
+                </Text>
+                {explanation && (
+                  <Text style={styles.explanationText}>{explanation}</Text>
+                )}
+              </View>
+            )}
+          </ScrollView>
+          
+          <CustomButton title="Continue" onPress={onContinue} />
         </View>
       </View>
     </Modal>
@@ -56,6 +95,7 @@ const styles = StyleSheet.create({
   },
   modalView: {
     width: "100%",
+    maxHeight: "80%",
     backgroundColor: "white",
     borderTopLeftRadius: 20,
     borderTopRightRadius: 20,
@@ -92,6 +132,39 @@ const styles = StyleSheet.create({
     fontSize: 16,
     color: "#666",
     marginBottom: 20,
+  },
+  resultsContainer: {
+    width: "100%",
+    maxHeight: 300,
+    marginBottom: SPACING.md,
+  },
+  matchSection: {
+    marginBottom: SPACING.md,
+    width: "100%",
+  },
+  correctSectionTitle: {
+    fontSize: FONT_SIZES.md,
+    fontWeight: "bold",
+    color: COLORS.success,
+    marginBottom: SPACING.sm,
+  },
+  incorrectSectionTitle: {
+    fontSize: FONT_SIZES.md,
+    fontWeight: "bold",
+    color: COLORS.warning,
+    marginBottom: SPACING.sm,
+  },
+  correctMatchText: {
+    fontSize: FONT_SIZES.sm,
+    color: COLORS.success,
+    marginBottom: SPACING.xs,
+    lineHeight: 20,
+  },
+  incorrectMatchText: {
+    fontSize: FONT_SIZES.sm,
+    color: COLORS.warning,
+    marginBottom: SPACING.xs,
+    lineHeight: 20,
   },
   explanationContainer: {
     marginBottom: 20,

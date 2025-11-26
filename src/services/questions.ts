@@ -27,12 +27,21 @@ class QuestionService {
     randomize: boolean = true
   ): Promise<AnyQuestion[]> {
     try {
-      // Try to get existing questions from the backend
-      console.log(`Fetching questions for level ${levelId}`);
+      console.log(`Fetching questions for level ${levelId}, type: ${questionType}`);
+      
+      // If requesting specific types, try specialized endpoints first
+      if (questionType === 'scenario') {
+        return await this.getScenarioQuestions(levelId, numQuestions, randomize);
+      } else if (questionType === 'matching') {
+        return await this.getMatchingQuestions(levelId, numQuestions, randomize);
+      } else if (questionType === 'mixed') {
+        return await this.getMixedQuestions(levelId, numQuestions, randomize);
+      }
+      
+      // For MCQ or other types, use standard endpoint
       const response = await backendApi.getLevelQuestions(levelId, numQuestions, questionType, randomize);
       
-      if (response && response.questions && response.questions.length >= numQuestions) {
-        // Transform and return existing questions
+      if (response && response.questions && response.questions.length > 0) {
         const transformed = this.transformBackendQuestions(response.questions);
         return randomize ? this.shuffleArray(transformed).slice(0, numQuestions) : transformed.slice(0, numQuestions);
       }
@@ -49,6 +58,138 @@ class QuestionService {
   }
 
   /**
+   * Get scenario questions from specialized endpoint
+   */
+  private async getScenarioQuestions(levelId: string, limit: number, randomize: boolean): Promise<ScenarioQuestion[]> {
+    try {
+      const params = new URLSearchParams();
+      if (limit) params.append('limit', limit.toString());
+      if (randomize) params.append('randomize', randomize.toString());
+      
+      const endpoint = `/levels/${levelId}/scenario-questions${params.toString() ? '?' + params.toString() : ''}`;
+      const response = await backendApi['fetchApi'](endpoint) as any;
+      
+      if (response && response.questions && response.questions.length > 0) {
+        return response.questions.map((q: any) => ({
+          question_type: 'scenario',
+          scenario_context: q.scenario || '',
+          question: q.question_text,
+          options: {
+            A: q.option_a,
+            B: q.option_b,
+            C: q.option_c,
+            D: q.option_d,
+          },
+          correct_answer: q.correct_answer,
+          explanations: {
+            A: q.explanation_a || 'No explanation available.',
+            B: q.explanation_b || 'No explanation available.',
+            C: q.explanation_c || 'No explanation available.',
+            D: q.explanation_d || 'No explanation available.',
+          },
+          difficulty: q.difficulty || 'medium',
+        })) as ScenarioQuestion[];
+      }
+      return [];
+    } catch (error) {
+      console.error('Error fetching scenario questions:', error);
+      return [];
+    }
+  }
+
+  /**
+   * Get matching questions from specialized endpoint and aggregate pairs
+   */
+  private async getMatchingQuestions(levelId: string, limit: number, randomize: boolean): Promise<MatchingQuestion[]> {
+    try {
+      // Request more pairs than needed to ensure we have enough
+      const pairsNeeded = Math.max(limit * 5, 10); // Get at least 10 pairs or 5x the limit
+      const params = new URLSearchParams();
+      params.append('limit', pairsNeeded.toString());
+      if (randomize) params.append('randomize', randomize.toString());
+      
+      const endpoint = `/levels/${levelId}/matching-questions${params.toString() ? '?' + params.toString() : ''}`;
+      const response = await backendApi['fetchApi'](endpoint) as any;
+      
+      console.log('Matching questions response:', response);
+      console.log('Number of pairs received:', response?.questions?.length);
+      
+      if (response && response.questions && response.questions.length > 0) {
+        // Aggregate pairs into a single matching question
+        const pairs = response.questions;
+        
+        console.log('Creating matching question with', pairs.length, 'pairs');
+        
+        // Create left items with sequential IDs
+        const leftItems = pairs.map((p: any, idx: number) => ({
+          id: `left_${p.pair_id || idx + 1}`,
+          text: p.column_a
+        }));
+        
+        // Create right items with their original pair IDs (before shuffling)
+        const rightItemsWithPairIds = pairs.map((p: any, idx: number) => ({
+          id: `right_${p.pair_id || idx + 1}`,
+          text: p.column_b,
+          originalPairId: p.pair_id || idx + 1 // Keep track of original pair
+        }));
+        
+        // Shuffle right items for display (this randomizes the order)
+        const shuffledRightItems = randomize ? this.shuffleArray(rightItemsWithPairIds) : rightItemsWithPairIds;
+        
+        // Create correct matches mapping based on pair_id
+        // Each left item should match with the right item that has the same pair_id
+        const correctMatches: { [key: string]: string } = {};
+        pairs.forEach((p: any, idx: number) => {
+          const pairId = p.pair_id || idx + 1;
+          correctMatches[`left_${pairId}`] = `right_${pairId}`;
+        });
+        
+        // Remove the originalPairId from the final right items (not needed in UI)
+        const finalRightItems = shuffledRightItems.map(({ id, text }: { id: string; text: string; originalPairId: number }) => ({ id, text }));
+        
+        console.log('Left items:', leftItems.length);
+        console.log('Right items:', finalRightItems.length);
+        console.log('Correct matches:', Object.keys(correctMatches).length);
+        
+        return [{
+          question_type: 'matching',
+          question: 'Match the items in the left column with their correct descriptions in the right column',
+          left_items: leftItems,
+          right_items: finalRightItems,
+          correct_matches: correctMatches,
+          explanation: 'Match each concept with its correct definition or example.',
+          difficulty: 'medium',
+        }] as MatchingQuestion[];
+      }
+      return [];
+    } catch (error) {
+      console.error('Error fetching matching questions:', error);
+      return [];
+    }
+  }
+
+  /**
+   * Get mixed question types
+   */
+  private async getMixedQuestions(levelId: string, numQuestions: number, randomize: boolean): Promise<AnyQuestion[]> {
+    try {
+      const questionsPerType = Math.floor(numQuestions / 2); // Split between scenario and matching
+      
+      const [scenarioQuestions, matchingQuestions] = await Promise.all([
+        this.getScenarioQuestions(levelId, questionsPerType, randomize),
+        this.getMatchingQuestions(levelId, 1, randomize), // Usually 1 matching question with multiple pairs
+      ]);
+      
+      const allQuestions: AnyQuestion[] = [...scenarioQuestions, ...matchingQuestions];
+      
+      return randomize ? this.shuffleArray(allQuestions).slice(0, numQuestions) : allQuestions.slice(0, numQuestions);
+    } catch (error) {
+      console.error('Error fetching mixed questions:', error);
+      throw error;
+    }
+  }
+
+  /**
    * Transform backend question format to app format
    * Handles multiple question types: MCQ, Scenario, Matching, Fill-in-Gap
    */
@@ -56,11 +197,18 @@ class QuestionService {
     return backendQuestions.map((q: any) => {
       const questionType = q.question_type || 'mcq';
 
-      // Handle Matching Questions
-      if (questionType === 'matching') {
+      // Handle Matching Questions (from /matching-questions endpoint)
+      if (questionType === 'matching' || q.pair_id !== undefined) {
+        // If it's raw matching pairs, we need to aggregate them
+        if (q.pair_id !== undefined && q.column_a && q.column_b) {
+          // This is a single pair - should be aggregated at a higher level
+          // For now, return a placeholder that will be filtered out
+          return null;
+        }
+        
         return {
           question_type: 'matching',
-          question: q.question_text || q.question,
+          question: q.question_text || q.question || 'Match the items correctly',
           left_items: q.left_items || [],
           right_items: q.right_items || [],
           correct_matches: q.correct_matches || {},
@@ -80,11 +228,11 @@ class QuestionService {
         } as FillInGapQuestion;
       }
 
-      // Handle Scenario Questions (has scenario_context field)
-      if (questionType === 'scenario' || q.scenario_context) {
+      // Handle Scenario Questions (has scenario field)
+      if (questionType === 'scenario' || q.scenario || q.scenario_context) {
         return {
           question_type: 'scenario',
-          scenario_context: q.scenario_context || '',
+          scenario_context: q.scenario || q.scenario_context || '',
           question: q.question_text || q.question,
           options: {
             A: q.option_a || q.options?.A,
@@ -122,7 +270,7 @@ class QuestionService {
         },
         difficulty: q.difficulty || 'medium',
       } as GeneratedQuestion;
-    });
+    }).filter(q => q !== null) as AnyQuestion[];
   }
 
   /**

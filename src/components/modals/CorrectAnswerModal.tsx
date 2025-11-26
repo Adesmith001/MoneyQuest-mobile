@@ -1,17 +1,20 @@
 import React from "react";
-import { Modal, View, Text, StyleSheet, Image } from "react-native";
+import { Modal, View, Text, StyleSheet, Image, ScrollView } from "react-native";
 import CustomButton from "../CustomButton";
+import { COLORS, SPACING, FONT_SIZES } from "../../constants";
 
 interface CorrectAnswerModalProps {
   visible: boolean;
   onContinue: () => void;
   explanation?: string;
+  correctMatches?: string[]; // New prop for matching questions
 }
 
 const CorrectAnswerModal: React.FC<CorrectAnswerModalProps> = ({
   visible,
   onContinue,
   explanation,
+  correctMatches,
 }) => {
   return (
     <Modal
@@ -29,6 +32,18 @@ const CorrectAnswerModal: React.FC<CorrectAnswerModalProps> = ({
           />
           <Text style={styles.modalTitle}>Correct</Text>
           <Text style={styles.modalSubtitle}>Keep going! 🚀</Text>
+          
+          {correctMatches && correctMatches.length > 0 && (
+            <ScrollView style={styles.matchesContainer}>
+              <Text style={styles.matchesTitle}>✅ Your Correct Matches:</Text>
+              {correctMatches.map((match, index) => (
+                <Text key={index} style={styles.correctMatchText}>
+                  • {match}
+                </Text>
+              ))}
+            </ScrollView>
+          )}
+          
           {explanation && (
             <View style={styles.explanationContainer}>
               <Text style={styles.explanationText}>{explanation}</Text>
@@ -50,6 +65,7 @@ const styles = StyleSheet.create({
   },
   modalView: {
     width: "100%",
+    maxHeight: "80%",
     backgroundColor: "white",
     borderTopLeftRadius: 20,
     borderTopRightRadius: 20,
@@ -86,6 +102,24 @@ const styles = StyleSheet.create({
     fontSize: 16,
     color: "#666",
     marginBottom: 20,
+  },
+  matchesContainer: {
+    width: "100%",
+    maxHeight: 200,
+    marginBottom: SPACING.md,
+    paddingHorizontal: SPACING.sm,
+  },
+  matchesTitle: {
+    fontSize: FONT_SIZES.md,
+    fontWeight: "bold",
+    color: COLORS.success,
+    marginBottom: SPACING.sm,
+  },
+  correctMatchText: {
+    fontSize: FONT_SIZES.sm,
+    color: COLORS.success,
+    marginBottom: SPACING.xs,
+    lineHeight: 20,
   },
   explanationContainer: {
     marginBottom: 20,

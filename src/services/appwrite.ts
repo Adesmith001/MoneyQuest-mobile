@@ -25,6 +25,13 @@ client
 
 // Initialize services
 export const account = new Account(client);
+
+// Add this temporary logging to debug
+export const testOAuthConfig = () => {
+  console.log('Appwrite Endpoint:', APPWRITE_ENDPOINT);
+  console.log('Appwrite Project ID:', APPWRITE_PROJECT_ID);
+};
+
 export const databases = new Databases(client);
 export const storage = new Storage(client);
 export const functions = new Functions(client);

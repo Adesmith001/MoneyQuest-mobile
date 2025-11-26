@@ -143,7 +143,7 @@ const LoginScreen: React.FC<Props> = ({ navigation }) => {
               </Text>
             </TouchableOpacity>
 
-            <View style={styles.divider}>
+            {/* <View style={styles.divider}>
               <Text style={styles.dividerText}>OR LOGIN WITH</Text>
             </View>
 
@@ -168,7 +168,7 @@ const LoginScreen: React.FC<Props> = ({ navigation }) => {
               >
                 <Image source={require('../../../assets/twitter-icon.png')} style={styles.socialIcon} />
               </TouchableOpacity>
-            </View>
+            </View> */}
           </View>
 
           {/* Footer */}

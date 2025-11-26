@@ -9,7 +9,7 @@ interface Props {
   userMatches: { [key: string]: string }; // Map of left_id -> right_id
   onMatchChange: (leftId: string, rightId: string | null) => void;
   disabled?: boolean;
-  showCorrect?: boolean;
+  showResults?: boolean; // Changed from showCorrect
 }
 
 const MatchingQuestion: React.FC<Props> = ({
@@ -17,7 +17,7 @@ const MatchingQuestion: React.FC<Props> = ({
   userMatches,
   onMatchChange,
   disabled = false,
-  showCorrect = false,
+  showResults = false,
 }) => {
   const [selectedLeft, setSelectedLeft] = useState<string | null>(null);
 
@@ -58,9 +58,9 @@ const MatchingQuestion: React.FC<Props> = ({
           {question.left_items.map((item) => {
             const matched = isLeftMatched(item.id);
             const selected = selectedLeft === item.id;
-            const isCorrect = showCorrect && 
+            const isCorrect = showResults && 
               userMatches[item.id] === question.correct_matches[item.id];
-            const isIncorrect = showCorrect && 
+            const isIncorrect = showResults && 
               matched && 
               userMatches[item.id] !== question.correct_matches[item.id];
 
@@ -70,7 +70,7 @@ const MatchingQuestion: React.FC<Props> = ({
                 style={[
                   styles.matchItem,
                   selected && styles.selectedItem,
-                  matched && styles.matchedItem,
+                  matched && !showResults && styles.matchedItem,
                   isCorrect && styles.correctItem,
                   isIncorrect && styles.incorrectItem,
                 ]}
@@ -85,7 +85,7 @@ const MatchingQuestion: React.FC<Props> = ({
                 >
                   {item.text}
                 </Text>
-                {matched && !showCorrect && (
+                {matched && !showResults && (
                   <Ionicons name="checkmark-circle" size={20} color={COLORS.primary} />
                 )}
                 {isCorrect && (
@@ -109,10 +109,16 @@ const MatchingQuestion: React.FC<Props> = ({
           <Text style={styles.columnHeader}>Matches</Text>
           {question.right_items.map((item) => {
             const matched = isRightMatched(item.id);
-            const isCorrect = showCorrect && 
+            const isCorrect = showResults && 
               Object.entries(question.correct_matches).some(
                 ([leftId, rightId]) => 
                   rightId === item.id && userMatches[leftId] === rightId
+              );
+            const isIncorrect = showResults &&
+              matched &&
+              Object.entries(userMatches).some(
+                ([leftId, rightId]) =>
+                  rightId === item.id && question.correct_matches[leftId] !== rightId
               );
 
             return (
@@ -120,8 +126,9 @@ const MatchingQuestion: React.FC<Props> = ({
                 key={item.id}
                 style={[
                   styles.matchItem,
-                  matched && styles.matchedItem,
+                  matched && !showResults && styles.matchedItem,
                   isCorrect && styles.correctItem,
+                  isIncorrect && styles.incorrectItem,
                   selectedLeft && !matched && styles.highlightedItem,
                 ]}
                 onPress={() => handleRightItemPress(item.id)}
@@ -135,8 +142,14 @@ const MatchingQuestion: React.FC<Props> = ({
                 >
                   {item.text}
                 </Text>
-                {matched && !showCorrect && (
+                {matched && !showResults && (
                   <Ionicons name="checkmark-circle" size={20} color={COLORS.primary} />
+                )}
+                {isCorrect && (
+                  <Ionicons name="checkmark-circle" size={20} color={COLORS.success} />
+                )}
+                {isIncorrect && (
+                  <Ionicons name="close-circle" size={20} color={COLORS.warning} />
                 )}
               </TouchableOpacity>
             );

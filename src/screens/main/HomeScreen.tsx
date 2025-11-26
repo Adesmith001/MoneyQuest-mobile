@@ -23,6 +23,7 @@ import { backendApi } from "../../services/backendApi";
 import { databases, DB_ID, COLLECTIONS, Query } from "../../services/appwrite";
 import { BackendLevel } from "../../types";
 import { useFocusEffect } from "@react-navigation/native";
+import { updateUser } from "../../store/slices/authSlice";
 
 interface Props {
   navigation: any;
@@ -75,6 +76,25 @@ const HomeScreen: React.FC<Props> = ({ navigation }) => {
               console.log('Completed levels:', Array.from(completed));
               console.log('Current Level ID from user:', user.currentLevelId);
               console.log('Current Section ID from user:', user.currentSectionId);
+              
+              // If user has completed levels but no currentLevelId, update it
+              if (completed.size > 0 && !user.currentLevelId) {
+                // Find the last completed level and set next level as current
+                const sortedCompletedLevels = Array.from(completed);
+                const lastCompletedLevel = sortedCompletedLevels[sortedCompletedLevels.length - 1];
+                
+                // Update user's currentLevelId in Appwrite
+                await databases.updateDocument(
+                  DB_ID,
+                  COLLECTIONS.USERS,
+                  user.$id,
+                  {
+                    currentLevelId: lastCompletedLevel,
+                  }
+                );
+                
+                dispatch(updateUser({ currentLevelId: lastCompletedLevel }));
+              }
             } catch (error) {
               console.error('Failed to fetch completed levels:', error);
             }
@@ -167,8 +187,24 @@ const HomeScreen: React.FC<Props> = ({ navigation }) => {
       const previousLevel = sectionLevels[levelIndex - 1];
       isUnlocked = isUnlocked || completedLevels.has(previousLevel.level_id);
     } else if (levelIndex === 0) {
-      // First level of section is always unlocked
-      isUnlocked = true;
+      // First level of section is unlocked if:
+      // 1. It's completed OR
+      // 2. Previous section is fully completed OR
+      // 3. It's the first section
+      if (!isCompleted) {
+        const currentSectionIndex = sections.findIndex(s => s.id === sectionId);
+        if (currentSectionIndex > 0) {
+          // Check if previous section is completed
+          const previousSection = sections[currentSectionIndex - 1];
+          const previousSectionCompleted = previousSection.levels.every(
+            level => completedLevels.has(level.levelId)
+          );
+          isUnlocked = previousSectionCompleted;
+        } else {
+          // First section, first level is always unlocked
+          isUnlocked = true;
+        }
+      }
     }
 
     return { isUnlocked, isCompleted, isCurrent };

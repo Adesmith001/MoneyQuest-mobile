@@ -1,13 +1,13 @@
 {
   "expo": {
     "name": "MoneyQuest",
-    "slug": "MoneyQuest",
+    "slug": "moneyquest",
+    "scheme": "moneyquest",
     "version": "1.0.0",
     "orientation": "portrait",
     "icon": "./assets/logo.png",
     "userInterfaceStyle": "light",
     "newArchEnabled": true,
-    "scheme": "moneyquest",
     "platforms": [
       "ios",
       "android"
@@ -19,14 +19,15 @@
     },
     "ios": {
       "supportsTablet": true,
-      "bundleIdentifier": "io.expo.moneyquest"
+      "bundleIdentifier": "com.naturehaven.moneyquest",
+      "associatedDomains": ["applinks:moneyquest.app"]
     },
     "android": {
       "adaptiveIcon": {
         "foregroundImage": "./assets/logo.png",
         "backgroundColor": "#ffffff"
       },
-      "package": "io.expo.moneyquest",
+      "package": "com.naturehaven.moneyquest",
       "edgeToEdgeEnabled": true,
       "predictiveBackGestureEnabled": false
     },

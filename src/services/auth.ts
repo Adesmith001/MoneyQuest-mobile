@@ -8,7 +8,7 @@ import {
   Query,
 } from "./appwrite";
 import client from "./appwrite";
-import { ID } from "react-native-appwrite";
+import { ID, OAuthProvider } from "react-native-appwrite";
 import { User } from "../types";
 import * as WebBrowser from "expo-web-browser";
 import * as Linking from "expo-linking";
@@ -645,45 +645,103 @@ class AuthService {
   }
 
   // OAuth sign-in methods
-  async signInWithGoogle(): Promise<any> {
+  async signInWithGoogle(): Promise<User> {
     try {
-      const redirectURL = Linking.createURL("oauth/success");
-      const failureURL = Linking.createURL("oauth/failure");
-
-      const authUrl = `${client.config.endpoint
-        }/account/sessions/oauth2/google?project=${client.config.project
-        }&success=${encodeURIComponent(redirectURL)}&failure=${encodeURIComponent(
-          failureURL
-        )}`;
-
-      const result = await WebBrowser.openAuthSessionAsync(
-        authUrl,
-        redirectURL
+      console.log('Starting Google OAuth...');
+      
+      // Create the OAuth2 session with proper success/failure URLs
+      const redirectUrl = 'moneyquest://oauth-callback';
+      const successUrl = `${redirectUrl}/success`;
+      const failureUrl = `${redirectUrl}/failure`;
+      
+      console.log('Success URL:', successUrl);
+      console.log('Failure URL:', failureUrl);
+      
+      // This will open Google sign-in in browser
+      await account.createOAuth2Session(
+        'google' as OAuthProvider,
+        successUrl,
+        failureUrl
       );
 
-      if (result.type === "success") {
-        // Wait for session to be established
-        await new Promise((resolve) => setTimeout(resolve, 1500));
+      // Wait a bit for the session to be created
+      await new Promise(resolve => setTimeout(resolve, 2000));
+      
+      // Get the current session
+      const session = await account.getSession('current');
+      console.log('OAuth Session created:', session);
+      
+      // Get user details
+      const userAccount = await account.get();
+      console.log('User account retrieved:', userAccount);
 
-        const currentUser = await this.getCurrentUser();
-        if (currentUser) {
-          let userDocument = await this.getUserDocument(currentUser.$id);
-          if (!userDocument) {
-            await this.createUserDocument(
-              currentUser.$id,
-              currentUser.email,
-              currentUser.name
-            );
-            userDocument = await this.getUserDocument(currentUser.$id);
-          }
-          await this.updateLastLoginDate();
-          return { currentUser, userDocument };
+      // Check if user exists in our database
+      let userDoc;
+      try {
+        const existingUsers = await databases.listDocuments(
+          DB_ID,
+          COLLECTIONS.USERS,
+          [Query.equal('email', userAccount.email)]
+        );
+
+        if (existingUsers.documents.length > 0) {
+          userDoc = existingUsers.documents[0];
+          console.log('Existing user found:', userDoc);
+        } else {
+          // Create new user document
+          console.log('Creating new user document...');
+          userDoc = await databases.createDocument(
+            DB_ID,
+            COLLECTIONS.USERS,
+            ID.unique(),
+            {
+              email: userAccount.email,
+              name: userAccount.name,
+              avatar: 'avatar1', // Default avatar
+              xp: 0,
+              lives: 5,
+              createdAt: new Date().toISOString(),
+            }
+          );
+          console.log('New user created:', userDoc);
         }
+      } catch (dbError) {
+        console.error('Database error:', dbError);
+        throw new Error('Failed to create/retrieve user profile');
       }
 
-      throw new Error("OAuth authentication failed");
-    } catch (error) {
-      console.error("Google sign-in error:", error);
+      return {
+        $id: userDoc.$id,
+        email: userDoc.email,
+        name: userDoc.name,
+        username: userDoc.username,
+        phoneNumber: userDoc.phoneNumber,
+        profilePicture: userDoc.profilePicture,
+        profilePictureId: userDoc.profilePictureId,
+        age: userDoc.age,
+        learningLimit: userDoc.learningLimit,
+        mainGoal: userDoc.mainGoal,
+        referralSource: userDoc.referralSource,
+        avatar: userDoc.avatar,
+        xp: userDoc.xp || 0,
+        level: userDoc.level || 1,
+        currentSection: userDoc.currentSection || 1,
+        streak: userDoc.streak || 0,
+        lastLoginDate: userDoc.lastLoginDate,
+        totalQuestionsAnswered: userDoc.totalQuestionsAnswered || 0,
+        correctAnswers: userDoc.correctAnswers || 0,
+        monthlyXP: userDoc.monthlyXP || 0,
+        totalXP: userDoc.totalXP || 0,
+        lives: userDoc.lives !== undefined ? userDoc.lives : 5,
+        lastLifeRegenTime: userDoc.lastLifeRegenTime || new Date().toISOString(),
+        currentLevelId: userDoc.currentLevelId,
+        currentSectionId: userDoc.currentSectionId,
+        $createdAt: userDoc.$createdAt,
+        $updatedAt: userDoc.$updatedAt,
+      };
+    } catch (error: any) {
+      console.error('Google sign-in error:', error);
+      console.error('Error details:', JSON.stringify(error, null, 2));
       throw error;
     }
   }
