@@ -2,45 +2,50 @@
   "expo": {
     "name": "MoneyQuest",
     "slug": "moneyquest",
-    "scheme": "moneyquest",
     "version": "1.0.0",
     "orientation": "portrait",
     "icon": "./assets/logo.png",
+    "scheme": "moneyquest",
     "userInterfaceStyle": "light",
-    "newArchEnabled": true,
-    "platforms": [
-      "ios",
-      "android"
-    ],
     "splash": {
       "image": "./assets/logo.png",
       "resizeMode": "contain",
       "backgroundColor": "#ffffff"
     },
-    "ios": {
-      "supportsTablet": true,
-      "bundleIdentifier": "com.naturehaven.moneyquest",
-      "associatedDomains": ["applinks:moneyquest.app"]
-    },
     "android": {
+      "package": "com.expo.moneyquest",
+      "versionCode": 1,
       "adaptiveIcon": {
         "foregroundImage": "./assets/logo.png",
         "backgroundColor": "#ffffff"
       },
-      "package": "com.naturehaven.moneyquest",
-      "edgeToEdgeEnabled": true,
-      "predictiveBackGestureEnabled": false
+      "permissions": [
+        "INTERNET",
+        "ACCESS_NETWORK_STATE",
+        "RECEIVE_BOOT_COMPLETED",
+        "VIBRATE"
+      ],
+      "intentFilters": [
+        {
+          "action": "VIEW",
+          "autoVerify": true,
+          "data": [
+            {
+              "scheme": "moneyquest"
+            }
+          ],
+          "category": [
+            "BROWSABLE",
+            "DEFAULT"
+          ]
+        }
+      ]
     },
-    "web": {
-      "favicon": "./assets/logo.png"
-    },
-    "plugins": [
-      "expo-web-browser"
-    ],
     "extra": {
       "eas": {
-        "projectId": "191d5b41-a825-4233-9cf4-4c1cefea6fcf"
+        "projectId": "6dcf413d-e595-4507-9374-30c460ddf8d7"
       }
-    }
+    },
+    "owner": "adesmith"
   }
 }
