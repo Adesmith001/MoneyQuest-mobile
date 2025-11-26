@@ -30,7 +30,13 @@ import CustomButton from "../../components/CustomButton";
 import questionService from "../../services/questions";
 import { backendApi } from "../../services/backendApi";
 import { databases, DB_ID, COLLECTIONS, Query } from "../../services/appwrite";
-import { AnyQuestion, GeneratedQuestion, ScenarioQuestion, MatchingQuestion, FillInGapQuestion } from "../../types";
+import {
+  AnyQuestion,
+  GeneratedQuestion,
+  ScenarioQuestion,
+  MatchingQuestion,
+  FillInGapQuestion,
+} from "../../types";
 import { getNextLevel } from "../../config/learningPath";
 import soundService from "../../services/soundService";
 import livesService from "../../services/lives";
@@ -62,14 +68,18 @@ const QuestionScreen: React.FC<Props> = ({ navigation, route }) => {
   const [currentQuestionIndex, setCurrentQuestionIndex] = useState(0);
   const [selectedAnswer, setSelectedAnswer] = useState<string>("");
   const [isLoading, setIsLoading] = useState(true);
-  
+
   // State for matching questions
-  const [matchingAnswers, setMatchingAnswers] = useState<{ [key: string]: string }>({});
-  
+  const [matchingAnswers, setMatchingAnswers] = useState<{
+    [key: string]: string;
+  }>({});
+
   // State for fill-in-gap questions
-  const [fillInGapAnswers, setFillInGapAnswers] = useState<{ [key: string]: string }>({});
-  
-  const [viewMode, setViewMode] = useState<'article' | 'quiz'>('article');
+  const [fillInGapAnswers, setFillInGapAnswers] = useState<{
+    [key: string]: string;
+  }>({});
+
+  const [viewMode, setViewMode] = useState<"article" | "quiz">("article");
 
   const [isCorrectModalVisible, setCorrectModalVisible] = useState(false);
   const [isIncorrectModalVisible, setIncorrectModalVisible] = useState(false);
@@ -78,6 +88,8 @@ const QuestionScreen: React.FC<Props> = ({ navigation, route }) => {
   const [xpGained, setXpGained] = useState(0);
   const [startTime, setStartTime] = useState<number>(Date.now());
   const [isPlayingAudio, setIsPlayingAudio] = useState(false);
+  const [isPlayingExplanation, setIsPlayingExplanation] = useState(false);
+  const [isPlayingLevelInfo, setIsPlayingLevelInfo] = useState(false);
 
   // Initialize health from user's actual lives when component mounts
   useEffect(() => {
@@ -95,7 +107,7 @@ const QuestionScreen: React.FC<Props> = ({ navigation, route }) => {
     async function loadLevelData() {
       try {
         setIsLoading(true);
-        
+
         // Get level details
         const levelDetails = await backendApi.getLevelDetails(levelId);
         setLevelData(levelDetails);
@@ -104,7 +116,7 @@ const QuestionScreen: React.FC<Props> = ({ navigation, route }) => {
         const levelQuestions = await questionService.getQuestionsForLevel(
           levelId,
           10,
-          'mixed'
+          "mixed"
         );
         setQuestions(levelQuestions);
 
@@ -115,39 +127,36 @@ const QuestionScreen: React.FC<Props> = ({ navigation, route }) => {
               DB_ID,
               COLLECTIONS.USER_PROGRESS,
               [
-                Query.equal('userId', user.$id),
-                Query.equal('level', levelId),
-                Query.equal('isCompleted', false) // Only get in-progress levels
+                Query.equal("userId", user.$id),
+                Query.equal("level", levelId),
+                Query.equal("isCompleted", false), // Only get in-progress levels
               ]
             );
 
             if (progressDocs.documents.length > 0) {
               const progress = progressDocs.documents[0];
-              
+
               // Resume from saved question index
               if (progress.currentQuestionIndex !== undefined) {
                 setCurrentQuestionIndex(progress.currentQuestionIndex);
                 setCorrectAnswersCount(progress.questionsCorrect || 0);
                 setXpGained(progress.xpEarned || 0);
-                
+
                 // If there's saved progress, skip directly to quiz
                 if (progress.currentQuestionIndex > 0) {
-                  setViewMode('quiz');
+                  setViewMode("quiz");
                 }
               }
             }
           } catch (error) {
-            console.error('Failed to load saved progress:', error);
+            console.error("Failed to load saved progress:", error);
           }
         }
-        
       } catch (error) {
-        console.error('Failed to load level:', error);
-        Alert.alert(
-          'Error',
-          'Failed to load content. Please try again.',
-          [{ text: 'Go Back', onPress: () => navigation.goBack() }]
-        );
+        console.error("Failed to load level:", error);
+        Alert.alert("Error", "Failed to load content. Please try again.", [
+          { text: "Go Back", onPress: () => navigation.goBack() },
+        ]);
       } finally {
         setIsLoading(false);
       }
@@ -159,16 +168,13 @@ const QuestionScreen: React.FC<Props> = ({ navigation, route }) => {
   // Save progress to Appwrite whenever question index changes
   useEffect(() => {
     async function saveProgress() {
-      if (!user?.$id || viewMode !== 'quiz' || isLoading) return;
+      if (!user?.$id || viewMode !== "quiz" || isLoading) return;
 
       try {
         const progressDocs = await databases.listDocuments(
           DB_ID,
           COLLECTIONS.USER_PROGRESS,
-          [
-            Query.equal('userId', user.$id),
-            Query.equal('level', levelId)
-          ]
+          [Query.equal("userId", user.$id), Query.equal("level", levelId)]
         );
 
         const progressData = {
@@ -196,17 +202,17 @@ const QuestionScreen: React.FC<Props> = ({ navigation, route }) => {
           await databases.createDocument(
             DB_ID,
             COLLECTIONS.USER_PROGRESS,
-            'unique()',
+            "unique()",
             progressData,
             [
-              `read("user:${user.$id}")`,    // Only this user can read
-              `update("user:${user.$id}")`,  // Only this user can update
-              `delete("user:${user.$id}")`,  // Only this user can delete
+              `read("user:${user.$id}")`, // Only this user can read
+              `update("user:${user.$id}")`, // Only this user can update
+              `delete("user:${user.$id}")`, // Only this user can delete
             ]
           );
         }
       } catch (error) {
-        console.error('Failed to save progress:', error);
+        console.error("Failed to save progress:", error);
       }
     }
 
@@ -215,13 +221,13 @@ const QuestionScreen: React.FC<Props> = ({ navigation, route }) => {
 
   const handleStartQuiz = () => {
     setStartTime(Date.now());
-    setViewMode('quiz');
+    setViewMode("quiz");
   };
 
   const handleAnswerSelect = (answerKey: string) => {
     if (!isCorrectModalVisible && !isIncorrectModalVisible) {
       setSelectedAnswer(answerKey);
-      soundService.playSound('click'); // Add sound effect
+      soundService.playSound("click"); // Add sound effect
     }
   };
 
@@ -230,12 +236,56 @@ const QuestionScreen: React.FC<Props> = ({ navigation, route }) => {
 
     try {
       setIsPlayingAudio(true);
-      await audioService.readQuestion(questions[currentQuestionIndex].question);
+      const currentQ = questions[currentQuestionIndex];
+
+      // If it's an MCQ or Scenario with options, read question + options
+      if (
+        (currentQ.question_type === "mcq" ||
+          currentQ.question_type === "scenario") &&
+        "options" in currentQ
+      ) {
+        const mcqQ = currentQ as GeneratedQuestion | ScenarioQuestion;
+        await audioService.readQuestionWithOptions(mcqQ.question, mcqQ.options);
+      } else {
+        // For other question types, just read the question
+        await audioService.readQuestion(currentQ.question);
+      }
+
       setIsPlayingAudio(false);
     } catch (error) {
-      console.error('Failed to play audio:', error);
+      console.error("Failed to play audio:", error);
       setIsPlayingAudio(false);
-      Alert.alert('Audio Error', 'Failed to play audio. Please try again.');
+      Alert.alert("Audio Error", "Failed to play audio. Please try again.");
+    }
+  };
+
+  const handlePlayExplanation = async () => {
+    if (isPlayingExplanation) return;
+
+    try {
+      setIsPlayingExplanation(true);
+      const explanation = getExplanation();
+      await audioService.readExplanation(explanation);
+      setIsPlayingExplanation(false);
+    } catch (error) {
+      console.error("Failed to play explanation audio:", error);
+      setIsPlayingExplanation(false);
+      Alert.alert("Audio Error", "Failed to play explanation audio.");
+    }
+  };
+
+  const handlePlayLevelInfo = async () => {
+    if (isPlayingLevelInfo) return;
+
+    try {
+      setIsPlayingLevelInfo(true);
+      const levelInfoText = `${sectionTitle}. ${levelTitle}.`;
+      await audioService.readQuestion(levelInfoText);
+      setIsPlayingLevelInfo(false);
+    } catch (error) {
+      console.error("Failed to play level info audio:", error);
+      setIsPlayingLevelInfo(false);
+      Alert.alert("Audio Error", "Failed to play level info audio.");
     }
   };
 
@@ -247,18 +297,21 @@ const QuestionScreen: React.FC<Props> = ({ navigation, route }) => {
     let userAnswer: any = selectedAnswer;
 
     // Determine correctness based on question type
-    if (currentQuestion.question_type === 'matching') {
+    if (currentQuestion.question_type === "matching") {
       const matchingQ = currentQuestion as MatchingQuestion;
       // Check if all matches are correct
       isCorrect = Object.keys(matchingQ.correct_matches).every(
-        leftId => matchingAnswers[leftId] === matchingQ.correct_matches[leftId]
+        (leftId) =>
+          matchingAnswers[leftId] === matchingQ.correct_matches[leftId]
       );
       userAnswer = JSON.stringify(matchingAnswers);
-    } else if (currentQuestion.question_type === 'fill_in_gap') {
+    } else if (currentQuestion.question_type === "fill_in_gap") {
       const fillGapQ = currentQuestion as FillInGapQuestion;
       // Check if all blanks are filled correctly
       isCorrect = fillGapQ.blanks.every(
-        blank => fillInGapAnswers[blank.id]?.toLowerCase().trim() === blank.correct_answer.toLowerCase().trim()
+        (blank) =>
+          fillInGapAnswers[blank.id]?.toLowerCase().trim() ===
+          blank.correct_answer.toLowerCase().trim()
       );
       userAnswer = JSON.stringify(fillInGapAnswers);
     } else {
@@ -275,43 +328,45 @@ const QuestionScreen: React.FC<Props> = ({ navigation, route }) => {
         user.$id,
         levelId,
         userAnswer,
-        currentQuestion.question_type === 'mcq' || currentQuestion.question_type === 'scenario' 
-          ? (currentQuestion as GeneratedQuestion).correct_answer 
-          : 'correct',
+        currentQuestion.question_type === "mcq" ||
+          currentQuestion.question_type === "scenario"
+          ? (currentQuestion as GeneratedQuestion).correct_answer
+          : "correct",
         isCorrect,
         5 // Time spent in seconds (you can track this properly)
       );
 
       if (isCorrect) {
-        soundService.playSound('correct'); // Play correct sound
+        soundService.playSound("correct"); // Play correct sound
         dispatch(addXP(result.xpEarned));
         setXpGained(xpGained + result.xpEarned);
         setCorrectAnswersCount(correctAnswersCount + 1);
         setCorrectModalVisible(true);
       } else {
-        soundService.playSound('incorrect'); // Play incorrect sound
-        
+        soundService.playSound("incorrect"); // Play incorrect sound
+
         // Deduct life using livesService and update Appwrite
-        const { lives, lastLifeRegenTime, canContinue } = await livesService.deductLife(
-          user.$id,
-          user.lives || 5,
-          user.lastLifeRegenTime || new Date().toISOString()
-        );
-        
+        const { lives, lastLifeRegenTime, canContinue } =
+          await livesService.deductLife(
+            user.$id,
+            user.lives || 5,
+            user.lastLifeRegenTime || new Date().toISOString()
+          );
+
         // Update Redux with new lives
         dispatch(setHealth(lives));
         dispatch(updateUser({ lives, lastLifeRegenTime }));
-        
+
         setIncorrectModalVisible(true);
       }
-      
+
       // Refresh user data to update profile with latest XP and lives
       if (user?.$id) {
         dispatch(refreshUserData(user.$id) as any);
       }
     } catch (error) {
-      console.error('Error recording answer:', error);
-      Alert.alert('Error', 'Failed to save your answer. Please try again.');
+      console.error("Error recording answer:", error);
+      Alert.alert("Error", "Failed to save your answer. Please try again.");
     }
   };
 
@@ -333,7 +388,7 @@ const QuestionScreen: React.FC<Props> = ({ navigation, route }) => {
     }
 
     if (currentQuestionIndex < questions.length - 1) {
-      soundService.playSound('buttonPress'); // Button press sound
+      soundService.playSound("buttonPress"); // Button press sound
       setCurrentQuestionIndex(currentQuestionIndex + 1);
       dispatch(nextQuestion());
     } else {
@@ -341,7 +396,9 @@ const QuestionScreen: React.FC<Props> = ({ navigation, route }) => {
       if (!user) return;
 
       const timeSpentMinutes = Math.round((Date.now() - startTime) / 60000);
-      const accuracy = Math.round((correctAnswersCount / questions.length) * 100);
+      const accuracy = Math.round(
+        (correctAnswersCount / questions.length) * 100
+      );
 
       try {
         // Submit level completion to backend
@@ -371,7 +428,7 @@ const QuestionScreen: React.FC<Props> = ({ navigation, route }) => {
             const existingProgress = await databases.listDocuments(
               DB_ID,
               COLLECTIONS.USER_PROGRESS,
-              [Query.equal('userId', user.$id), Query.equal('level', levelId)]
+              [Query.equal("userId", user.$id), Query.equal("level", levelId)]
             );
 
             if (existingProgress.documents.length > 0) {
@@ -390,7 +447,7 @@ const QuestionScreen: React.FC<Props> = ({ navigation, route }) => {
               await databases.createDocument(
                 DB_ID,
                 COLLECTIONS.USER_PROGRESS,
-                'unique()',
+                "unique()",
                 {
                   userId: user.$id,
                   level: levelId,
@@ -404,7 +461,7 @@ const QuestionScreen: React.FC<Props> = ({ navigation, route }) => {
               );
             }
           } catch (progressError) {
-            console.error('Failed to update progress:', progressError);
+            console.error("Failed to update progress:", progressError);
           }
         }
 
@@ -412,21 +469,28 @@ const QuestionScreen: React.FC<Props> = ({ navigation, route }) => {
         if (result.passed && result.next_level_id) {
           updateData.currentLevelId = result.next_level_id;
           updateData.currentSectionId = sectionId; // Keep same section or update if needed
-          
+
           // Add 1 life on level completion
           const newLives = Math.min((user.lives || 5) + 1, 5); // Cap at 5 lives
           updateData.lives = newLives;
           dispatch(addHealth(1));
-          
+
           // Update Redux store with new currentLevelId
-          dispatch(updateUser({ 
-            currentLevelId: result.next_level_id,
-            currentSectionId: sectionId,
-            lives: newLives
-          }));
+          dispatch(
+            updateUser({
+              currentLevelId: result.next_level_id,
+              currentSectionId: sectionId,
+              lives: newLives,
+            })
+          );
         }
 
-        await databases.updateDocument(DB_ID, COLLECTIONS.USERS, user.$id, updateData);
+        await databases.updateDocument(
+          DB_ID,
+          COLLECTIONS.USERS,
+          user.$id,
+          updateData
+        );
 
         // Refresh user data to ensure everything is in sync
         dispatch(refreshUserData(user.$id) as any);
@@ -439,7 +503,7 @@ const QuestionScreen: React.FC<Props> = ({ navigation, route }) => {
           nextLevelId: result.next_level_id,
         });
       } catch (error) {
-        console.error('Error submitting level:', error);
+        console.error("Error submitting level:", error);
         // Still navigate to completion screen even if submission fails
         navigation.replace("LevelCompletion", {
           xpGained: xpGained,
@@ -458,7 +522,7 @@ const QuestionScreen: React.FC<Props> = ({ navigation, route }) => {
   }
 
   // --- ARTICLE VIEW ---
-  if (viewMode === 'article') {
+  if (viewMode === "article") {
     return (
       <SafeAreaView style={styles.container}>
         <View style={styles.header}>
@@ -470,18 +534,17 @@ const QuestionScreen: React.FC<Props> = ({ navigation, route }) => {
 
         <ScrollView contentContainerStyle={styles.articleContainer}>
           {/* <Text style={styles.articleTitle}>{levelData.title}</Text> */}
-          
+
           {/* Display content or description */}
           <Text style={styles.articleContent}>
-            {levelData.content || levelData.description || "No content available for this level."}
+            {levelData.content ||
+              levelData.description ||
+              "No content available for this level."}
           </Text>
         </ScrollView>
 
         <View style={styles.footer}>
-          <CustomButton
-            title="Start Quiz"
-            onPress={handleStartQuiz}
-          />
+          <CustomButton title="Start Quiz" onPress={handleStartQuiz} />
         </View>
       </SafeAreaView>
     );
@@ -489,13 +552,15 @@ const QuestionScreen: React.FC<Props> = ({ navigation, route }) => {
 
   // --- QUIZ VIEW ---
   const currentQuestion = questions[currentQuestionIndex];
-  
+
   // Safety check for empty questions array or undefined question
   if (!currentQuestion) {
     return (
       <SafeAreaView style={styles.container}>
         <View style={styles.content}>
-          <Text style={styles.questionText}>No questions available for this level.</Text>
+          <Text style={styles.questionText}>
+            No questions available for this level.
+          </Text>
           <CustomButton title="Go Back" onPress={() => navigation.goBack()} />
         </View>
       </SafeAreaView>
@@ -503,53 +568,68 @@ const QuestionScreen: React.FC<Props> = ({ navigation, route }) => {
   }
 
   const progress = ((currentQuestionIndex + 1) / questions.length) * 100;
-  
+
   // Determine if user can submit based on question type
   let canSubmit = false;
-  if (currentQuestion.question_type === 'matching') {
+  if (currentQuestion.question_type === "matching") {
     const matchingQ = currentQuestion as MatchingQuestion;
-    canSubmit = Object.keys(matchingQ.correct_matches).length === Object.keys(matchingAnswers).length;
-  } else if (currentQuestion.question_type === 'fill_in_gap') {
+    canSubmit =
+      Object.keys(matchingQ.correct_matches).length ===
+      Object.keys(matchingAnswers).length;
+  } else if (currentQuestion.question_type === "fill_in_gap") {
     const fillGapQ = currentQuestion as FillInGapQuestion;
-    canSubmit = fillGapQ.blanks.every(blank => fillInGapAnswers[blank.id]);
+    canSubmit = fillGapQ.blanks.every((blank) => fillInGapAnswers[blank.id]);
   } else {
     canSubmit = !!selectedAnswer;
   }
 
   // Get explanation based on question type
   const getExplanation = (): string => {
-    if (currentQuestion.question_type === 'matching') {
-      return (currentQuestion as MatchingQuestion).explanation || 'No explanation available.';
-    } else if (currentQuestion.question_type === 'fill_in_gap') {
-      return (currentQuestion as FillInGapQuestion).explanation || 'No explanation available.';
+    if (currentQuestion.question_type === "matching") {
+      return (
+        (currentQuestion as MatchingQuestion).explanation ||
+        "No explanation available."
+      );
+    } else if (currentQuestion.question_type === "fill_in_gap") {
+      return (
+        (currentQuestion as FillInGapQuestion).explanation ||
+        "No explanation available."
+      );
     } else {
       const mcqQ = currentQuestion as GeneratedQuestion | ScenarioQuestion;
-      if (!mcqQ.explanations || !selectedAnswer) return 'No explanation available.';
-      return mcqQ.explanations[selectedAnswer as 'A' | 'B' | 'C' | 'D'] || 'No explanation available.';
+      if (!mcqQ.explanations || !selectedAnswer)
+        return "No explanation available.";
+      return (
+        mcqQ.explanations[selectedAnswer as "A" | "B" | "C" | "D"] ||
+        "No explanation available."
+      );
     }
   };
 
   // Get user's chosen answer text for incorrect modal
   const getChosenAnswerText = (): string => {
-    if (currentQuestion.question_type === 'matching') {
-      return 'Your matches were incorrect';
-    } else if (currentQuestion.question_type === 'fill_in_gap') {
-      return 'Some of your answers were incorrect';
+    if (currentQuestion.question_type === "matching") {
+      return "Your matches were incorrect";
+    } else if (currentQuestion.question_type === "fill_in_gap") {
+      return "Some of your answers were incorrect";
     } else {
       const mcqQ = currentQuestion as GeneratedQuestion | ScenarioQuestion;
       const optionsArray = [
-        { key: 'A', value: mcqQ.options.A },
-        { key: 'B', value: mcqQ.options.B },
-        { key: 'C', value: mcqQ.options.C },
-        { key: 'D', value: mcqQ.options.D },
+        { key: "A", value: mcqQ.options.A },
+        { key: "B", value: mcqQ.options.B },
+        { key: "C", value: mcqQ.options.C },
+        { key: "D", value: mcqQ.options.D },
       ];
-      return selectedAnswer ? optionsArray.find(o => o.key === selectedAnswer)?.value || selectedAnswer : "No answer selected";
+      return selectedAnswer
+        ? optionsArray.find((o) => o.key === selectedAnswer)?.value ||
+            selectedAnswer
+        : "No answer selected";
     }
   };
 
   // Render question based on type
   const renderQuestion = () => {
-    if (currentQuestion.question_type === 'scenario') {
+    if (currentQuestion.question_type === "scenario") {
       return (
         <ScenarioQuestionComponent
           question={currentQuestion as ScenarioQuestion}
@@ -558,7 +638,7 @@ const QuestionScreen: React.FC<Props> = ({ navigation, route }) => {
           disabled={isCorrectModalVisible || isIncorrectModalVisible}
         />
       );
-    } else if (currentQuestion.question_type === 'matching') {
+    } else if (currentQuestion.question_type === "matching") {
       return (
         <MatchingQuestionComponent
           question={currentQuestion as MatchingQuestion}
@@ -575,7 +655,7 @@ const QuestionScreen: React.FC<Props> = ({ navigation, route }) => {
           disabled={isCorrectModalVisible || isIncorrectModalVisible}
         />
       );
-    } else if (currentQuestion.question_type === 'fill_in_gap') {
+    } else if (currentQuestion.question_type === "fill_in_gap") {
       return (
         <FillInGapQuestionComponent
           question={currentQuestion as FillInGapQuestion}
@@ -590,15 +670,28 @@ const QuestionScreen: React.FC<Props> = ({ navigation, route }) => {
       // Standard MCQ
       const mcqQ = currentQuestion as GeneratedQuestion;
       const optionsArray = [
-        { key: 'A', value: mcqQ.options.A },
-        { key: 'B', value: mcqQ.options.B },
-        { key: 'C', value: mcqQ.options.C },
-        { key: 'D', value: mcqQ.options.D },
+        { key: "A", value: mcqQ.options.A },
+        { key: "B", value: mcqQ.options.B },
+        { key: "C", value: mcqQ.options.C },
+        { key: "D", value: mcqQ.options.D },
       ];
 
       return (
         <>
-          <Text style={styles.questionText}>{mcqQ.question}</Text>
+          <View style={styles.questionWithAudioContainer}>
+            <Text style={styles.questionText}>{mcqQ.question}</Text>
+            <TouchableOpacity
+              style={styles.playButton}
+              onPress={handlePlayAudio}
+              disabled={isPlayingAudio}
+            >
+              <Ionicons
+                name={isPlayingAudio ? "pause-circle" : "play-circle"}
+                size={32}
+                color={COLORS.primary}
+              />
+            </TouchableOpacity>
+          </View>
           <View style={styles.optionsContainer}>
             {optionsArray.map((option) => (
               <TouchableOpacity
@@ -615,7 +708,8 @@ const QuestionScreen: React.FC<Props> = ({ navigation, route }) => {
                   <Text
                     style={[
                       styles.optionText,
-                      selectedAnswer === option.key && styles.selectedOptionText,
+                      selectedAnswer === option.key &&
+                        styles.selectedOptionText,
                     ]}
                   >
                     {option.value}
@@ -632,7 +726,10 @@ const QuestionScreen: React.FC<Props> = ({ navigation, route }) => {
   return (
     <SafeAreaView style={styles.container}>
       <View style={styles.header}>
-        <ProgressBar progress={progress} onClose={() => navigation.popToTop()} />
+        <ProgressBar
+          progress={progress}
+          onClose={() => navigation.popToTop()}
+        />
         <View style={styles.healthContainer}>
           <Image
             source={require("../../../assets/heart.png")}
@@ -644,22 +741,23 @@ const QuestionScreen: React.FC<Props> = ({ navigation, route }) => {
 
       <ScrollView contentContainerStyle={styles.content}>
         <View style={styles.levelInfoContainer}>
-          <Text style={styles.sectionTitleText}>{sectionTitle}</Text>
-          <Text style={styles.levelTitleText}>{levelTitle}</Text>
-        </View>
-        
-        <View style={styles.questionContainer}>
-          <TouchableOpacity 
-            style={styles.playButton}
-            onPress={handlePlayAudio}
-            disabled={isPlayingAudio}
-          >
-            <Ionicons 
-              name={isPlayingAudio ? "pause-circle" : "play-circle"} 
-              size={40} 
-              color={COLORS.primary} 
-            />
-          </TouchableOpacity>
+          <View style={styles.levelInfoContent}>
+            <View style={styles.levelInfoTextContainer}>
+              <Text style={styles.sectionTitleText}>{sectionTitle}</Text>
+              <Text style={styles.levelTitleText}>{levelTitle}</Text>
+            </View>
+            <TouchableOpacity
+              style={styles.levelInfoAudioButton}
+              onPress={handlePlayLevelInfo}
+              disabled={isPlayingLevelInfo}
+            >
+              <Ionicons
+                name={isPlayingLevelInfo ? "pause-circle" : "volume-high"}
+                size={24}
+                color={COLORS.card}
+              />
+            </TouchableOpacity>
+          </View>
         </View>
 
         {renderQuestion()}
@@ -744,6 +842,20 @@ const styles = StyleSheet.create({
     marginBottom: SPACING.lg,
     alignItems: "center",
   },
+  levelInfoContent: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    width: "100%",
+  },
+  levelInfoTextContainer: {
+    flex: 1,
+    alignItems: "center",
+  },
+  levelInfoAudioButton: {
+    padding: SPACING.xs,
+    marginLeft: SPACING.sm,
+  },
   sectionTitleText: {
     fontSize: FONT_SIZES.md,
     fontWeight: "600",
@@ -764,12 +876,16 @@ const styles = StyleSheet.create({
     textAlign: "center",
     marginBottom: SPACING.lg,
   },
-  questionContainer: {
+  questionWithAudioContainer: {
     flexDirection: "row",
     alignItems: "center",
     justifyContent: "center",
     marginBottom: SPACING.xl,
     paddingHorizontal: SPACING.md,
+    gap: SPACING.sm,
+  },
+  questionContainer: {
+    marginBottom: SPACING.xl,
   },
   questionText: {
     fontSize: FONT_SIZES.xl,
@@ -779,7 +895,6 @@ const styles = StyleSheet.create({
     color: COLORS.text,
   },
   playButton: {
-    marginLeft: SPACING.sm,
     padding: SPACING.xs,
   },
   optionsContainer: {

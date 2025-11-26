@@ -153,6 +153,27 @@ class AudioService {
   }
 
   /**
+   * Read question with options aloud
+   * @param questionText - Question to read
+   * @param optionsObj - Object containing options (A, B, C, D)
+   * @param options - Optional TTS options
+   */
+  async readQuestionWithOptions(
+    questionText: string,
+    optionsObj: { A: string; B: string; C: string; D: string },
+    options: { voice?: string; speed?: number } = {}
+  ): Promise<Audio.Sound> {
+    // Build text with question and options
+    const fullText = `${questionText}. Option A: ${optionsObj.A}. Option B: ${optionsObj.B}. Option C: ${optionsObj.C}. Option D: ${optionsObj.D}.`;
+    
+    return await this.speakText(
+      fullText,
+      options.voice || 'Arista',
+      options.speed || 1.0
+    );
+  }
+
+  /**
    * Read explanation text aloud
    * @param explanationText - Explanation to read
    * @param options - Optional TTS options
