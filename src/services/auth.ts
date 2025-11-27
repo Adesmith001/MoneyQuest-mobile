@@ -751,8 +751,8 @@ class AuthService {
       // TODO: Use correct OAuth provider enum when available
       await account.createOAuth2Session(
         "facebook" as any,
-        "io.expo.moneyquest://oauth/success",
-        "io.expo.moneyquest://oauth/failure"
+        "moneyquest://oauth-callback/success",
+        "moneyquest://oauth-callback/failure"
       );
     } catch (error) {
       console.error("Facebook sign-in error:", error);
@@ -765,8 +765,8 @@ class AuthService {
       // TODO: Use correct OAuth provider enum when available
       await account.createOAuth2Session(
         "twitter" as any,
-        "io.expo.moneyquest://oauth/success",
-        "io.expo.moneyquest://oauth/failure"
+        "moneyquest://oauth-callback/success",
+        "moneyquest://oauth-callback/failure"
       );
     } catch (error) {
       console.error("Twitter sign-in error:", error);
