@@ -12,6 +12,8 @@ import { ID, OAuthProvider } from "react-native-appwrite";
 import { User } from "../types";
 import * as WebBrowser from "expo-web-browser";
 import * as Linking from "expo-linking";
+import { backendApi } from "./backendApi";
+import { levelProgressService } from "./levelProgress";
 
 class AuthService {
 
@@ -485,6 +487,41 @@ class AuthService {
       );
 
       console.log('User document created successfully with onboarding data');
+
+      // Initialize progress with first level from backend
+      try {
+        console.log('Initializing user progress...');
+        const sections = await backendApi.getSections();
+        if (sections.length > 0) {
+          const firstSection = sections[0];
+          
+          if (firstSection.section_id) {
+            const levels = await backendApi.getSectionLevels(firstSection.section_id);
+            
+            if (levels.length > 0) {
+              const firstLevel = levels[0];
+              console.log(`Setting initial progress: Section ${firstSection.section_id}, Level ${firstLevel.level_id}`);
+              
+              await databases.updateDocument(
+                DB_ID,
+                COLLECTIONS.USERS,
+                user.$id,
+                {
+                  currentSectionId: firstSection.section_id,
+                  currentLevelId: firstLevel.level_id
+                }
+              );
+              
+              // Update the returned user document object
+              userDocument.currentSectionId = firstSection.section_id;
+              userDocument.currentLevelId = firstLevel.level_id;
+            }
+          }
+        }
+      } catch (progressError) {
+        console.error('Failed to initialize user progress:', progressError);
+        // Don't fail the whole sign-up process if this fails, user can retry or we can fix it later
+      }
 
       // Step 5: Return the combined user data
       return {

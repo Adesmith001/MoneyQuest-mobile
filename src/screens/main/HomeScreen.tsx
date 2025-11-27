@@ -74,8 +74,6 @@ const HomeScreen: React.FC<Props> = ({ navigation }) => {
               const completed = new Set(progressDocs.documents.map(doc => doc.level));
               setCompletedLevels(completed);
               console.log('Completed levels:', Array.from(completed));
-              console.log('Current Level ID from user:', user.currentLevelId);
-              console.log('Current Section ID from user:', user.currentSectionId);
               
               // If user has completed levels but no currentLevelId, update it
               if (completed.size > 0 && !user.currentLevelId) {
@@ -103,6 +101,9 @@ const HomeScreen: React.FC<Props> = ({ navigation }) => {
         // Get all sections (documents) from backend
         const backendSections = await backendApi.getSections();
         console.log('Fetched sections:', backendSections);
+        
+        // Find the first valid section ID for the "default unlock" logic
+        const firstValidSectionId = backendSections.find(s => s.section_id)?.section_id;
 
         const sectionsData: Section[] = [];
 
@@ -123,7 +124,15 @@ const HomeScreen: React.FC<Props> = ({ navigation }) => {
             const levelNodes: LevelNode[] = levels.map((level, levelIndex) => {
               // Use the section_id from the level for progress tracking
               const levelSectionId = level.section_id || section.section_id!;
-              const progress = calculateLevelProgress(levelSectionId, level.level_id, levelIndex, levels);
+              
+              // Pass the firstValidSectionId to correctly identify the first level
+              const progress = calculateLevelProgress(
+                levelSectionId, 
+                level.level_id, 
+                levelIndex, 
+                levels,
+                firstValidSectionId
+              );
               
               return {
                 id: level.level_id,
@@ -162,7 +171,13 @@ const HomeScreen: React.FC<Props> = ({ navigation }) => {
   );
 
   // Calculate level progress based on user's current position
-  const calculateLevelProgress = (sectionId: string, levelId: string, levelIndex: number, sectionLevels: any[]) => {
+  const calculateLevelProgress = (
+    sectionId: string, 
+    levelId: string, 
+    levelIndex: number, 
+    sectionLevels: any[],
+    firstSectionId?: string
+  ) => {
     const currentSectionId = user?.currentSectionId;
     const currentLevelId = user?.currentLevelId;
 
@@ -171,7 +186,10 @@ const HomeScreen: React.FC<Props> = ({ navigation }) => {
 
     // If no progress, only unlock first level of first section
     if (!currentSectionId || !currentLevelId) {
-      const isFirstLevel = levelIndex === 0 && sectionId === sections[0]?.id;
+      // Use the passed firstSectionId if available (during initial load), otherwise fallback to state
+      const targetFirstSectionId = firstSectionId || sections[0]?.id;
+      const isFirstLevel = levelIndex === 0 && sectionId === targetFirstSectionId;
+      
       return { 
         isUnlocked: isFirstLevel || isCompleted,
         isCompleted, 
