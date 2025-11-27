@@ -1,4 +1,6 @@
 export interface User {
+  currentUser: any;
+  userDocument: any;
   $id: string;
   userId?: string;
   email: string;

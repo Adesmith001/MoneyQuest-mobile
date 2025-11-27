@@ -24,6 +24,8 @@ import { databases, DB_ID, COLLECTIONS, Query } from "../../services/appwrite";
 import { BackendLevel } from "../../types";
 import { useFocusEffect } from "@react-navigation/native";
 import { updateUser } from "../../store/slices/authSlice";
+import cacheService from "../../services/cacheService";
+import LearningPathSkeleton from "../../components/skeletons/LearningPathSkeleton";
 
 interface Props {
   navigation: any;
@@ -61,9 +63,17 @@ const HomeScreen: React.FC<Props> = ({ navigation }) => {
     React.useCallback(() => {
       async function fetchLearningPath() {
         try {
-          setIsLoading(true);
-          
-          // Fetch user's completed levels from Appwrite
+          // 🚀 STEP 1: Load cached completed levels FIRST (instant!)
+          const cachedCompletedLevels = await cacheService.getCompletedLevels();
+          if (cachedCompletedLevels.length > 0) {
+            console.log('📦 Loaded from cache:', cachedCompletedLevels);
+            setCompletedLevels(new Set(cachedCompletedLevels));
+            setIsLoading(false); // Show UI immediately!
+          } else {
+            setIsLoading(true);
+          }
+
+          // 🌐 STEP 2: Fetch fresh data from Appwrite in background
           if (user?.$id) {
             try {
               const progressDocs = await databases.listDocuments(
@@ -73,15 +83,16 @@ const HomeScreen: React.FC<Props> = ({ navigation }) => {
               );
               const completed = new Set(progressDocs.documents.map(doc => doc.level));
               setCompletedLevels(completed);
-              console.log('Completed levels:', Array.from(completed));
-              
+              console.log('🌐 Fetched from Appwrite:', Array.from(completed));
+
+              // 💾 Save to cache for next time
+              await cacheService.saveCompletedLevels(Array.from(completed));
+
               // If user has completed levels but no currentLevelId, update it
               if (completed.size > 0 && !user.currentLevelId) {
-                // Find the last completed level and set next level as current
                 const sortedCompletedLevels = Array.from(completed);
                 const lastCompletedLevel = sortedCompletedLevels[sortedCompletedLevels.length - 1];
-                
-                // Update user's currentLevelId in Appwrite
+
                 await databases.updateDocument(
                   DB_ID,
                   COLLECTIONS.USERS,
@@ -90,91 +101,92 @@ const HomeScreen: React.FC<Props> = ({ navigation }) => {
                     currentLevelId: lastCompletedLevel,
                   }
                 );
-                
+
                 dispatch(updateUser({ currentLevelId: lastCompletedLevel }));
               }
             } catch (error) {
-              console.error('Failed to fetch completed levels:', error);
+              console.error('❌ Failed to fetch from Appwrite:', error);
+              // If network fails, we still have cached data!
             }
           }
-        
-        // Get all sections (documents) from backend
-        const backendSections = await backendApi.getSections();
-        console.log('Fetched sections:', backendSections);
-        
-        // Find the first valid section ID for the "default unlock" logic
-        const firstValidSectionId = backendSections.find(s => s.section_id)?.section_id;
 
-        const sectionsData: Section[] = [];
+          // Get all sections (documents) from backend
+          const backendSections = await backendApi.getSections();
+          console.log('Fetched sections:', backendSections);
 
-        for (const section of backendSections) {
-          try {
-            // Skip sections without a valid section_id
-            if (!section.section_id) {
-              console.warn(`Section "${section.title}" has no section_id, skipping...`);
-              continue;
+          // Find the first valid section ID for the "default unlock" logic
+          const firstValidSectionId = backendSections.find(s => s.section_id)?.section_id;
+
+          const sectionsData: Section[] = [];
+
+          for (const section of backendSections) {
+            try {
+              // Skip sections without a valid section_id
+              if (!section.section_id) {
+                console.warn(`Section "${section.title}" has no section_id, skipping...`);
+                continue;
+              }
+
+              // Fetch levels for this section using section_id
+              const levels = await backendApi.getSectionLevels(section.section_id);
+              console.log(`Levels for ${section.title}:`, levels);
+
+              if (levels.length === 0) continue;
+
+              const levelNodes: LevelNode[] = levels.map((level, levelIndex) => {
+                // Use the section_id from the level for progress tracking
+                const levelSectionId = level.section_id || section.section_id!;
+
+                // Pass the firstValidSectionId to correctly identify the first level
+                const progress = calculateLevelProgress(
+                  levelSectionId,
+                  level.level_id,
+                  levelIndex,
+                  levels,
+                  firstValidSectionId
+                );
+
+                return {
+                  id: level.level_id,
+                  sectionTitle: section.title,
+                  levelTitle: level.title,
+                  sectionId: levelSectionId,
+                  levelId: level.level_id,
+                  ...progress,
+                };
+              });
+
+              sectionsData.push({
+                id: section.section_id,
+                title: section.title,
+                levels: levelNodes,
+              });
+            } catch (error) {
+              console.error(`Failed to fetch levels for section ${section.title}:`, error);
             }
-
-            // Fetch levels for this section using section_id
-            const levels = await backendApi.getSectionLevels(section.section_id);
-            console.log(`Levels for ${section.title}:`, levels);
-            
-            if (levels.length === 0) continue;
-
-            const levelNodes: LevelNode[] = levels.map((level, levelIndex) => {
-              // Use the section_id from the level for progress tracking
-              const levelSectionId = level.section_id || section.section_id!;
-              
-              // Pass the firstValidSectionId to correctly identify the first level
-              const progress = calculateLevelProgress(
-                levelSectionId, 
-                level.level_id, 
-                levelIndex, 
-                levels,
-                firstValidSectionId
-              );
-              
-              return {
-                id: level.level_id,
-                sectionTitle: section.title,
-                levelTitle: level.title,
-                sectionId: levelSectionId,
-                levelId: level.level_id,
-                ...progress,
-              };
-            });
-
-            sectionsData.push({
-              id: section.section_id,
-              title: section.title,
-              levels: levelNodes,
-            });
-          } catch (error) {
-            console.error(`Failed to fetch levels for section ${section.title}:`, error);
           }
+
+          setSections(sectionsData);
+        } catch (error) {
+          console.error('Failed to fetch learning path:', error);
+          Alert.alert(
+            'Error',
+            'Failed to load learning path. Please check your connection and try again.'
+          );
+        } finally {
+          setIsLoading(false);
         }
-
-        setSections(sectionsData);
-      } catch (error) {
-        console.error('Failed to fetch learning path:', error);
-        Alert.alert(
-          'Error',
-          'Failed to load learning path. Please check your connection and try again.'
-        );
-      } finally {
-        setIsLoading(false);
       }
-    }
 
-    fetchLearningPath();
+      fetchLearningPath();
     }, [user?.$id, user?.currentLevelId, user?.currentSectionId])
   );
 
   // Calculate level progress based on user's current position
   const calculateLevelProgress = (
-    sectionId: string, 
-    levelId: string, 
-    levelIndex: number, 
+    sectionId: string,
+    levelId: string,
+    levelIndex: number,
     sectionLevels: any[],
     firstSectionId?: string
   ) => {
@@ -189,16 +201,16 @@ const HomeScreen: React.FC<Props> = ({ navigation }) => {
       // Use the passed firstSectionId if available (during initial load), otherwise fallback to state
       const targetFirstSectionId = firstSectionId || sections[0]?.id;
       const isFirstLevel = levelIndex === 0 && sectionId === targetFirstSectionId;
-      
-      return { 
+
+      return {
         isUnlocked: isFirstLevel || isCompleted,
-        isCompleted, 
+        isCompleted,
         isCurrent: isFirstLevel,
       };
     }
 
     const isCurrent = sectionId === currentSectionId && levelId === currentLevelId;
-    
+
     // Check if previous level is completed to unlock this level
     let isUnlocked = isCurrent || isCompleted;
     if (levelIndex > 0) {
@@ -272,16 +284,12 @@ const HomeScreen: React.FC<Props> = ({ navigation }) => {
             <Path
               d={
                 isLeftSide
-                  ? `M ${screenWidth * 0.25 + 10}, 45 C ${
-                      screenWidth * 0.25 + 80
-                    }, 100, ${screenWidth * 0.75 - 80}, 80, ${
-                      screenWidth * 0.75 - 10
-                    }, 145`
-                  : `M ${screenWidth * 0.75 - 10}, 45 C ${
-                      screenWidth * 0.75 - 80
-                    }, 100, ${screenWidth * 0.25 + 80}, 80, ${
-                      screenWidth * 0.25 + 10
-                    }, 145`
+                  ? `M ${screenWidth * 0.25 + 10}, 45 C ${screenWidth * 0.25 + 80
+                  }, 100, ${screenWidth * 0.75 - 80}, 80, ${screenWidth * 0.75 - 10
+                  }, 145`
+                  : `M ${screenWidth * 0.75 - 10}, 45 C ${screenWidth * 0.75 - 80
+                  }, 100, ${screenWidth * 0.25 + 80}, 80, ${screenWidth * 0.25 + 10
+                  }, 145`
               }
               stroke="#FF5C02"
               strokeWidth="5"
@@ -409,10 +417,7 @@ const HomeScreen: React.FC<Props> = ({ navigation }) => {
   if (isLoading) {
     return (
       <SafeAreaView style={styles.container}>
-        <View style={styles.loadingContainer}>
-          <ActivityIndicator size="large" color="#FF5C02" />
-          <Text style={styles.loadingText}>Loading learning path...</Text>
-        </View>
+        <LearningPathSkeleton />
       </SafeAreaView>
     );
   }

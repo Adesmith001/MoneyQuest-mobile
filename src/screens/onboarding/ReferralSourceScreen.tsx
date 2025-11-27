@@ -5,6 +5,7 @@ import {
   StyleSheet,
   SafeAreaView,
   TouchableOpacity,
+  ScrollView,
 } from "react-native";
 import SelectionButton from "../../components/SelectionButton";
 import CustomButton from "../../components/CustomButton";
@@ -40,38 +41,40 @@ const ReferralSourceScreen: React.FC<Props> = ({ navigation, route }) => {
 
   return (
     <SafeAreaView style={styles.container}>
-      <View style={styles.content}>
-        {/* Header */}
-        <View style={styles.header}>
-          <Text style={styles.title}>Money Quest</Text>
+      <ScrollView style={styles.scrollView} showsVerticalScrollIndicator={false}>
+        <View style={styles.content}>
+          {/* Header */}
+          <View style={styles.header}>
+            <Text style={styles.title}>Money Quest</Text>
+          </View>
+
+          {/* Main Title */}
+          <View style={styles.mainHeader}>
+            <Text style={styles.mainTitle}>Where did you hear about us?</Text>
+          </View>
+
+          {/* Options */}
+          <View style={styles.optionsContainer}>
+            {referralOptions.map((option) => (
+              <SelectionButton
+                key={option.id}
+                label={option.label}
+                isSelected={selectedSource === option.id}
+                onPress={() => setSelectedSource(option.id)}
+              />
+            ))}
+          </View>
+
+          <View style={styles.spacer} />
+
+          {/* Continue Button */}
+          <CustomButton
+            title={"Continue"}
+            onPress={handleContinue}
+            disabled={!selectedSource}
+          />
         </View>
-
-        {/* Main Title */}
-        <View style={styles.mainHeader}>
-          <Text style={styles.mainTitle}>Where did you hear about us?</Text>
-        </View>
-
-        {/* Options */}
-        <View style={styles.optionsContainer}>
-          {referralOptions.map((option) => (
-            <SelectionButton
-              key={option.id}
-              label={option.label}
-              isSelected={selectedSource === option.id}
-              onPress={() => setSelectedSource(option.id)}
-            />
-          ))}
-        </View>
-
-        <View style={styles.spacer} />
-
-        {/* Continue Button */}
-        <CustomButton
-          title={"Continue"}
-          onPress={handleContinue}
-          disabled={!selectedSource}
-        />
-      </View>
+      </ScrollView>
     </SafeAreaView>
   );
 };
@@ -80,6 +83,9 @@ const styles = StyleSheet.create({
   container: {
     flex: 1,
     backgroundColor: "#FFFFFF",
+  },
+  scrollView: {
+    flex: 1,
   },
   content: {
     flex: 1,

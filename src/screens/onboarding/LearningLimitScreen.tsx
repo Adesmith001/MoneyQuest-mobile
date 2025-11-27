@@ -5,6 +5,7 @@ import {
   StyleSheet,
   SafeAreaView,
   TouchableOpacity,
+  ScrollView,
 } from 'react-native';
 import SelectionButton from '../../components/SelectionButton';
 import CustomButton from '../../components/CustomButton';
@@ -26,7 +27,7 @@ const LearningLimitScreen: React.FC<Props> = ({ navigation, route }) => {
 
   const handleContinue = () => {
     if (!selectedLimit) return;
-    
+
     navigation.navigate('GoalSelection', {
       registrationData: route.params.registrationData,
       age: route.params.age,
@@ -36,39 +37,41 @@ const LearningLimitScreen: React.FC<Props> = ({ navigation, route }) => {
 
   return (
     <SafeAreaView style={styles.container}>
-      <View style={styles.content}>
-        {/* Header */}
-        <View style={styles.header}>
-          <Text style={styles.title}>Money Quest</Text>
+      <ScrollView style={styles.scrollView} showsVerticalScrollIndicator={false}>
+        <View style={styles.content}>
+          {/* Header */}
+          <View style={styles.header}>
+            <Text style={styles.title}>Money Quest</Text>
+          </View>
+
+          {/* Main Title */}
+          <View style={styles.mainHeader}>
+            <Text style={styles.mainTitle}>Set your daily learning limit</Text>
+          </View>
+
+          {/* Options */}
+          <View style={styles.optionsContainer}>
+            {learningOptions.map((option) => (
+              <SelectionButton
+                key={option.id}
+                label={option.label}
+                subtitle={option.subtitle}
+                isSelected={selectedLimit === option.id}
+                onPress={() => setSelectedLimit(option.id)}
+              />
+            ))}
+          </View>
+
+          <View style={styles.spacer} />
+
+          {/* Continue Button */}
+          <CustomButton
+            title={'Continue'}
+            onPress={handleContinue}
+            disabled={!selectedLimit}
+          />
         </View>
-
-        {/* Main Title */}
-        <View style={styles.mainHeader}>
-          <Text style={styles.mainTitle}>Set your daily learning limit</Text>
-        </View>
-
-        {/* Options */}
-        <View style={styles.optionsContainer}>
-          {learningOptions.map((option) => (
-            <SelectionButton
-              key={option.id}
-              label={option.label}
-              subtitle={option.subtitle}
-              isSelected={selectedLimit === option.id}
-              onPress={() => setSelectedLimit(option.id)}
-            />
-          ))}
-        </View>
-
-        <View style={styles.spacer} />
-
-        {/* Continue Button */}
-        <CustomButton 
-          title={'Continue'} 
-          onPress={handleContinue}
-          disabled={!selectedLimit}
-        />
-      </View>
+      </ScrollView>
     </SafeAreaView>
   );
 };
@@ -77,6 +80,9 @@ const styles = StyleSheet.create({
   container: {
     flex: 1,
     backgroundColor: '#FFFFFF',
+  },
+  scrollView: {
+    flex: 1,
   },
   content: {
     flex: 1,

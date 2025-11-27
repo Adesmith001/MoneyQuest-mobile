@@ -44,6 +44,7 @@ import audioService from "../../services/audioService";
 import ScenarioQuestionComponent from "../../components/questions/ScenarioQuestion";
 import MatchingQuestionComponent from "../../components/questions/MatchingQuestion";
 import FillInGapQuestionComponent from "../../components/questions/FillInGapQuestion";
+import cacheService from "../../services/cacheService";
 
 interface Props {
   navigation: any;
@@ -306,15 +307,15 @@ const QuestionScreen: React.FC<Props> = ({ navigation, route }) => {
     // Determine correctness based on question type
     if (currentQuestion.question_type === "matching") {
       const matchingQ = currentQuestion as MatchingQuestion;
-      
+
       // Check each match and collect correct and incorrect ones
       Object.keys(matchingQ.correct_matches).forEach((leftId) => {
         const userRightId = matchingAnswers[leftId];
         const correctRightId = matchingQ.correct_matches[leftId];
-        
+
         // Find the left and right item texts
         const leftItem = matchingQ.left_items.find(item => item.id === leftId);
-        
+
         if (userRightId === correctRightId) {
           // Correct match
           const rightItem = matchingQ.right_items.find(item => item.id === correctRightId);
@@ -325,7 +326,7 @@ const QuestionScreen: React.FC<Props> = ({ navigation, route }) => {
           // Incorrect match
           const userRightItem = matchingQ.right_items.find(item => item.id === userRightId);
           const correctRightItem = matchingQ.right_items.find(item => item.id === correctRightId);
-          
+
           if (leftItem && userRightItem && correctRightItem) {
             incorrectAnswers.push(
               `${leftItem.text} → ${userRightItem.text} (correct: ${correctRightItem.text})`
@@ -333,14 +334,14 @@ const QuestionScreen: React.FC<Props> = ({ navigation, route }) => {
           }
         }
       });
-      
+
       // Store results for showing in modal
       setMatchingResults({ correct: correctAnswers, incorrect: incorrectAnswers });
-      
+
       // All matches must be correct
-      isCorrect = incorrectAnswers.length === 0 && 
-                  Object.keys(matchingQ.correct_matches).length === Object.keys(matchingAnswers).length;
-      
+      isCorrect = incorrectAnswers.length === 0 &&
+        Object.keys(matchingQ.correct_matches).length === Object.keys(matchingAnswers).length;
+
       userAnswer = JSON.stringify(matchingAnswers);
       console.log("User Matching Answers:", matchingAnswers);
       console.log("MatchingQ:", matchingQ);
@@ -349,30 +350,30 @@ const QuestionScreen: React.FC<Props> = ({ navigation, route }) => {
 
     } else if (currentQuestion.question_type === "fill_in_gap") {
       const fillGapQ = currentQuestion as FillInGapQuestion;
-      
+
       // Check each blank and collect incorrect ones
       fillGapQ.blanks.forEach((blank) => {
         const userBlankAnswer = fillInGapAnswers[blank.id]?.toLowerCase().trim();
         const correctAnswer = blank.correct_answer.toLowerCase().trim();
-        
+
         if (userBlankAnswer !== correctAnswer) {
           incorrectAnswers.push(`Blank ${blank.id}: "${fillInGapAnswers[blank.id] || '(empty)'}" (correct: "${blank.correct_answer}")`);
         }
       });
-      
+
       isCorrect = incorrectAnswers.length === 0;
       userAnswer = JSON.stringify(fillInGapAnswers);
       console.log("Fill in Gap Answers:", fillInGapAnswers);
       console.log("Incorrect Blanks:", incorrectAnswers);
-      
+
     } else {
       // MCQ or Scenario questions
       const mcqQ = currentQuestion as GeneratedQuestion | ScenarioQuestion;
       if (!selectedAnswer) return;
-      
+
       isCorrect = selectedAnswer === mcqQ.correct_answer;
       userAnswer = selectedAnswer;
-      
+
       if (!isCorrect) {
         // Add the incorrect answer option
         const selectedOption = mcqQ.options[selectedAnswer as "A" | "B" | "C" | "D"];
@@ -527,6 +528,8 @@ const QuestionScreen: React.FC<Props> = ({ navigation, route }) => {
             console.error("Failed to update progress:", progressError);
           }
         }
+        await cacheService.addCompletedLevel(levelId);
+        console.log('✅ Saved to cache:', levelId);
 
         // Update current level if passed and there's a next level
         if (result.passed && result.next_level_id) {
@@ -551,12 +554,12 @@ const QuestionScreen: React.FC<Props> = ({ navigation, route }) => {
           // Keep current level ID so progress is maintained
           updateData.currentLevelId = levelId;
           updateData.currentSectionId = sectionId;
-          
+
           // Add 1 life on level completion
           const newLives = Math.min((user.lives || 5) + 1, 5);
           updateData.lives = newLives;
           dispatch(addHealth(1));
-          
+
           dispatch(
             updateUser({
               currentLevelId: levelId,
@@ -703,7 +706,7 @@ const QuestionScreen: React.FC<Props> = ({ navigation, route }) => {
       ];
       return selectedAnswer
         ? optionsArray.find((o) => o.key === selectedAnswer)?.value ||
-            selectedAnswer
+        selectedAnswer
         : "No answer selected";
     }
   };
@@ -791,7 +794,7 @@ const QuestionScreen: React.FC<Props> = ({ navigation, route }) => {
                     style={[
                       styles.optionText,
                       selectedAnswer === option.key &&
-                        styles.selectedOptionText,
+                      styles.selectedOptionText,
                     ]}
                   >
                     {option.value}

@@ -5,6 +5,7 @@ import {
   StyleSheet,
   SafeAreaView,
   TouchableOpacity,
+  ScrollView,
 } from "react-native";
 import SelectionButton from "../../components/SelectionButton";
 import CustomButton from "../../components/CustomButton";
@@ -39,6 +40,8 @@ const GoalSelectionScreen: React.FC<Props> = ({ navigation, route }) => {
 
   return (
     <SafeAreaView style={styles.container}>
+            <ScrollView style={styles.scrollView} showsVerticalScrollIndicator={false}>
+      
       <View style={styles.content}>
         {/* Header */}
         <View style={styles.header}>
@@ -71,6 +74,7 @@ const GoalSelectionScreen: React.FC<Props> = ({ navigation, route }) => {
           disabled={!selectedGoal}
         />
       </View>
+      </ScrollView>
     </SafeAreaView>
   );
 };
@@ -79,6 +83,9 @@ const styles = StyleSheet.create({
   container: {
     flex: 1,
     backgroundColor: "#FFFFFF",
+  },
+  scrollView: {
+    flex: 1,
   },
   content: {
     flex: 1,
