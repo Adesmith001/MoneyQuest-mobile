@@ -6,12 +6,20 @@ import AppNavigator from './src/navigation/AppNavigator';
 import NotificationService from './src/services/notifications';
 import soundService from './src/services/soundService';
 import * as Linking from 'expo-linking';
-import { Alert } from 'react-native';
+import { Alert, Platform } from 'react-native';
+import * as NavigationBar from 'expo-navigation-bar';
 
 export default function App() {
   useEffect(() => {
     const initializeApp = async () => {
       try {
+        // Configure navigation bar for Android
+        if (Platform.OS === 'android') {
+          await NavigationBar.setVisibilityAsync('hidden');
+          await NavigationBar.setBehaviorAsync('inset-swipe');
+          await NavigationBar.setBackgroundColorAsync('#00000000');
+        }
+
         // Initialize notifications
         const hasPermission = await NotificationService.requestPermissions();
         if (hasPermission) {
@@ -65,7 +73,7 @@ export default function App() {
   return (
     <Provider store={store}>
       <AppNavigator />
-      <StatusBar style="auto" />
+      <StatusBar style="dark" translucent backgroundColor="transparent" />
     </Provider>
   );
 }

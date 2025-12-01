@@ -39,7 +39,13 @@
             "DEFAULT"
           ]
         }
-      ]
+      ],
+      "softwareKeyboardLayoutMode": "pan",
+      "navigationBar": {
+        "visible": "immersive",
+        "barStyle": "light-content",
+        "backgroundColor": "#00000000"
+      }
     },
     "extra": {
       "eas": {

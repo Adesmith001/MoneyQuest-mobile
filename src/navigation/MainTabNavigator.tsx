@@ -1,7 +1,8 @@
 import React from "react";
 import { createBottomTabNavigator } from "@react-navigation/bottom-tabs";
-import { View, StyleSheet } from "react-native";
+import { View, StyleSheet, Platform } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
+import { useSafeAreaInsets } from "react-native-safe-area-context";
 // Tab Screens
 import HomeScreen from "../screens/main/HomeScreen";
 import DailyStreakScreen from "../screens/main/DailyStreakScreen";
@@ -12,12 +13,18 @@ import ProfileTabIcon from "./ProfileTabIcon";
 const Tab = createBottomTabNavigator();
 
 const MainTabNavigator: React.FC = () => {
+  const insets = useSafeAreaInsets();
+  
   return (
     <Tab.Navigator
       screenOptions={({ route }) => ({
         headerShown: false,
         tabBarShowLabel: false,
-        tabBarStyle: styles.tabBar,
+        tabBarStyle: {
+          ...styles.tabBar,
+          height: 70 + insets.bottom,
+          paddingBottom: insets.bottom,
+        },
         tabBarActiveTintColor: "#FF6B35",
         tabBarInactiveTintColor: "#6C757D",
       })}

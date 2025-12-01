@@ -4,9 +4,9 @@ import {
   Text,
   StyleSheet,
   SafeAreaView,
-  TouchableOpacity,
   Dimensions,
 } from 'react-native';
+import Slider from '@react-native-community/slider';
 import CustomButton from '../../components/CustomButton';
 
 interface Props {
@@ -45,28 +45,22 @@ const AgeSelectionScreen: React.FC<Props> = ({ navigation, route }) => {
           <Text style={styles.ageSubtext}>for the wise</Text>
         </View>
 
-        {/* Simple Slider */}
+        {/* Slider */}
         <View style={styles.sliderContainer}>
-          <View style={styles.sliderTrack}>
-            <View style={[styles.sliderProgress, { width: `${((age - 7) / (100 - 7)) * 100}%` }]} />
-            <TouchableOpacity 
-              style={[styles.sliderThumb, { left: `${((age - 7) / (100 - 7)) * 100}%` }]}
-              activeOpacity={0.8}
-            />
-          </View>
-          <View style={styles.sliderControls}>
-            <TouchableOpacity 
-              style={styles.controlButton} 
-              onPress={() => setAge(Math.max(7, age - 1))}
-            >
-              <Text style={styles.controlText}>-</Text>
-            </TouchableOpacity>
-            <TouchableOpacity 
-              style={styles.controlButton} 
-              onPress={() => setAge(Math.min(100, age + 1))}
-            >
-              <Text style={styles.controlText}>+</Text>
-            </TouchableOpacity>
+          <Slider
+            style={styles.slider}
+            minimumValue={7}
+            maximumValue={150}
+            step={1}
+            value={age}
+            onValueChange={(value: number) => setAge(value)}
+            minimumTrackTintColor="#FF5722"
+            maximumTrackTintColor="#E0E0E0"
+            thumbTintColor="#FF5722"
+          />
+          <View style={styles.sliderLabels}>
+            <Text style={styles.sliderLabel}>7</Text>
+            <Text style={styles.sliderLabel}>150</Text>
           </View>
         </View>
 
@@ -130,56 +124,23 @@ const styles = StyleSheet.create({
     marginTop: 10,
   },
   sliderContainer: {
-    alignItems: 'center',
-    marginBottom: 40,
-  },
-  sliderTrack: {
     width: '100%',
-    height: 4,
-    backgroundColor: '#E0E0E0',
-    borderRadius: 2,
-    position: 'relative',
     marginBottom: 20,
   },
-  sliderProgress: {
-    height: '100%',
-    backgroundColor: '#FF5722',
-    borderRadius: 2,
-  },
-  sliderThumb: {
-    position: 'absolute',
-    width: 20,
-    height: 20,
-    backgroundColor: '#FF5722',
-    borderRadius: 10,
-    top: -8,
-    marginLeft: -10,
-  },
-  sliderControls: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    width: '100%',
-  },
-  controlButton: {
-    width: 50,
-    height: 50,
-    backgroundColor: '#F5F5F5',
-    borderRadius: 25,
-    justifyContent: 'center',
-    alignItems: 'center',
-  },
-  controlText: {
-    fontSize: 24,
-    fontWeight: 'bold',
-    color: '#FF5722',
-  },
   slider: {
+    width: '100%',
     height: 40,
   },
-  thumb: {
-    backgroundColor: '#FF5722',
-    width: 20,
-    height: 20,
+  sliderLabels: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    paddingHorizontal: 10,
+    marginTop: 5,
+  },
+  sliderLabel: {
+    fontSize: 14,
+    color: '#666',
+    fontWeight: '500',
   },
   spacer: {
     flex: 1,

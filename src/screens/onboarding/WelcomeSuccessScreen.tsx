@@ -43,7 +43,7 @@ const WelcomeSuccessScreen: React.FC<Props> = ({ navigation, route }) => {
             resizeMode="contain"
           />
 
-          {/* Speech Bubble - Absolutely Positioned */}
+          {/* Speech Bubble - Absolutely Positioned next to fox's mouth */}
           <View style={styles.speechBubbleContainer}>
             <View style={styles.speechBubble}>
               <Text style={styles.welcomeText}>
@@ -72,27 +72,32 @@ const styles = StyleSheet.create({
   characterContainer: {
     // This container is the positioning reference for the bubble
     position: 'relative',
-    width: width * 0.7,
-    height: height * 0.4,
+    width: width * 0.8,
+    height: height * 0.5,
     alignItems: 'center',
     justifyContent: 'center',
   },
   foxImage: {
     width: '100%',
     height: '100%',
+    // Ensure the fox is positioned at the bottom/center of the container
+    position: 'absolute',
+    bottom: 0,
   },
   speechBubbleContainer: {
-    // Position the bubble relative to the characterContainer
+    // Position the bubble to the right side, near the fox's mouth area
     position: 'absolute',
-    top: '10%', // Position it near the top of the fox's head
-    right: '0%', // Position it to the right side
+    top: '35%', // Adjusted to be around mouth level (fox head is usually in upper-middle area)
+    right: -20, // Positioned to the right, outside the fox container
+    zIndex: 10, // Ensure it's above the fox image
   },
   speechBubble: {
     backgroundColor: '#FFFFFF',
     borderRadius: 15,
     paddingHorizontal: 16,
     paddingVertical: 14,
-    maxWidth: width * 0.45,
+    maxWidth: width * 0.5,
+    minWidth: width * 0.4,
     shadowColor: '#000',
     shadowOffset: {
       width: 0,
@@ -103,21 +108,20 @@ const styles = StyleSheet.create({
     elevation: 5,
   },
   speechTail: {
-    // This creates the triangle pointing towards the mouth
+    // This creates the triangle pointing towards the fox's mouth
     position: 'absolute',
-    bottom: 8,
-    left: -8, // Position tail on the left edge
+    top: '35%', // Vertically centered on the bubble
+    left: -10, // Position tail on the left edge, pointing towards fox
     width: 0,
     height: 0,
     borderTopWidth: 10,
-    borderRightWidth: 12,
-    borderBottomWidth: 0,
+    borderRightWidth: 15,
+    borderBottomWidth: 10,
     borderLeftWidth: 0,
     borderTopColor: 'transparent',
-    borderRightColor: '#FFFFFF', // The tail color
+    borderRightColor: '#FFFFFF', // The tail color matches bubble
     borderBottomColor: 'transparent',
     borderLeftColor: 'transparent',
-    transform: [{ rotate: '-25deg' }], // Angle the tail towards the mouth
   },
   welcomeText: {
     fontSize: 16,

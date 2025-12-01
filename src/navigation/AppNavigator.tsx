@@ -4,6 +4,7 @@ import { createStackNavigator } from '@react-navigation/stack';
 import { useSelector } from 'react-redux';
 import { RootState } from '../store';
 import * as Linking from 'expo-linking';
+import { SafeAreaProvider } from 'react-native-safe-area-context';
 
 // Onboarding
 import OnboardingFlow from '../screens/onboarding/OnboardingFlow';
@@ -129,33 +130,44 @@ const AppNavigator: React.FC = () => {
 
   // Show loading screen while auth state is being determined or during login/signup
   if (isLoading) {
-    return <LoadingScreen />; // Display the loading screen instead of null
+    return (
+      <SafeAreaProvider>
+        <LoadingScreen />
+      </SafeAreaProvider>
+    );
   }
 
   // Show welcome screen after successful signup
   if (showWelcomeScreen && user) {
     return (
-      <NavigationContainer linking={linking}>
-        <Stack.Navigator screenOptions={{ headerShown: false }}>
-          <Stack.Screen 
-            name="WelcomeSuccess" 
-            component={WelcomeSuccessScreen}
-            initialParams={{ userName: user.name?.split(' ')[0] || user.name }}
-          />
-        </Stack.Navigator>
-      </NavigationContainer>
+      <SafeAreaProvider>
+        <NavigationContainer linking={linking}>
+          <Stack.Navigator screenOptions={{ headerShown: false }}>
+            <Stack.Screen 
+              name="WelcomeSuccess" 
+              component={WelcomeSuccessScreen}
+              initialParams={{ userName: user.name?.split(' ')[0] || user.name }}
+            />
+          </Stack.Navigator>
+        </NavigationContainer>
+      </SafeAreaProvider>
     );
   }
 
   // Show onboarding flow
   if (showOnboarding) {
-    return <OnboardingFlow onComplete={handleOnboardingComplete} />;
+    return (
+      <SafeAreaProvider>
+        <OnboardingFlow onComplete={handleOnboardingComplete} />
+      </SafeAreaProvider>
+    );
   }
 
   return (
-    <NavigationContainer
-      linking={linking}
-    >
+    <SafeAreaProvider>
+      <NavigationContainer
+        linking={linking}
+      >
       <Stack.Navigator
         screenOptions={{
           headerShown: false,
@@ -217,6 +229,7 @@ const AppNavigator: React.FC = () => {
         )}
       </Stack.Navigator>
     </NavigationContainer>
+    </SafeAreaProvider>
   );
 };
 

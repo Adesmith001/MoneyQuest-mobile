@@ -37,11 +37,6 @@ const SplashScreen: React.FC<Props> = ({ onComplete }) => {
           />
         </View>
       </View>
-
-      {/* Footer */}
-      <View style={styles.footer}>
-        <Text style={styles.designedBy}>Designed by Oslytics</Text>
-      </View>
     </View>
   );
 };
@@ -66,17 +61,6 @@ const styles = StyleSheet.create({
     height: 250,
     resizeMode: "contain",
     justifyContent: "center",
-  },
-  footer: {
-    paddingBottom: 50,
-    alignItems: "center",
-  },
-  designedBy: {
-    fontSize: 16,
-    color: "#FFFFFF",
-    marginBottom: 20,
-    opacity: 0.9,
-    fontWeight: "400",
   },
 });
 
