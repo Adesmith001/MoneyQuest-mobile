@@ -2,11 +2,11 @@ import { databases, DB_ID, COLLECTIONS } from './appwrite';
 import { User } from '../types';
 
 const MAX_LIVES = 5;
-const LIFE_REGEN_TIME_MS = 5 * 60 * 1000; // 5 minute in milliseconds
+const LIFE_REGEN_TIME_MS = 2 * 60 * 60 * 1000; // 2 hours in milliseconds
 
 /**
  * Lives Management Service
- * Handles the lives system: max 5 lives, regenerates 1 every 5 minute (for testing)
+ * Handles the lives system: max 5 lives, regenerates 1 every 2 hours
  */
 class LivesService {
   /**

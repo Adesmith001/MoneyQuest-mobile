@@ -6,9 +6,14 @@ import {
   Modal,
   TouchableOpacity,
   Image,
+  Dimensions,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import CustomButton from '../CustomButton';
+
+const { width: screenWidth, height: screenHeight } = Dimensions.get('window');
+const isSmallDevice = screenHeight < 700;
+const isTablet = screenWidth >= 768;
 
 interface Props {
   visible: boolean;
@@ -19,7 +24,7 @@ interface Props {
 const FeedbackModal: React.FC<Props> = ({ visible, onClose, onRate }) => {
   return (
     <Modal
-      animationType="fade"
+      animationType="none"
       transparent={true}
       visible={visible}
       onRequestClose={onClose}
@@ -59,40 +64,46 @@ const styles = StyleSheet.create({
     backgroundColor: 'rgba(0, 0, 0, 0.6)',
     justifyContent: 'center',
     alignItems: 'center',
+    paddingHorizontal: 20,
   },
   modalContainer: {
-    width: '90%',
-    maxWidth: 400,
+    width: '100%',
+    maxWidth: isTablet ? 500 : 400,
   },
   modalContent: {
     backgroundColor: 'white',
-    borderRadius: 20,
-    padding: 25,
+    borderRadius: isTablet ? 24 : 20,
+    padding: isSmallDevice ? 20 : isTablet ? 35 : 25,
     alignItems: 'center',
   },
   closeButton: {
     position: 'absolute',
-    top: 10,
-    right: 10,
+    top: isSmallDevice ? 8 : 10,
+    right: isSmallDevice ? 8 : 10,
+    zIndex: 10,
   },
   foxImage: {
-    width: 120,
-    height: 120,
+    width: isSmallDevice ? 80 : isTablet ? 150 : 120,
+    height: isSmallDevice ? 80 : isTablet ? 150 : 120,
     resizeMode: 'contain',
-    marginBottom: 15,
+    marginBottom: isSmallDevice ? 10 : isTablet ? 20 : 15,
+    marginTop: isSmallDevice ? 20 : 0,
   },
   title: {
-    fontSize: 20,
+    fontSize: isSmallDevice ? 16 : isTablet ? 24 : 20,
     fontWeight: 'bold',
     color: '#333',
     textAlign: 'center',
-    marginBottom: 8,
+    marginBottom: isSmallDevice ? 6 : 8,
+    paddingHorizontal: 10,
   },
   subtitle: {
-    fontSize: 16,
+    fontSize: isSmallDevice ? 13 : isTablet ? 18 : 16,
     color: '#666',
     textAlign: 'center',
-    marginBottom: 25,
+    marginBottom: isSmallDevice ? 20 : isTablet ? 30 : 25,
+    paddingHorizontal: 10,
+    lineHeight: isSmallDevice ? 18 : isTablet ? 26 : 22,
   },
 });
 

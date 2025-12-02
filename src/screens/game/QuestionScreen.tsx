@@ -244,13 +244,15 @@ const QuestionScreen: React.FC<Props> = ({ navigation, route }) => {
       setIsPlayingAudio(true);
       const currentQ = questions[currentQuestionIndex];
 
-      // If it's an MCQ or Scenario with options, read question + options
-      if (
-        (currentQ.question_type === "mcq" ||
-          currentQ.question_type === "scenario") &&
-        "options" in currentQ
-      ) {
-        const mcqQ = currentQ as GeneratedQuestion | ScenarioQuestion;
+      // If it's a Scenario question, read context + question + options
+      if (currentQ.question_type === "scenario" && "scenario_context" in currentQ) {
+        const scenarioQ = currentQ as ScenarioQuestion;
+        const fullText = `Scenario: ${scenarioQ.scenario_context}. Question: ${scenarioQ.question}`;
+        await audioService.readQuestionWithOptions(fullText, scenarioQ.options);
+      }
+      // If it's an MCQ with options, read question + options
+      else if (currentQ.question_type === "mcq" && "options" in currentQ) {
+        const mcqQ = currentQ as GeneratedQuestion;
         await audioService.readQuestionWithOptions(mcqQ.question, mcqQ.options);
       } else {
         // For other question types, just read the question
@@ -436,6 +438,31 @@ const QuestionScreen: React.FC<Props> = ({ navigation, route }) => {
         dispatch(setHealth(lives));
         dispatch(updateUser({ lives, lastLifeRegenTime }));
 
+        // Check if lives reached zero
+        if (lives === 0) {
+          // Calculate time until next life
+          const timeUntilNextLife = livesService.getTimeUntilNextLife(
+            lives,
+            lastLifeRegenTime
+          );
+          const timeFormatted = livesService.formatTimeRemaining(timeUntilNextLife);
+
+          Alert.alert(
+            "Out of Lives! ❤️",
+            `You've run out of lives. Your next life will regenerate in ${timeFormatted}.`,
+            [
+              {
+                text: "OK",
+                onPress: () => {
+                  navigation.navigate("MainTabs", { screen: "Home" });
+                },
+              },
+            ],
+            { cancelable: false }
+          );
+          return;
+        }
+
         setIncorrectModalVisible(true);
       }
 
@@ -459,10 +486,24 @@ const QuestionScreen: React.FC<Props> = ({ navigation, route }) => {
 
     // If health is 0, user cannot continue
     if (health <= 0) {
+      const timeUntilNextLife = livesService.getTimeUntilNextLife(
+        user?.lives || 0,
+        user?.lastLifeRegenTime || new Date().toISOString()
+      );
+      const timeFormatted = livesService.formatTimeRemaining(timeUntilNextLife);
+
       Alert.alert(
-        "Out of Lives",
-        "You have run out of lives. Please wait for them to regenerate or watch an ad.",
-        [{ text: "Go Back", onPress: () => navigation.goBack() }]
+        "Out of Lives! ❤️",
+        `You've run out of lives. Your next life will regenerate in ${timeFormatted}.`,
+        [
+          {
+            text: "OK",
+            onPress: () => {
+              navigation.navigate("MainTabs", { screen: "Home" });
+            },
+          },
+        ],
+        { cancelable: false }
       );
       return;
     }

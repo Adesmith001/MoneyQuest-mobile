@@ -269,7 +269,7 @@ export const formatLives = (currentLives: number, maxLives: number = 5): string 
 /**
  * Format time until next life
  * @param milliseconds - Time in milliseconds
- * @returns Formatted string like "45:30" or "Full"
+ * @returns Formatted string like "1h 45m" or "Full"
  */
 export const formatLifeRegenTime = (milliseconds: number): string => {
   if (milliseconds === 0) {
@@ -277,8 +277,15 @@ export const formatLifeRegenTime = (milliseconds: number): string => {
   }
 
   const totalSeconds = Math.ceil(milliseconds / 1000);
-  const minutes = Math.floor(totalSeconds / 60);
+  const hours = Math.floor(totalSeconds / 3600);
+  const minutes = Math.floor((totalSeconds % 3600) / 60);
   const seconds = totalSeconds % 60;
 
-  return `${minutes.toString().padStart(2, '0')}:${seconds.toString().padStart(2, '0')}`;
+  if (hours > 0) {
+    return `${hours}h ${minutes}m`;
+  } else if (minutes > 0) {
+    return `${minutes}m ${seconds}s`;
+  } else {
+    return `${seconds}s`;
+  }
 };
