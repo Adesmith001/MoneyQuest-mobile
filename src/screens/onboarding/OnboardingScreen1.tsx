@@ -31,8 +31,7 @@ const OnboardingScreen1: React.FC<Props> = ({ onNext }) => {
         {/* Content */}
         <View style={styles.content}>
           <Text style={styles.welcomeText}>
-            Welcome to our app where you learn how to work with financial tool
-            and all that is there
+            Learn. Play. Grow.
           </Text>
 
           {/* Next Button */}

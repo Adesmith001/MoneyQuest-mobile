@@ -39,8 +39,7 @@ const OnboardingScreen2: React.FC<Props> = ({ onComplete }) => {
 
         {/* Welcome Text */}
         <Text style={styles.welcomeText}>
-          Welcome to our app where you learn how to work with financial tools
-          and all that is there
+          The adventure to financial freedom starts here.
         </Text>
       </View>
 
