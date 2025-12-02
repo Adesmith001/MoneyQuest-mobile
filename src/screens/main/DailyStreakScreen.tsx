@@ -1,5 +1,5 @@
 import React, { useEffect } from "react";
-import { View, Text, StyleSheet, SafeAreaView } from "react-native";
+import { View, Text, StyleSheet, SafeAreaView, ScrollView } from "react-native";
 import { useSelector, useDispatch } from "react-redux";
 import { RootState } from "../../store";
 import { LinearGradient } from "expo-linear-gradient";
@@ -58,7 +58,11 @@ const DailyStreakScreen: React.FC = () => {
 
   return (
     <SafeAreaView style={styles.container}>
-      <View style={styles.content}>
+      <ScrollView 
+        contentContainerStyle={styles.scrollContent}
+        showsVerticalScrollIndicator={false}
+      >
+        <View style={styles.content}>
         {isLoading ? (
           <Text style={styles.loadingText}>Loading streak data...</Text>
         ) : (
@@ -111,7 +115,8 @@ const DailyStreakScreen: React.FC = () => {
             </Text>
           </>
         )}
-      </View>
+        </View>
+      </ScrollView>
     </SafeAreaView>
   );
 };
@@ -121,11 +126,15 @@ const styles = StyleSheet.create({
     flex: 1,
     backgroundColor: "#FFFFFF",
   },
+  scrollContent: {
+    flexGrow: 1,
+  },
   content: {
-    flex: 1,
+    flexGrow: 1,
     justifyContent: "center",
     alignItems: "center",
     paddingHorizontal: 20,
+    paddingVertical: 20,
   },
   maskedView: {
     height: 200,

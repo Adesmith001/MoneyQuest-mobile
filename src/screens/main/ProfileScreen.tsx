@@ -261,7 +261,7 @@ const styles = StyleSheet.create({
     backgroundColor: "#F8F9FA",
   },
   content: {
-    flex: 1,
+    flexGrow: 1,
   },
   profileHeader: {
     flexDirection: "row",

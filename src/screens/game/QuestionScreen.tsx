@@ -91,6 +91,7 @@ const QuestionScreen: React.FC<Props> = ({ navigation, route }) => {
   const [isPlayingAudio, setIsPlayingAudio] = useState(false);
   const [isPlayingExplanation, setIsPlayingExplanation] = useState(false);
   const [isPlayingLevelInfo, setIsPlayingLevelInfo] = useState(false);
+  const [isPlayingArticle, setIsPlayingArticle] = useState(false);
   const [matchingResults, setMatchingResults] = useState<{
     correct: string[];
     incorrect: string[];
@@ -291,6 +292,21 @@ const QuestionScreen: React.FC<Props> = ({ navigation, route }) => {
       console.error("Failed to play level info audio:", error);
       setIsPlayingLevelInfo(false);
       Alert.alert("Audio Error", "Failed to play level info audio.");
+    }
+  };
+
+  const handlePlayArticle = async () => {
+    if (isPlayingArticle || !levelData) return;
+
+    try {
+      setIsPlayingArticle(true);
+      const articleText = levelData.content || levelData.description || '';
+      await audioService.readQuestion(articleText);
+      setIsPlayingArticle(false);
+    } catch (error) {
+      console.error('Failed to play article audio:', error);
+      setIsPlayingArticle(false);
+      Alert.alert('Audio Error', 'Failed to play article audio.');
     }
   };
 
@@ -619,6 +635,22 @@ const QuestionScreen: React.FC<Props> = ({ navigation, route }) => {
         <ScrollView contentContainerStyle={styles.articleContainer}>
           {/* <Text style={styles.articleTitle}>{levelData.title}</Text> */}
 
+          {/* Audio Button */}
+          <TouchableOpacity
+            style={styles.articleAudioButton}
+            onPress={handlePlayArticle}
+            disabled={isPlayingArticle}
+          >
+            <Ionicons
+              name={isPlayingArticle ? "pause-circle" : "volume-high"}
+              size={32}
+              color={COLORS.primary}
+            />
+            <Text style={styles.articleAudioText}>
+              {isPlayingArticle ? "Playing..." : "Listen to article"}
+            </Text>
+          </TouchableOpacity>
+
           {/* Display content or description */}
           <Text style={styles.articleContent}>
             {levelData.content ||
@@ -720,6 +752,8 @@ const QuestionScreen: React.FC<Props> = ({ navigation, route }) => {
           selectedAnswer={selectedAnswer}
           onAnswerSelect={handleAnswerSelect}
           disabled={isCorrectModalVisible || isIncorrectModalVisible}
+          onPlayAudio={handlePlayAudio}
+          isPlayingAudio={isPlayingAudio}
         />
       );
     } else if (currentQuestion.question_type === "matching") {
@@ -738,6 +772,8 @@ const QuestionScreen: React.FC<Props> = ({ navigation, route }) => {
           }}
           disabled={isCorrectModalVisible || isIncorrectModalVisible}
           showResults={isCorrectModalVisible || isIncorrectModalVisible}
+          onPlayAudio={handlePlayAudio}
+          isPlayingAudio={isPlayingAudio}
         />
       );
     } else if (currentQuestion.question_type === "fill_in_gap") {
@@ -749,6 +785,8 @@ const QuestionScreen: React.FC<Props> = ({ navigation, route }) => {
             setFillInGapAnswers({ ...fillInGapAnswers, [blankId]: answer });
           }}
           disabled={isCorrectModalVisible || isIncorrectModalVisible}
+          onPlayAudio={handlePlayAudio}
+          isPlayingAudio={isPlayingAudio}
         />
       );
     } else {
@@ -1060,14 +1098,29 @@ const styles = StyleSheet.create({
     fontWeight: "bold",
   },
   articleContainer: {
-    padding: SPACING.lg,
     flexGrow: 1,
+    padding: SPACING.lg,
   },
   articleTitle: {
     fontSize: FONT_SIZES.xxl,
     fontWeight: "bold",
     marginBottom: SPACING.md,
     color: COLORS.text,
+  },
+  articleAudioButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: COLORS.primary + '15',
+    borderRadius: 12,
+    padding: SPACING.md,
+    marginBottom: SPACING.lg,
+    gap: SPACING.sm,
+  },
+  articleAudioText: {
+    fontSize: FONT_SIZES.md,
+    fontWeight: '600',
+    color: COLORS.primary,
   },
   articleContent: {
     fontSize: FONT_SIZES.md,

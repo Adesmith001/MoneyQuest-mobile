@@ -98,6 +98,68 @@ class QuestionService {
   }
 
   /**
+   * Get MCQ questions
+   */
+  private async getMCQQuestions(levelId: string, limit: number, randomize: boolean): Promise<GeneratedQuestion[]> {
+    try {
+      const response = await backendApi.getLevelQuestions(levelId, limit, 'mcq', randomize);
+      
+      if (response && response.questions && response.questions.length > 0) {
+        return response.questions.map((q: any) => ({
+          question_type: 'mcq',
+          question: q.question_text || q.question,
+          options: {
+            A: q.option_a || q.options?.A,
+            B: q.option_b || q.options?.B,
+            C: q.option_c || q.options?.C,
+            D: q.option_d || q.options?.D,
+          },
+          correct_answer: q.correct_answer,
+          explanations: {
+            A: q.explanation_a || q.explanations?.A || 'No explanation available.',
+            B: q.explanation_b || q.explanations?.B || 'No explanation available.',
+            C: q.explanation_c || q.explanations?.C || 'No explanation available.',
+            D: q.explanation_d || q.explanations?.D || 'No explanation available.',
+          },
+          difficulty: q.difficulty || 'medium',
+        })) as GeneratedQuestion[];
+      }
+      return [];
+    } catch (error) {
+      console.error('Error fetching MCQ questions:', error);
+      return [];
+    }
+  }
+
+  /**
+   * Get fill-in-gap questions
+   */
+  private async getFillInGapQuestions(levelId: string, limit: number, randomize: boolean): Promise<FillInGapQuestion[]> {
+    try {
+      const params = new URLSearchParams();
+      if (limit) params.append('limit', limit.toString());
+      if (randomize) params.append('randomize', randomize.toString());
+      
+      const endpoint = `/levels/${levelId}/fill-in-gap-questions${params.toString() ? '?' + params.toString() : ''}`;
+      const response = await backendApi['fetchApi'](endpoint) as any;
+      
+      if (response && response.questions && response.questions.length > 0) {
+        return response.questions.map((q: any) => ({
+          question_type: 'fill_in_gap',
+          question: q.question_text || q.question,
+          blanks: q.blanks || [],
+          explanation: q.explanation || 'No explanation available.',
+          difficulty: q.difficulty || 'medium',
+        })) as FillInGapQuestion[];
+      }
+      return [];
+    } catch (error) {
+      console.error('Error fetching fill-in-gap questions:', error);
+      return [];
+    }
+  }
+
+  /**
    * Get matching questions from specialized endpoint and aggregate pairs
    */
   private async getMatchingQuestions(levelId: string, limit: number, randomize: boolean): Promise<MatchingQuestion[]> {
@@ -169,20 +231,55 @@ class QuestionService {
   }
 
   /**
-   * Get mixed question types
+   * Get mixed question types with balanced distribution
+   * 3 MCQ, 3 Scenario, 2 Matching, 2 Fill-in-Gap = 10 questions
    */
   private async getMixedQuestions(levelId: string, numQuestions: number, randomize: boolean): Promise<AnyQuestion[]> {
     try {
-      const questionsPerType = Math.floor(numQuestions / 2); // Split between scenario and matching
-      
-      const [scenarioQuestions, matchingQuestions] = await Promise.all([
-        this.getScenarioQuestions(levelId, questionsPerType, randomize),
-        this.getMatchingQuestions(levelId, 1, randomize), // Usually 1 matching question with multiple pairs
+      // Define the distribution for 10 questions
+      const distribution = {
+        mcq: 3,
+        scenario: 3,
+        matching: 2,
+        fillInGap: 2
+      };
+
+      // Adjust distribution if numQuestions is different from 10
+      if (numQuestions !== 10) {
+        const ratio = numQuestions / 10;
+        distribution.mcq = Math.round(3 * ratio);
+        distribution.scenario = Math.round(3 * ratio);
+        distribution.matching = Math.round(2 * ratio);
+        distribution.fillInGap = numQuestions - (distribution.mcq + distribution.scenario + distribution.matching);
+      }
+
+      console.log('Fetching balanced questions with distribution:', distribution);
+
+      // Fetch all question types in parallel
+      const [mcqQuestions, scenarioQuestions, matchingQuestions, fillInGapQuestions] = await Promise.all([
+        this.getMCQQuestions(levelId, distribution.mcq, randomize),
+        this.getScenarioQuestions(levelId, distribution.scenario, randomize),
+        this.getMatchingQuestions(levelId, distribution.matching, randomize),
+        this.getFillInGapQuestions(levelId, distribution.fillInGap, randomize),
       ]);
-      
-      const allQuestions: AnyQuestion[] = [...scenarioQuestions, ...matchingQuestions];
-      
-      return randomize ? this.shuffleArray(allQuestions).slice(0, numQuestions) : allQuestions.slice(0, numQuestions);
+
+      console.log('Questions fetched:', {
+        mcq: mcqQuestions.length,
+        scenario: scenarioQuestions.length,
+        matching: matchingQuestions.length,
+        fillInGap: fillInGapQuestions.length
+      });
+
+      // Combine all questions
+      const allQuestions: AnyQuestion[] = [
+        ...mcqQuestions,
+        ...scenarioQuestions,
+        ...matchingQuestions,
+        ...fillInGapQuestions
+      ];
+
+      // Shuffle if requested to mix up the order of different types
+      return randomize ? this.shuffleArray(allQuestions) : allQuestions;
     } catch (error) {
       console.error('Error fetching mixed questions:', error);
       throw error;

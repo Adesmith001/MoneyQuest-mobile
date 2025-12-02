@@ -4,6 +4,7 @@ import {
   Text,
   StyleSheet,
   SafeAreaView,
+  ScrollView,
   Image,
   Dimensions,
 } from "react-native";
@@ -51,7 +52,11 @@ const LessonCompleteScreen: React.FC<Props> = ({ navigation, route }) => {
 
   return (
     <SafeAreaView style={styles.container}>
-      <View style={styles.content}>
+      <ScrollView 
+        contentContainerStyle={styles.scrollContent}
+        showsVerticalScrollIndicator={false}
+      >
+        <View style={styles.content}>
         <Image
           source={require(`../../../assets/fox.png`)}
           style={styles.foxImage}
@@ -112,6 +117,7 @@ const LessonCompleteScreen: React.FC<Props> = ({ navigation, route }) => {
           <CustomButton title="Continue" onPress={handleContinue} />
         </View>
       </View>
+      </ScrollView>
 
       <FeedbackModal
         visible={isFeedbackModalVisible}
@@ -127,11 +133,15 @@ const styles = StyleSheet.create({
     flex: 1,
     backgroundColor: COLORS.background,
   },
+  scrollContent: {
+    flexGrow: 1,
+  },
   content: {
     flex: 1,
     alignItems: "center",
     justifyContent: "center",
-    padding: SPACING.lg,
+    paddingHorizontal: 24,
+    paddingVertical: 30,
   },
   foxImage: {
     width: 341,

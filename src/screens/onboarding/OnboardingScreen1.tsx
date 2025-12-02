@@ -53,13 +53,13 @@ const OnboardingScreen1: React.FC<Props> = ({ onNext }) => {
 
 const styles = StyleSheet.create({
   container: {
-    flex: 1,
+    flexGrow: 1,
     backgroundColor: "#FFFFFF",
   },
   header: {
-    paddingTop: 80,
-    paddingBottom: "40%",
-    paddingHorizontal: 32,
+    paddingTop: 60,
+    paddingBottom: "35%",
+    paddingHorizontal: 24,
     alignItems: "center",
   },
   title: {
@@ -68,9 +68,9 @@ const styles = StyleSheet.create({
     color: "#000000",
   },
   content: {
-    flex: 1,
-    paddingHorizontal: 32,
-    paddingBottom: 48,
+    flexGrow: 1,
+    paddingHorizontal: 24,
+    paddingBottom: 40,
   },
   welcomeText: {
     fontSize: 20,

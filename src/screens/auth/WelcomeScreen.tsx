@@ -75,13 +75,14 @@ const styles = StyleSheet.create({
     alignItems: 'center',
   },
   logo: {
-    width: 420,
-    height: 420,
+    width: 300,
+    height: 300,
+    maxWidth: '80%',
     resizeMode: "contain",
   },
   buttonContainer: {
-    paddingHorizontal: 32,
-    paddingBottom: 50,
+    paddingHorizontal: 24,
+    paddingBottom: 30,
     gap: 16,
   },
 });

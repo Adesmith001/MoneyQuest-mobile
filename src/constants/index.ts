@@ -34,11 +34,14 @@ export const COLORS = {
 
 // Typography
 export const FONTS = {
-  regular: 'System',
-  medium: 'System',
-  bold: 'System',
-  light: 'System',
+  regular: 'Arial-Rounded-MT-Bold',
+  medium: 'Arial-Rounded-MT-Bold',
+  bold: 'Arial-Rounded-MT-Bold',
+  light: 'Arial-Rounded-MT-Bold',
 };
+
+// Font family for use in styles
+export const FONT_FAMILY = 'Arial Rounded MT Bold';
 
 export const FONT_SIZES = {
   xs: 12,
@@ -50,7 +53,7 @@ export const FONT_SIZES = {
   xxxl: 32,
 };
 
-// Spacing
+// Spacing - responsive values
 export const SPACING = {
   xs: 4,
   sm: 8,

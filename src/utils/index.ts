@@ -1,15 +1,39 @@
-import { Dimensions } from 'react-native';
+import { Dimensions, Platform, PixelRatio } from 'react-native';
 
 const { width: screenWidth, height: screenHeight } = Dimensions.get('window');
 
 // Responsive dimensions based on design
-const guidelineBaseWidth = 375;
-const guidelineBaseHeight = 812;
+const guidelineBaseWidth = 375; // iPhone 11 Pro width
+const guidelineBaseHeight = 812; // iPhone 11 Pro height
 
+// Detect device type
+export const isTablet = () => {
+  const pixelDensity = PixelRatio.get();
+  const adjustedWidth = screenWidth * pixelDensity;
+  const adjustedHeight = screenHeight * pixelDensity;
+  if (pixelDensity < 2 && (adjustedWidth >= 1000 || adjustedHeight >= 1000)) {
+    return true;
+  }
+  return (screenWidth >= 768 || screenHeight >= 768);
+};
+
+export const isSmallDevice = () => screenWidth < 375;
+export const isMediumDevice = () => screenWidth >= 375 && screenWidth < 414;
+export const isLargeDevice = () => screenWidth >= 414;
+
+// Scale functions for responsive sizing
 export const scale = (size: number): number => (screenWidth / guidelineBaseWidth) * size;
 export const verticalScale = (size: number): number => (screenHeight / guidelineBaseHeight) * size;
 export const moderateScale = (size: number, factor: number = 0.5): number =>
   size + (scale(size) - size) * factor;
+
+// Responsive font sizing
+export const fontScale = (size: number): number => {
+  if (isTablet()) {
+    return size * 1.2; // Increase font size for tablets
+  }
+  return moderateScale(size, 0.25);
+};
 
 // Percentage-based dimensions
 export const widthPercentageToDP = (widthPercent: string | number): number => {
@@ -21,6 +45,22 @@ export const heightPercentageToDP = (heightPercent: string | number): number => 
   const elemHeight = typeof heightPercent === 'number' ? heightPercent : parseFloat(heightPercent);
   return (screenHeight * elemHeight) / 100;
 };
+
+// Get safe dimensions for content
+export const getResponsivePadding = (): number => {
+  if (isTablet()) return 48;
+  if (isSmallDevice()) return 16;
+  return 32;
+};
+
+export const getResponsiveMargin = (): number => {
+  if (isTablet()) return 32;
+  if (isSmallDevice()) return 12;
+  return 24;
+};
+
+// Export screen dimensions
+export { screenWidth, screenHeight };
 
 // Screen dimensions
 export const SCREEN_WIDTH = screenWidth;

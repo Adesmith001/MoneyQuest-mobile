@@ -127,9 +127,9 @@ const styles = StyleSheet.create({
     flex: 1,
   },
   content: {
-    paddingHorizontal: 32,
+    paddingHorizontal: 24,
     paddingTop: 20, 
-    paddingBottom: 40,
+    paddingBottom: 30,
   },
   header: {
     alignItems: 'center',

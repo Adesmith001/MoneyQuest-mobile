@@ -304,7 +304,8 @@ const styles = StyleSheet.create({
   scrollContent: {
     flexGrow: 1,
     justifyContent: 'center',
-    paddingHorizontal: SPACING.xl,
+    paddingHorizontal: 24,
+    paddingVertical: 20,
   },
   header: {
     alignItems: 'center',

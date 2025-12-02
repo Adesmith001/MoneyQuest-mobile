@@ -85,10 +85,10 @@ const styles = StyleSheet.create({
     flex: 1,
   },
   content: {
-    flex: 1,
-    paddingHorizontal: 32,
-    paddingTop: 60,
-    paddingBottom: 50,
+    flexGrow: 1,
+    paddingHorizontal: 24,
+    paddingTop: 40,
+    paddingBottom: 30,
   },
   header: {
     alignItems: 'center',

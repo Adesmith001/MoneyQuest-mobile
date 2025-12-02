@@ -1,4 +1,4 @@
-import React, { useEffect } from 'react';
+import React, { useEffect, useState } from 'react';
 import { StatusBar } from 'expo-status-bar';
 import { Provider } from 'react-redux';
 import { store } from './src/store';
@@ -6,13 +6,30 @@ import AppNavigator from './src/navigation/AppNavigator';
 import NotificationService from './src/services/notifications';
 import soundService from './src/services/soundService';
 import * as Linking from 'expo-linking';
-import { Alert, Platform } from 'react-native';
+import { Alert, Platform, Text } from 'react-native';
 import * as NavigationBar from 'expo-navigation-bar';
+import * as Font from 'expo-font';
 
 export default function App() {
+  const [fontsLoaded, setFontsLoaded] = useState(false);
+
   useEffect(() => {
     const initializeApp = async () => {
       try {
+        // Load custom fonts
+        await Font.loadAsync({
+          'Arial-Rounded-MT-Bold': require('./assets/fonts/ArialRoundedMTBold.ttf'),
+        });
+        setFontsLoaded(true);
+        console.log('✅ Fonts loaded');
+
+        // Set default font for all Text components
+        const defaultFontFamily = { fontFamily: 'Arial-Rounded-MT-Bold' };
+        // @ts-ignore
+        Text.defaultProps = Text.defaultProps || {};
+        // @ts-ignore
+        Text.defaultProps.style = defaultFontFamily;
+
         // Configure navigation bar for Android
         if (Platform.OS === 'android') {
           await NavigationBar.setVisibilityAsync('hidden');
@@ -31,6 +48,7 @@ export default function App() {
         console.log('✅ Sound service initialized');
       } catch (error) {
         console.error('❌ App initialization error:', error);
+        setFontsLoaded(true); // Continue even if font loading fails
       }
     };
 
@@ -69,6 +87,11 @@ export default function App() {
       subscription.remove();
     };
   }, []);
+
+  // Wait for fonts to load
+  if (!fontsLoaded) {
+    return null;
+  }
 
   return (
     <Provider store={store}>

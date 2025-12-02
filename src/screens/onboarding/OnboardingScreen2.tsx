@@ -52,12 +52,12 @@ const OnboardingScreen2: React.FC<Props> = ({ onComplete }) => {
 
 const styles = StyleSheet.create({
   container: {
-    flex: 1,
+    flexGrow: 1,
     backgroundColor: "#FFFFFF",
   },
   header: {
-    paddingTop: 80,
-    paddingHorizontal: 32,
+    paddingTop: 60,
+    paddingHorizontal: 24,
     alignItems: "center",
   },
   title: {
@@ -66,10 +66,10 @@ const styles = StyleSheet.create({
     color: "#000000",
   },
   content: {
-    flex: 1,
-    paddingHorizontal: 32,
+    flexGrow: 1,
+    paddingHorizontal: 24,
     justifyContent: "space-between",
-    paddingBottom: 48,
+    paddingBottom: 40,
   },
   illustrationContainer: {
     flex: 1,

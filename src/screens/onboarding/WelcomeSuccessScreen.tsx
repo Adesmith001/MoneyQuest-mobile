@@ -1,4 +1,4 @@
-import React, { useEffect } from 'react';
+import React, { useEffect, useState } from 'react';
 import {
   View,
   Text,
@@ -16,14 +16,20 @@ interface Props {
   route: any;
 }
 
-const { width, height } = Dimensions.get('window');
-
 const WelcomeSuccessScreen: React.FC<Props> = ({ navigation, route }) => {
   const { userName } = route.params;
   const dispatch = useDispatch<AppDispatch>();
+  const [dimensions, setDimensions] = useState(Dimensions.get('window'));
 
   useEffect(() => {
-    // Complete welcome screen and authenticate user after 4 seconds
+    const subscription = Dimensions.addEventListener('change', ({ window }) => {
+      setDimensions(window);
+    });
+
+    return () => subscription?.remove();
+  }, []);
+
+  useEffect(() => {
     const timer = setTimeout(() => {
       dispatch(completeWelcomeScreen());
     }, 4000);
@@ -31,27 +37,74 @@ const WelcomeSuccessScreen: React.FC<Props> = ({ navigation, route }) => {
     return () => clearTimeout(timer);
   }, [dispatch]);
 
+  const { width, height } = dimensions;
+  
+  // Detect device types
+  const isSmallScreen = height < 700;
+  const isTablet = width > 600;
+
+  // Calculate responsive sizes - fox should be centered and reasonably sized
+  const foxWidth = isTablet ? Math.min(width * 0.4, 300) : Math.min(width * 0.5, 250);
+  const foxHeight = isSmallScreen ? height * 0.5 : height * 0.6;
+  
+  // Speech bubble positioning - to the right of the fox's head
+  // The bubble should be at head/mouth level (around 20-30% from top of fox)
+  const bubbleTopPosition = foxHeight * 0.25;
+  const bubbleLeftOffset = foxWidth * 0.55; // Position to the right of fox
+  
+  // Bubble sizing
+  const bubbleWidth = isTablet ? width * 0.35 : width * 0.45;
+  const fontSize = isTablet ? 16 : isSmallScreen ? 13 : 15;
+  const bubblePadding = isSmallScreen ? 12 : 16;
+
   return (
     <SafeAreaView style={styles.container}>
       <View style={styles.content}>
-        {/* This container holds the fox and the bubble, allowing absolute positioning for the bubble relative to the fox */}
-        <View style={styles.characterContainer}>
-          {/* Fox Character - Centered */}
-          <Image
-            source={require('../../../assets/fox.png')}
-            style={styles.foxImage}
-            resizeMode="contain"
-          />
+        <View style={styles.mainContainer}>
+          {/* Fox and Speech Bubble Container */}
+          <View
+            style={[
+              styles.characterContainer,
+              {
+                width: foxWidth,
+                height: foxHeight,
+              },
+            ]}
+          >
+            {/* Fox Character - Centered */}
+            <Image
+              source={require('../../../assets/fox.png')}
+              style={styles.foxImage}
+              resizeMode="contain"
+            />
 
-          {/* Speech Bubble - Absolutely Positioned next to fox's mouth */}
-          <View style={styles.speechBubbleContainer}>
-            <View style={styles.speechBubble}>
-              <Text style={styles.welcomeText}>
-                Welcome {userName}, Now you can learn about money
-              </Text>
+            {/* Speech Bubble - Positioned to the right of fox's head */}
+            <View
+              style={[
+                styles.speechBubbleContainer,
+                {
+                  top: bubbleTopPosition,
+                  left: bubbleLeftOffset,
+                },
+              ]}
+            >
+              <View
+                style={[
+                  styles.speechBubble,
+                  {
+                    width: bubbleWidth,
+                    paddingHorizontal: bubblePadding,
+                    paddingVertical: bubblePadding,
+                  },
+                ]}
+              >
+                <Text style={[styles.welcomeText, { fontSize, lineHeight: fontSize * 1.4 }]}>
+                  Welcome {userName}, Now you can learn about money
+                </Text>
+              </View>
+              {/* Speech bubble tail pointing to the left (towards fox) */}
+              <View style={styles.speechTail} />
             </View>
-            {/* Speech bubble tail pointing towards the mouth */}
-            <View style={styles.speechTail} />
           </View>
         </View>
       </View>
@@ -69,35 +122,28 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     alignItems: 'center',
   },
-  characterContainer: {
-    // This container is the positioning reference for the bubble
-    position: 'relative',
-    width: width * 0.8,
-    height: height * 0.5,
-    alignItems: 'center',
+  mainContainer: {
+    flex: 1,
     justifyContent: 'center',
+    alignItems: 'center',
+    width: '100%',
+  },
+  characterContainer: {
+    position: 'relative',
+    justifyContent: 'center',
+    alignItems: 'center',
   },
   foxImage: {
     width: '100%',
     height: '100%',
-    // Ensure the fox is positioned at the bottom/center of the container
-    position: 'absolute',
-    bottom: 0,
   },
   speechBubbleContainer: {
-    // Position the bubble to the right side, near the fox's mouth area
     position: 'absolute',
-    top: '35%', // Adjusted to be around mouth level (fox head is usually in upper-middle area)
-    right: -20, // Positioned to the right, outside the fox container
-    zIndex: 10, // Ensure it's above the fox image
+    zIndex: 10,
   },
   speechBubble: {
     backgroundColor: '#FFFFFF',
-    borderRadius: 15,
-    paddingHorizontal: 16,
-    paddingVertical: 14,
-    maxWidth: width * 0.5,
-    minWidth: width * 0.4,
+    borderRadius: 12,
     shadowColor: '#000',
     shadowOffset: {
       width: 0,
@@ -108,27 +154,24 @@ const styles = StyleSheet.create({
     elevation: 5,
   },
   speechTail: {
-    // This creates the triangle pointing towards the fox's mouth
     position: 'absolute',
-    top: '35%', // Vertically centered on the bubble
-    left: -10, // Position tail on the left edge, pointing towards fox
+    top: '30%',
+    left: -8,
     width: 0,
     height: 0,
-    borderTopWidth: 10,
-    borderRightWidth: 15,
-    borderBottomWidth: 10,
+    borderTopWidth: 8,
+    borderRightWidth: 12,
+    borderBottomWidth: 8,
     borderLeftWidth: 0,
     borderTopColor: 'transparent',
-    borderRightColor: '#FFFFFF', // The tail color matches bubble
+    borderRightColor: '#FFFFFF',
     borderBottomColor: 'transparent',
     borderLeftColor: 'transparent',
   },
   welcomeText: {
-    fontSize: 16,
     fontWeight: '600',
     color: '#2C3E50',
     textAlign: 'left',
-    lineHeight: 22,
   },
 });
 

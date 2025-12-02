@@ -473,9 +473,9 @@ const styles = StyleSheet.create({
     opacity: 0.4,
   },
   sectionHeaderContainer: {
-    paddingHorizontal: 24,
-    marginTop: 40,
-    marginBottom: 30,
+    paddingHorizontal: 20,
+    marginTop: 30,
+    marginBottom: 20,
   },
   sectionHeader: {
     backgroundColor: "#FF5722", // Orange

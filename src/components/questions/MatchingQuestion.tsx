@@ -10,6 +10,8 @@ interface Props {
   onMatchChange: (leftId: string, rightId: string | null) => void;
   disabled?: boolean;
   showResults?: boolean; // Changed from showCorrect
+  onPlayAudio?: () => void;
+  isPlayingAudio?: boolean;
 }
 
 const MatchingQuestion: React.FC<Props> = ({
@@ -18,6 +20,8 @@ const MatchingQuestion: React.FC<Props> = ({
   onMatchChange,
   disabled = false,
   showResults = false,
+  onPlayAudio,
+  isPlayingAudio = false,
 }) => {
   const [selectedLeft, setSelectedLeft] = useState<string | null>(null);
 
@@ -46,7 +50,22 @@ const MatchingQuestion: React.FC<Props> = ({
 
   return (
     <View style={styles.container}>
-      <Text style={styles.questionText}>{question.question}</Text>
+      <View style={styles.questionWithAudioContainer}>
+        <Text style={styles.questionText}>{question.question}</Text>
+        {onPlayAudio && (
+          <TouchableOpacity
+            style={styles.playButton}
+            onPress={onPlayAudio}
+            disabled={isPlayingAudio}
+          >
+            <Ionicons
+              name={isPlayingAudio ? "pause-circle" : "play-circle"}
+              size={28}
+              color={COLORS.primary}
+            />
+          </TouchableOpacity>
+        )}
+      </View>
       <Text style={styles.instructionText}>
         Tap an item on the left, then tap its match on the right
       </Text>
@@ -164,12 +183,21 @@ const styles = StyleSheet.create({
   container: {
     flex: 1,
   },
+  questionWithAudioContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginBottom: SPACING.sm,
+    gap: SPACING.sm,
+  },
   questionText: {
     fontSize: FONT_SIZES.lg,
     fontWeight: '600',
     color: COLORS.text,
-    marginBottom: SPACING.sm,
     lineHeight: 26,
+    flex: 1,
+  },
+  playButton: {
+    padding: SPACING.xs,
   },
   instructionText: {
     fontSize: FONT_SIZES.sm,

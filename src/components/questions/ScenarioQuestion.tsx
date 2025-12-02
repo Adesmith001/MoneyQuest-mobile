@@ -1,5 +1,6 @@
 import React from 'react';
 import { View, Text, StyleSheet, TouchableOpacity, ScrollView } from 'react-native';
+import { Ionicons } from '@expo/vector-icons';
 import { ScenarioQuestion as ScenarioQuestionType } from '../../types';
 import { COLORS, FONT_SIZES, SPACING } from '../../constants';
 
@@ -8,6 +9,8 @@ interface Props {
   selectedAnswer: string;
   onAnswerSelect: (answer: string) => void;
   disabled?: boolean;
+  onPlayAudio?: () => void;
+  isPlayingAudio?: boolean;
 }
 
 const ScenarioQuestion: React.FC<Props> = ({
@@ -15,6 +18,8 @@ const ScenarioQuestion: React.FC<Props> = ({
   selectedAnswer,
   onAnswerSelect,
   disabled = false,
+  onPlayAudio,
+  isPlayingAudio = false,
 }) => {
   const optionsArray = [
     { key: 'A', value: question.options.A },
@@ -31,8 +36,23 @@ const ScenarioQuestion: React.FC<Props> = ({
         <Text style={styles.scenarioText}>{question.scenario_context}</Text>
       </View>
 
-      {/* Question */}
-      <Text style={styles.questionText}>{question.question}</Text>
+      {/* Question with Audio */}
+      <View style={styles.questionWithAudioContainer}>
+        <Text style={styles.questionText}>{question.question}</Text>
+        {onPlayAudio && (
+          <TouchableOpacity
+            style={styles.playButton}
+            onPress={onPlayAudio}
+            disabled={isPlayingAudio}
+          >
+            <Ionicons
+              name={isPlayingAudio ? "pause-circle" : "play-circle"}
+              size={28}
+              color={COLORS.primary}
+            />
+          </TouchableOpacity>
+        )}
+      </View>
 
       {/* Options */}
       <View style={styles.optionsContainer}>
@@ -89,12 +109,21 @@ const styles = StyleSheet.create({
     lineHeight: 22,
     color: COLORS.text,
   },
+  questionWithAudioContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginBottom: SPACING.lg,
+    gap: SPACING.sm,
+  },
   questionText: {
     fontSize: FONT_SIZES.lg,
     fontWeight: '600',
     color: COLORS.text,
-    marginBottom: SPACING.lg,
     lineHeight: 26,
+    flex: 1,
+  },
+  playButton: {
+    padding: SPACING.xs,
   },
   optionsContainer: {
     gap: SPACING.md,

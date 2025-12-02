@@ -306,8 +306,8 @@ const styles = StyleSheet.create({
     color: "#333",
   },
   content: {
-    flex: 1,
-    paddingHorizontal: 20,
+    flexGrow: 1,
+    paddingHorizontal: 16,
   },
   avatarSection: {
     alignItems: "center",

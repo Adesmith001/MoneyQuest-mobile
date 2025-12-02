@@ -8,7 +8,7 @@
     "scheme": "moneyquest",
     "userInterfaceStyle": "light",
     "splash": {
-      "image": "./assets/logo.png",
+      "image": "./assets/logo-black.png",
       "resizeMode": "contain",
       "backgroundColor": "#ffffff"
     },
@@ -52,6 +52,14 @@
         "projectId": "6dcf413d-e595-4507-9374-30c460ddf8d7"
       }
     },
-    "owner": "adesmith"
+    "owner": "adesmith",
+    "plugins": [
+      [
+        "expo-font",
+        {
+          "fonts": ["./assets/fonts/ArialRoundedMTBold.ttf"]
+        }
+      ]
+    ]
   }
 }

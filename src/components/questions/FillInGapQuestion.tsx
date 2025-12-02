@@ -1,5 +1,6 @@
 import React from 'react';
 import { View, Text, StyleSheet, TextInput, TouchableOpacity } from 'react-native';
+import { Ionicons } from '@expo/vector-icons';
 import { FillInGapQuestion as FillInGapQuestionType } from '../../types';
 import { COLORS, FONT_SIZES, SPACING } from '../../constants';
 
@@ -9,6 +10,8 @@ interface Props {
   onAnswerChange: (blankId: string, answer: string) => void;
   disabled?: boolean;
   showCorrect?: boolean;
+  onPlayAudio?: () => void;
+  isPlayingAudio?: boolean;
 }
 
 const FillInGapQuestion: React.FC<Props> = ({
@@ -17,6 +20,8 @@ const FillInGapQuestion: React.FC<Props> = ({
   onAnswerChange,
   disabled = false,
   showCorrect = false,
+  onPlayAudio,
+  isPlayingAudio = false,
 }) => {
   // Split question text by blank markers and render with inputs
   const renderQuestionWithBlanks = () => {
@@ -120,9 +125,24 @@ const FillInGapQuestion: React.FC<Props> = ({
 
   return (
     <View style={styles.container}>
-      <Text style={styles.instructionText}>
-        Fill in the blanks to complete the sentence
-      </Text>
+      <View style={styles.headerContainer}>
+        <Text style={styles.instructionText}>
+          Fill in the blanks to complete the sentence
+        </Text>
+        {onPlayAudio && (
+          <TouchableOpacity
+            style={styles.playButton}
+            onPress={onPlayAudio}
+            disabled={isPlayingAudio}
+          >
+            <Ionicons
+              name={isPlayingAudio ? "pause-circle" : "play-circle"}
+              size={28}
+              color={COLORS.primary}
+            />
+          </TouchableOpacity>
+        )}
+      </View>
       {renderQuestionWithBlanks()}
     </View>
   );
@@ -132,11 +152,20 @@ const styles = StyleSheet.create({
   container: {
     flex: 1,
   },
+  headerContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    marginBottom: SPACING.lg,
+  },
   instructionText: {
     fontSize: FONT_SIZES.sm,
     color: COLORS.text + '99',
-    marginBottom: SPACING.lg,
     fontStyle: 'italic',
+    flex: 1,
+  },
+  playButton: {
+    padding: SPACING.xs,
   },
   questionText: {
     fontSize: FONT_SIZES.lg,

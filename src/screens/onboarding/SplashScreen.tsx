@@ -43,15 +43,15 @@ const SplashScreen: React.FC<Props> = ({ onComplete }) => {
 
 const styles = StyleSheet.create({
   container: {
-    flex: 1,
+    flexGrow: 1,
     backgroundColor: "#FF5722",
     justifyContent: "space-between",
   },
   contentContainer: {
-    flex: 1,
+    flexGrow: 1,
     justifyContent: "center",
     alignItems: "center",
-    paddingHorizontal: 40,
+    paddingHorizontal: 30,
   },
   logoContainer: {
     alignItems: "center",

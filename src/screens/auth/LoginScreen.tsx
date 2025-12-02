@@ -7,6 +7,7 @@ import {
   StyleSheet, 
   SafeAreaView,
   KeyboardAvoidingView,
+  ScrollView,
   Platform,
   Alert,
   Image 
@@ -75,10 +76,16 @@ const LoginScreen: React.FC<Props> = ({ navigation }) => {
   return (
     <SafeAreaView style={styles.container}>
       <KeyboardAvoidingView 
-        behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+        behavior={Platform.OS === 'ios' ? 'padding' : undefined}
         style={styles.keyboardView}
+        keyboardVerticalOffset={Platform.OS === 'ios' ? 0 : 20}
       >
-        <View style={styles.content}>
+        <ScrollView 
+          contentContainerStyle={styles.scrollContent}
+          keyboardShouldPersistTaps="handled"
+          showsVerticalScrollIndicator={false}
+        >
+          <View style={styles.content}>
           {/* Header */}
           <View style={styles.header}>
             <Text style={styles.title}>Money Quest</Text>
@@ -178,7 +185,8 @@ const LoginScreen: React.FC<Props> = ({ navigation }) => {
               <Text style={styles.footerLink}>Signup</Text>
             </TouchableOpacity>
           </View>
-        </View>
+          </View>
+        </ScrollView>
       </KeyboardAvoidingView>
     </SafeAreaView>
   );
@@ -192,12 +200,16 @@ const styles = StyleSheet.create({
   keyboardView: {
     flex: 1,
   },
+  scrollContent: {
+    flexGrow: 1,
+  },
   content: {
-    flex: 1,
-    paddingHorizontal: 32,
+    flexGrow: 1,
+    paddingHorizontal: 24,
     justifyContent: 'space-between',
-    paddingTop: 60,
-    paddingBottom: 50,
+    paddingTop: 40,
+    paddingBottom: 30,
+    minHeight: 600,
   },
   header: {
     alignItems: "center",
