@@ -53,6 +53,10 @@ export type RootStackParamList = {
     registrationData: any;
     age: number;
   };
+  LearningLimit: {
+    registrationData: any;
+    age: number;
+  };
   GoalSelection: {
     registrationData: any;
     age: number;
@@ -231,11 +235,20 @@ const AppNavigator: React.FC = () => {
               <Stack.Screen name="Register" component={RegisterScreen} />
               <Stack.Screen name="ForgotPassword" component={ForgotPasswordScreen} />
               <Stack.Screen name="ProfileSetup" component={ProfileSetupScreen} />
+              {/* Onboarding screens for new user registration */}
+              <Stack.Screen name="AgeSelection" component={AgeSelectionScreen} />
+              <Stack.Screen name="LearningLimitSelection" component={LearningLimitScreen} />
+              <Stack.Screen name="LearningLimit" component={LearningLimitScreen} />
+              <Stack.Screen name="GoalSelection" component={GoalSelectionScreen} />
+              <Stack.Screen name="ReferralSource" component={ReferralSourceScreen} />
+              <Stack.Screen name="AvatarSelection" component={AvatarSelectionScreen} />
+              <Stack.Screen name="WelcomeSuccess" component={WelcomeSuccessScreen} />
             </>
           ) : oauthUserNeedsOnboarding ? (
             // OAuth user needs onboarding
             <>
               <Stack.Screen name="AgeSelection" component={AgeSelectionScreen} />
+              <Stack.Screen name="LearningLimitSelection" component={LearningLimitScreen} />
               <Stack.Screen name="LearningLimit" component={LearningLimitScreen} />
               <Stack.Screen name="GoalSelection" component={GoalSelectionScreen} />
               <Stack.Screen name="ReferralSource" component={ReferralSourceScreen} />
