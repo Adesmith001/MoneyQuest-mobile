@@ -9,9 +9,12 @@ import {
   SafeAreaView,
   Alert,
   Share,
+  Dimensions,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import * as Clipboard from 'expo-clipboard';
+
+const { width: screenWidth, height: screenHeight } = Dimensions.get('window');
 
 interface Props {
   visible: boolean;
@@ -105,15 +108,16 @@ const InviteFriendsModal: React.FC<Props> = ({
 const styles = StyleSheet.create({
   overlay: {
     flex: 1,
-    backgroundColor: 'rgba(0, 0, 0, 0.6)', // Slightly darker overlay
-    justifyContent: 'center', // Center vertically
-    alignItems: 'center', // Center horizontally
+    backgroundColor: 'rgba(0, 0, 0, 0.6)',
+    justifyContent: 'center',
+    alignItems: 'center',
     paddingHorizontal: 20,
   },
   modalContainer: {
     width: '100%',
+    maxWidth: 400, // Max width for larger screens
     backgroundColor: 'white',
-    borderRadius: 24, // Apply radius to all corners
+    borderRadius: 24,
     shadowColor: '#000',
     shadowOffset: { width: 0, height: 5 },
     shadowOpacity: 0.15,
@@ -121,37 +125,41 @@ const styles = StyleSheet.create({
     elevation: 10,
   },
   modalContent: {
-    padding: 24,
+    padding: Math.max(screenWidth * 0.05, 16), // Responsive padding (5% of screen width, min 16)
     alignItems: 'center',
   },
   headerContainer: {
     alignItems: 'center',
     position: 'relative',
-    marginBottom: 24,
-    height: 150,
+    marginBottom: Math.max(screenHeight * 0.03, 24), // Responsive margin
+    height: Math.max(screenHeight * 0.18, 140), // Responsive height
+    width: '100%',
+    justifyContent: 'center',
   },
   foxImage: {
-    width: 120,
-    height: 150,
+    width: Math.max(screenWidth * 0.28, 100), // Responsive width (28% of screen, min 100)
+    height: Math.max(screenHeight * 0.18, 140), // Responsive height
     resizeMode: 'contain',
   },
   speechBubble: {
     position: 'absolute',
-    top: 40,
-    right: -110,
+    top: Math.max(screenHeight * 0.055, 35), // Position near fox's mouth (responsive)
+    right: Math.max(-screenWidth * 0.28, -110), // Position to the right of fox
     backgroundColor: '#FF6B35',
     borderRadius: 16,
-    paddingHorizontal: 20,
-    paddingVertical: 12,
+    paddingHorizontal: Math.max(screenWidth * 0.04, 16),
+    paddingVertical: Math.max(screenHeight * 0.012, 10),
     shadowColor: '#000',
     shadowOffset: { width: 0, height: 2 },
     shadowOpacity: 0.1,
     shadowRadius: 4,
+    elevation: 3,
+    maxWidth: screenWidth * 0.4, // Max width to prevent overflow on small screens
   },
   speechBubbleText: {
     color: 'white',
     fontWeight: 'bold',
-    fontSize: 16,
+    fontSize: Math.max(screenWidth * 0.04, 14), // Responsive font size
   },
   linkContainer: {
     flexDirection: 'row',
@@ -160,39 +168,39 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderColor: '#FF6B35',
     borderRadius: 12,
-    paddingHorizontal: 16,
-    paddingVertical: 14,
+    paddingHorizontal: Math.max(screenWidth * 0.04, 14),
+    paddingVertical: Math.max(screenHeight * 0.015, 12),
     width: '100%',
-    marginBottom: 24,
+    marginBottom: Math.max(screenHeight * 0.025, 20),
   },
   linkText: {
     flex: 1,
     color: '#333',
-    fontSize: 14,
+    fontSize: Math.max(screenWidth * 0.035, 13), // Responsive font size
   },
   copyButtonText: {
     color: '#FF6B35',
     fontWeight: 'bold',
-    fontSize: 14,
+    fontSize: Math.max(screenWidth * 0.035, 13),
     marginLeft: 10,
   },
   shareTitle: {
-    fontSize: 18,
+    fontSize: Math.max(screenWidth * 0.045, 16), // Responsive font size
     fontWeight: 'bold',
     color: '#333',
-    marginBottom: 16,
+    marginBottom: Math.max(screenHeight * 0.018, 14),
     alignSelf: 'flex-start',
   },
   shareIconsContainer: {
     flexDirection: 'row',
-    justifyContent: 'space-between', // Use space-between for better alignment
+    justifyContent: 'space-between',
     width: '100%',
-    paddingHorizontal: 10, // Add some padding to prevent icons from touching the edges
+    paddingHorizontal: Math.max(screenWidth * 0.02, 8),
   },
   iconWrapper: {
-    width: 60,
-    height: 60,
-    borderRadius: 30,
+    width: Math.max(screenWidth * 0.14, 50), // Responsive size (14% of screen width, min 50)
+    height: Math.max(screenWidth * 0.14, 50),
+    borderRadius: Math.max(screenWidth * 0.07, 25),
     justifyContent: 'center',
     alignItems: 'center',
   },

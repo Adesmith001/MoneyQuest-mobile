@@ -79,7 +79,7 @@ class NotificationService {
   }
 
   /**
-   * Schedule daily reminder notifications at peak hours using time intervals
+   * Schedule daily reminder notifications at peak hours (cross-platform)
    */
   async scheduleDailyReminder() {
     try {
@@ -94,8 +94,6 @@ class NotificationService {
 
       // Schedule notification for each peak hour
       for (const peak of peakHours) {
-        const secondsUntilNext = this.getSecondsUntilHour(peak.hour, peak.minute);
-        
         await Notifications.scheduleNotificationAsync({
           content: {
             title: peak.title,
@@ -104,14 +102,15 @@ class NotificationService {
             priority: Notifications.AndroidNotificationPriority.HIGH,
           },
           trigger: {
-            type: Notifications.SchedulableTriggerInputTypes.TIME_INTERVAL,
-            seconds: secondsUntilNext,
-            repeats: false,
+            type: Notifications.SchedulableTriggerInputTypes.CALENDAR,
+            repeats: true,
+            hour: peak.hour,
+            minute: peak.minute,
           },
         });
       }
 
-      console.log('✅ Daily reminders scheduled for next occurrence of 10am, 2pm, and 7pm');
+      console.log('✅ Daily reminders scheduled for 10am, 2pm, and 7pm (iOS & Android)');
     } catch (error) {
       console.error('Failed to schedule notification:', error);
     }

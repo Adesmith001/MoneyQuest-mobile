@@ -167,56 +167,63 @@ const EditProfileScreen: React.FC<Props> = ({ navigation }) => {
           <Text style={styles.backButtonText}>←</Text>
         </TouchableOpacity>
         <Text style={styles.title}>Edit Profile</Text>
+        <View style={{ width: 28 }} />
       </View>
 
-      <ScrollView style={styles.content}>
+      <ScrollView style={styles.content} showsVerticalScrollIndicator={false}>
         {/* Avatar Section */}
-        <TouchableOpacity
-          style={styles.avatarSection}
-          onPress={() => navigation.navigate("ChangeAvatar")}
-        >
-          <Image
-            source={getAvatarById(user?.avatar || "")}
-            style={styles.avatar}
-          />
-          <Text style={styles.changeAvatarText}>Change Avatar</Text>
-        </TouchableOpacity>
+        <View style={styles.avatarContainer}>
+          <TouchableOpacity
+            style={styles.avatarWrapper}
+            onPress={() => navigation.navigate("ChangeAvatar")}
+          >
+            <View style={styles.avatarBackground}>
+              <Image
+                source={getAvatarById(user?.avatar || "")}
+                style={styles.avatar}
+              />
+            </View>
+          </TouchableOpacity>
+          <TouchableOpacity onPress={() => navigation.navigate("ChangeAvatar")}>
+            <Text style={styles.changeAvatarText}>Change Avatar</Text>
+          </TouchableOpacity>
+        </View>
 
         {/* Profile Fields */}
-        <View style={styles.fieldsContainer}>
-          <View style={styles.field}>
-            <Text style={styles.fieldLabel}>Name</Text>
-            <View style={styles.fieldValueContainer}>
+        <View style={styles.formContainer}>
+          <View style={styles.inputRow}>
+            <Text style={styles.label}>Name</Text>
+            <View style={styles.inputWrapper}>
               <TextInput
-                style={styles.fieldInput}
+                style={styles.input}
                 value={name}
                 onChangeText={setName}
-                placeholder="Enter your name"
+                placeholder="Name"
               />
             </View>
           </View>
 
-          <View style={styles.field}>
-            <Text style={styles.fieldLabel}>Username</Text>
-            <View style={styles.fieldValueContainer}>
+          <View style={styles.inputRow}>
+            <Text style={styles.label}>Username</Text>
+            <View style={styles.inputWrapper}>
               <TextInput
-                style={styles.fieldInput}
+                style={styles.input}
                 value={username}
                 onChangeText={setUsername}
-                placeholder="Enter your username"
+                placeholder="Username"
                 autoCapitalize="none"
               />
             </View>
           </View>
 
-          <View style={styles.field}>
-            <Text style={styles.fieldLabel}>Email</Text>
-            <View style={styles.fieldValueContainer}>
+          <View style={styles.inputRow}>
+            <Text style={styles.label}>Email</Text>
+            <View style={styles.inputWrapper}>
               <TextInput
-                style={styles.fieldInput}
+                style={styles.input}
                 value={email}
                 onChangeText={setEmail}
-                placeholder="Enter your email"
+                placeholder="Email"
                 keyboardType="email-address"
                 autoCapitalize="none"
               />
@@ -224,55 +231,45 @@ const EditProfileScreen: React.FC<Props> = ({ navigation }) => {
           </View>
         </View>
 
-        <Text style={styles.settingsTitle}>Settings</Text>
-
-        <View style={styles.settingItem}>
-          <View style={styles.settingInfo}>
-            <Text style={styles.settingLabel}>Notifications</Text>
-            <Text style={styles.settingDescription}>
-              {notificationEnabled ? 'Receive daily learning reminders' : 'Enable to get reminders'}
-            </Text>
+        {/* Settings */}
+        <Text style={styles.sectionTitle}>Settings</Text>
+        
+        <View style={styles.settingsContainer}>
+          <View style={styles.settingRow}>
+            <Text style={styles.settingLabel}>Notification</Text>
+            <Switch
+              value={notificationEnabled}
+              onValueChange={handleNotificationToggle}
+              trackColor={{ false: "#E0E0E0", true: "#FF4500" }}
+              thumbColor={"#FFFFFF"}
+            />
           </View>
-          <Switch
-            value={notificationEnabled}
-            onValueChange={handleNotificationToggle}
-            disabled={isLoadingPermissions}
-            trackColor={{ false: "#E0E0E0", true: "#FF6B35" }}
-            thumbColor={notificationEnabled ? "#FFFFFF" : "#FFFFFF"}
-          />
+
+          <View style={styles.settingRow}>
+            <Text style={styles.settingLabel}>Sound</Text>
+            <Switch
+              value={soundEnabled}
+              onValueChange={handleSoundToggle}
+              trackColor={{ false: "#E0E0E0", true: "#FF4500" }}
+              thumbColor={"#FFFFFF"}
+            />
+          </View>
         </View>
 
-        <View style={[styles.settingItem]}>
-          <View style={styles.settingInfo}>
-            <Text style={styles.settingLabel}>Sound Effects</Text>
-            <Text style={styles.settingDescription}>
-              {soundEnabled ? 'Play sounds for actions' : 'Sounds are muted'}
-            </Text>
-          </View>
-          <Switch
-            value={soundEnabled}
-            onValueChange={handleSoundToggle}
-            trackColor={{ false: "#E0E0E0", true: "#FF6B35" }}
-            thumbColor={soundEnabled ? "#FFFFFF" : "#FFFFFF"}
-          />
+        {/* Buttons */}
+        <View style={styles.footer}>
+          <TouchableOpacity style={styles.saveButton} onPress={handleSave}>
+            <Text style={styles.saveButtonText}>Save</Text>
+          </TouchableOpacity>
+
+          <TouchableOpacity onPress={handleSignOut} style={styles.textButton}>
+            <Text style={styles.logoutText}>Logout</Text>
+          </TouchableOpacity>
+
+          <TouchableOpacity onPress={handleDeleteAccount} style={styles.textButton}>
+            <Text style={styles.deleteText}>Delete my account</Text>
+          </TouchableOpacity>
         </View>
-
-        <CustomButton
-          title={"Save Changes"}
-          onPress={handleSave}
-        />
-
-        {/* Action Buttons */}
-        <TouchableOpacity onPress={handleSignOut} style={styles.logoutButton}>
-          <Text style={styles.logoutText}>Logout</Text>
-        </TouchableOpacity>
-
-        <TouchableOpacity
-          onPress={handleDeleteAccount}
-          style={styles.deleteButton}
-        >
-          <Text style={styles.deleteText}>Delete my account</Text>
-        </TouchableOpacity>
       </ScrollView>
     </SafeAreaView>
   );
@@ -284,20 +281,19 @@ const styles = StyleSheet.create({
     backgroundColor: "#FFFFFF",
   },
   header: {
+    flexDirection: "row",
     alignItems: "center",
-    justifyContent: "center",
+    justifyContent: "space-between",
     paddingHorizontal: 20,
     paddingVertical: 16,
-    backgroundColor: "white",
-    paddingTop: 40,
+    backgroundColor: "#FFFFFF",
+    paddingTop: Platform.OS === 'android' ? 40 : 16,
   },
   backButton: {
-    position: "absolute",
-    left: 20,
-    top: 40,
+    padding: 8,
   },
   backButtonText: {
-    fontSize: 28,
+    fontSize: 24,
     color: "#333",
   },
   title: {
@@ -306,93 +302,114 @@ const styles = StyleSheet.create({
     color: "#333",
   },
   content: {
-    flexGrow: 1,
-    paddingHorizontal: 16,
+    flex: 1,
   },
-  avatarSection: {
+  avatarContainer: {
     alignItems: "center",
-    marginVertical: 30,
+    marginVertical: 24,
+  },
+  avatarWrapper: {
+    marginBottom: 12,
+  },
+  avatarBackground: {
+    width: 100,
+    height: 100,
+    borderRadius: 50,
+    backgroundColor: "#F04D23", 
+    alignItems: "center",
+    justifyContent: "center",
+    overflow: "hidden",
   },
   avatar: {
     width: 100,
     height: 100,
-    borderRadius: 50,
   },
   changeAvatarText: {
-    marginTop: 10,
     fontSize: 16,
-    color: "#FF6B35",
+    color: "#211E54", // Orange color
     fontWeight: "600",
   },
-  fieldsContainer: {
-    marginBottom: 30,
+  formContainer: {
+    paddingHorizontal: 20,
+    marginBottom: 24,
   },
-  field: {
-    marginBottom: 20,
+  inputRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    paddingVertical: 16,
   },
-  fieldLabel: {
-    fontSize: 14,
-    fontWeight: "600",
-    color: "#666",
-    marginBottom: 8,
-  },
-  fieldValueContainer: {
-    backgroundColor: "#F5F5F5",
-    borderRadius: 12,
-    paddingHorizontal: 16,
-    paddingVertical: 4,
-  },
-  fieldInput: {
+  label: {
+    width: 100,
     fontSize: 16,
     color: "#333",
-    paddingVertical: 12,
+    fontWeight: "700",
   },
-  settingsTitle: {
+  inputWrapper: {
+    flex: 1,
+  },
+  input: {
+    fontSize: 16,
+    backgroundColor: "#F5EAD980",
+    textAlign: "left",
+    padding: 16,
+    color: '#000000', 
+    borderRadius: 8, 
+  },
+  sectionTitle: {
     fontSize: 18,
     fontWeight: "bold",
     color: "#333",
+    marginLeft: 20,
     marginBottom: 16,
   },
-  settingItem: {
-    flexDirection: "row",
-    justifyContent: "space-between",
-    alignItems: "center",
-    paddingVertical: 16,
-    borderBottomWidth: 1,
-    borderBottomColor: "#F0F0F0",
+  settingsContainer: {
+    paddingHorizontal: 20,
+    marginBottom: 32,
   },
-  settingInfo: {
-    flex: 1,
-    marginRight: 16,
+  settingRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    paddingVertical: 12,
   },
   settingLabel: {
     fontSize: 16,
-    fontWeight: "600",
     color: "#333",
-    marginBottom: 4,
   },
-  settingDescription: {
-    fontSize: 13,
-    color: "#999",
-  },
-  logoutButton: {
-    marginTop: 30,
-    padding: 16,
-    borderRadius: 12,
-    borderWidth: 1,
-    borderColor: "#FF6B35",
+  footer: {
+    paddingHorizontal: 20,
+    paddingBottom: 40,
     alignItems: "center",
+    fontWeight: "700",
+  },
+  saveButton: {
+    backgroundColor: "#FF4500", // Orange color
+    width: "100%",
+    paddingVertical: 16,
+    borderRadius: 30,
+    alignItems: "center",
+    marginBottom: 20,
+    shadowColor: "#FF4500",
+    shadowOffset: {
+      width: 0,
+      height: 4,
+    },
+    shadowOpacity: 0.3,
+    shadowRadius: 4.65,
+    elevation: 8,
+  },
+  saveButtonText: {
+    color: "#FFFFFF",
+    fontSize: 18,
+    fontWeight: "bold",
+  },
+  textButton: {
+    paddingVertical: 12,
   },
   logoutText: {
     fontSize: 16,
+    color: "#FF4500",
     fontWeight: "600",
-    color: "#FF6B35",
-  },
-  deleteButton: {
-    marginTop: 16,
-    marginBottom: 40,
-    padding: 16,
-    alignItems: "center",
   },
   deleteText: {
     fontSize: 14,

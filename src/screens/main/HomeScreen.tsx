@@ -63,17 +63,18 @@ const HomeScreen: React.FC<Props> = ({ navigation }) => {
     React.useCallback(() => {
       async function fetchLearningPath() {
         try {
+          setIsLoading(true);
+          
+          let latestCompletedLevels = new Set<string>();
+
           // 🚀 STEP 1: Load cached completed levels FIRST (instant!)
           const cachedCompletedLevels = await cacheService.getCompletedLevels();
           if (cachedCompletedLevels.length > 0) {
             console.log('📦 Loaded from cache:', cachedCompletedLevels);
-            setCompletedLevels(new Set(cachedCompletedLevels));
-            setIsLoading(false); // Show UI immediately!
-          } else {
-            setIsLoading(true);
+            latestCompletedLevels = new Set(cachedCompletedLevels);
           }
 
-          // 🌐 STEP 2: Fetch fresh data from Appwrite in background
+          // 🌐 STEP 2: Fetch fresh data from Appwrite immediately
           if (user?.$id) {
             try {
               const progressDocs = await databases.listDocuments(
@@ -81,16 +82,15 @@ const HomeScreen: React.FC<Props> = ({ navigation }) => {
                 COLLECTIONS.USER_PROGRESS,
                 [Query.equal('userId', user.$id), Query.equal('isCompleted', true)]
               );
-              const completed = new Set(progressDocs.documents.map(doc => doc.level));
-              setCompletedLevels(completed);
-              console.log('🌐 Fetched from Appwrite:', Array.from(completed));
+              latestCompletedLevels = new Set(progressDocs.documents.map(doc => doc.level));
+              console.log('🌐 Fetched from Appwrite:', Array.from(latestCompletedLevels));
 
               // 💾 Save to cache for next time
-              await cacheService.saveCompletedLevels(Array.from(completed));
+              await cacheService.saveCompletedLevels(Array.from(latestCompletedLevels));
 
               // If user has completed levels but no currentLevelId, update it
-              if (completed.size > 0 && !user.currentLevelId) {
-                const sortedCompletedLevels = Array.from(completed);
+              if (latestCompletedLevels.size > 0 && !user.currentLevelId) {
+                const sortedCompletedLevels = Array.from(latestCompletedLevels);
                 const lastCompletedLevel = sortedCompletedLevels[sortedCompletedLevels.length - 1];
 
                 await databases.updateDocument(
@@ -109,6 +109,9 @@ const HomeScreen: React.FC<Props> = ({ navigation }) => {
               // If network fails, we still have cached data!
             }
           }
+
+          // ✨ Update state with latest completed levels BEFORE building sections
+          setCompletedLevels(latestCompletedLevels);
 
           // Get all sections (documents) from backend
           const backendSections = await backendApi.getSections();
@@ -137,13 +140,17 @@ const HomeScreen: React.FC<Props> = ({ navigation }) => {
                 // Use the section_id from the level for progress tracking
                 const levelSectionId = level.section_id || section.section_id!;
 
+                // Check if this level is completed using the latestCompletedLevels
+                const isCompleted = latestCompletedLevels.has(level.level_id);
+                
                 // Pass the firstValidSectionId to correctly identify the first level
                 const progress = calculateLevelProgress(
                   levelSectionId,
                   level.level_id,
                   levelIndex,
                   levels,
-                  firstValidSectionId
+                  firstValidSectionId,
+                  latestCompletedLevels // Pass the latest completed levels
                 );
 
                 return {
@@ -188,13 +195,17 @@ const HomeScreen: React.FC<Props> = ({ navigation }) => {
     levelId: string,
     levelIndex: number,
     sectionLevels: any[],
-    firstSectionId?: string
+    firstSectionId?: string,
+    completedLevelsSet?: Set<string>
   ) => {
     const currentSectionId = user?.currentSectionId;
     const currentLevelId = user?.currentLevelId;
 
+    // Use provided completedLevelsSet or fall back to state
+    const levelsToCheck = completedLevelsSet || completedLevels;
+
     // Check if this level is completed
-    const isCompleted = completedLevels.has(levelId);
+    const isCompleted = levelsToCheck.has(levelId);
 
     // If no progress, only unlock first level of first section
     if (!currentSectionId || !currentLevelId) {
@@ -213,27 +224,33 @@ const HomeScreen: React.FC<Props> = ({ navigation }) => {
 
     // Check if previous level is completed to unlock this level
     let isUnlocked = isCurrent || isCompleted;
+    
     if (levelIndex > 0) {
+      // For levels after the first level in a section, check if previous level is completed
       const previousLevel = sectionLevels[levelIndex - 1];
-      isUnlocked = isUnlocked || completedLevels.has(previousLevel.level_id);
+      isUnlocked = isUnlocked || levelsToCheck.has(previousLevel.level_id);
     } else if (levelIndex === 0) {
-      // First level of section is unlocked if:
-      // 1. It's completed OR
-      // 2. Previous section is fully completed OR
-      // 3. It's the first section
-      if (!isCompleted) {
-        const currentSectionIndex = sections.findIndex(s => s.id === sectionId);
-        if (currentSectionIndex > 0) {
-          // Check if previous section is completed
-          const previousSection = sections[currentSectionIndex - 1];
-          const previousSectionCompleted = previousSection.levels.every(
-            level => completedLevels.has(level.levelId)
-          );
-          isUnlocked = previousSectionCompleted;
-        } else {
-          // First section, first level is always unlocked
-          isUnlocked = true;
-        }
+      // First level of section
+      // Find which section this is in the sections array
+      const currentSectionIndex = sections.findIndex(s => s.id === sectionId);
+      
+      if (currentSectionIndex === 0) {
+        // First section, first level is always unlocked
+        isUnlocked = true;
+      } else if (currentSectionIndex > 0) {
+        // For subsequent sections, check if ALL levels in previous section are completed
+        const previousSection = sections[currentSectionIndex - 1];
+        const previousSectionCompleted = previousSection?.levels?.every(
+          level => levelsToCheck.has(level.levelId)
+        ) ?? false;
+        
+        // Only unlock if previous section is fully completed OR this level is already completed
+        isUnlocked = previousSectionCompleted || isCompleted;
+      } else {
+        // Section not found in array yet (during initial load)
+        // Check using firstSectionId parameter
+        const isFirstSection = sectionId === firstSectionId;
+        isUnlocked = isFirstSection || isCompleted;
       }
     }
 
@@ -422,6 +439,38 @@ const HomeScreen: React.FC<Props> = ({ navigation }) => {
     );
   }
 
+  // ✅ Add empty state check AFTER loading
+  if (!isLoading && sections.length === 0) {
+    return (
+      <SafeAreaView style={styles.container}>
+        <View style={styles.emptyStateContainer}>
+          <Image
+            source={require('../../../assets/fox.png')}
+            style={styles.emptyStateFox}
+            resizeMode="contain"
+          />
+          <Text style={styles.emptyStateTitle}>No Learning Content Available</Text>
+          <Text style={styles.emptyStateMessage}>
+            It looks like no sections or levels have been created yet.{'\n\n'}
+            Please contact the developer to set up the learning content.
+          </Text>
+          <TouchableOpacity 
+            style={styles.emptyStateButton}
+            onPress={() => {
+              Alert.alert(
+                'Developer Contact',
+                'Please reach out to the app developer for assistance.',
+                [{ text: 'OK' }]
+              );
+            }}
+          >
+            <Text style={styles.emptyStateButtonText}>Contact Support</Text>
+          </TouchableOpacity>
+        </View>
+      </SafeAreaView>
+    );
+  }
+
   return (
     <SafeAreaView style={styles.container}>
       <ScrollView
@@ -449,7 +498,7 @@ const styles = StyleSheet.create({
   loadingText: {
     marginTop: 16,
     fontSize: 16,
-    color: '#333',
+    color: '#666',
   },
   scrollView: {
     flex: 1,
@@ -642,6 +691,52 @@ const styles = StyleSheet.create({
   avatarImage: {
     width: "100%",
     height: "100%",
+  },
+  
+  // ✅ Add empty state styles
+  emptyStateContainer: {
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
+    paddingHorizontal: 32,
+    backgroundColor: '#D4E8F5',
+  },
+  emptyStateFox: {
+    width: 250,
+    height: 250,
+    marginBottom: 14,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  emptyStateTitle: {
+    fontSize: 24,
+    fontWeight: 'bold',
+    color: '#FF6B35',
+    textAlign: 'center',
+    marginBottom: 16,
+  },
+  emptyStateMessage: {
+    fontSize: 16,
+    color: '#666',
+    textAlign: 'center',
+    lineHeight: 24,
+    marginBottom: 32,
+  },
+  emptyStateButton: {
+    backgroundColor: '#FF6B35',
+    paddingHorizontal: 32,
+    paddingVertical: 12,
+    borderRadius: 25,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.2,
+    shadowRadius: 4,
+    elevation: 4,
+  },
+  emptyStateButtonText: {
+    color: '#FFFFFF',
+    fontSize: 16,
+    fontWeight: '600',
   },
 });
 
