@@ -22,9 +22,14 @@ export const signIn = createAsyncThunk(
       const currentUser = await AuthService.getCurrentUser();
       const userDocument = await AuthService.getUserDocument(currentUser.$id);
       
-      // Update streak on login
+      // Update streak on login (silently fail if there are permission issues)
       if (userDocument?.$id) {
-        dispatch(updateStreakOnLogin(userDocument.$id));
+        try {
+          dispatch(updateStreakOnLogin(userDocument.$id));
+        } catch (error) {
+          // Silently fail - streak is not critical for login
+          console.log('Streak update skipped');
+        }
       }
       
       return { currentUser, userDocument };
@@ -116,9 +121,14 @@ export const getCurrentUser = createAsyncThunk(
       if (currentUser) {
         const userDocument = await AuthService.getUserDocument(currentUser.$id);
         
-        // Update streak on app startup if user is already logged in
+        // Update streak on app startup if user is already logged in (silently fail if there are permission issues)
         if (userDocument?.$id) {
-          dispatch(updateStreakOnLogin(userDocument.$id));
+          try {
+            dispatch(updateStreakOnLogin(userDocument.$id));
+          } catch (error) {
+            // Silently fail - streak is not critical
+            console.log('Streak update skipped');
+          }
         }
         
         return { currentUser, userDocument };
@@ -138,9 +148,14 @@ export const checkAuthStatus = createAsyncThunk(
       if (currentUser) {
         const userDocument = await AuthService.getUserDocument(currentUser.$id);
         
-        // Update streak on app startup if user is already authenticated
+        // Update streak on app startup if user is already authenticated (silently fail if there are permission issues)
         if (userDocument?.$id) {
-          dispatch(updateStreakOnLogin(userDocument.$id));
+          try {
+            dispatch(updateStreakOnLogin(userDocument.$id));
+          } catch (error) {
+            // Silently fail - streak is not critical
+            console.log('Streak update skipped');
+          }
         }
         
         return { currentUser, userDocument };

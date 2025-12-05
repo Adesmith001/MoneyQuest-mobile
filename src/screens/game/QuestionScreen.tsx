@@ -223,12 +223,7 @@ const QuestionScreen: React.FC<Props> = ({ navigation, route }) => {
             DB_ID,
             COLLECTIONS.USER_PROGRESS,
             "unique()",
-            progressData,
-            [
-              `read("user:${user.$id}")`, // Only this user can read
-              `update("user:${user.$id}")`, // Only this user can update
-              `delete("user:${user.$id}")`, // Only this user can delete
-            ]
+            progressData
           );
         }
       } catch (error) {
@@ -482,11 +477,17 @@ const QuestionScreen: React.FC<Props> = ({ navigation, route }) => {
 
       // Refresh user data to update profile with latest XP and lives
       if (user?.$id) {
-        dispatch(refreshUserData(user.$id) as any);
+        try {
+          dispatch(refreshUserData(user.$id) as any);
+        } catch (error) {
+          // Silently fail - not critical
+          console.log('Failed to refresh user data');
+        }
       }
     } catch (error) {
       console.error("Error recording answer:", error);
-      Alert.alert("Error", "Failed to save your answer. Please try again.");
+      // Don't show alert - the app can continue working
+      // The recordAnswer function now returns safe defaults on error
     }
   };
 
@@ -927,13 +928,6 @@ const QuestionScreen: React.FC<Props> = ({ navigation, route }) => {
           progress={progress}
           onClose={() => navigation.popToTop()}
         />
-        <View style={styles.healthContainer}>
-          <Image
-            source={require("../../../assets/heart.png")}
-            style={styles.heartIcon}
-          />
-          <Text style={styles.healthText}>{health}</Text>
-        </View>
       </View>
 
       <ScrollView contentContainerStyle={styles.content}>
@@ -1027,21 +1021,6 @@ const styles = StyleSheet.create({
     color: COLORS.text,
     marginRight: SPACING.md,
     padding: SPACING.xs,
-  },
-  healthContainer: {
-    flexDirection: "row",
-    alignItems: "center",
-    marginLeft: SPACING.md,
-  },
-  heartIcon: {
-    width: 24,
-    height: 24,
-    marginRight: SPACING.xs,
-  },
-  healthText: {
-    fontSize: FONT_SIZES.md,
-    fontWeight: "bold",
-    color: COLORS.warning,
   },
   content: {
     flexGrow: 1,

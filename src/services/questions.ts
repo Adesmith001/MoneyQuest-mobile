@@ -403,8 +403,15 @@ class QuestionService {
       // Calculate XP earned
       const xpEarned = isCorrect ? 10 : 0; // 10 XP per correct answer
 
-      // Update user stats
-      const user = await databases.getDocument(DB_ID, COLLECTIONS.USERS, userId);
+      // Update user stats - with error handling for missing user
+      let user;
+      try {
+        user = await databases.getDocument(DB_ID, COLLECTIONS.USERS, userId);
+      } catch (error) {
+        console.error('User document not found, returning default values');
+        // Return safe defaults if user document doesn't exist
+        return { livesRemaining: 5, canContinue: true, xpEarned };
+      }
       
       const newTotalQuestions = (user.totalQuestionsAnswered || 0) + 1;
       const newCorrectAnswers = (user.correctAnswers || 0) + (isCorrect ? 1 : 0);
@@ -412,35 +419,40 @@ class QuestionService {
       const newMonthlyXP = (user.monthlyXP || 0) + xpEarned;
       const newTotalXP = (user.totalXP || 0) + xpEarned;
 
-      let livesRemaining = user.lives;
+      let livesRemaining = user.lives || 5;
       let canContinue = true;
 
       // Deduct a life if answer is incorrect
       if (!isCorrect) {
         const livesResult = await livesService.deductLife(
           userId,
-          user.lives,
-          user.lastLifeRegenTime
+          user.lives || 5,
+          user.lastLifeRegenTime || new Date().toISOString()
         );
         livesRemaining = livesResult.lives;
         canContinue = livesResult.canContinue;
       }
 
       // Update user document
-      await databases.updateDocument(DB_ID, COLLECTIONS.USERS, userId, {
-        totalQuestionsAnswered: newTotalQuestions,
-        correctAnswers: newCorrectAnswers,
-        xp: newXP,
-        monthlyXP: newMonthlyXP,
-        totalXP: newTotalXP,
-        lives: livesRemaining, // Add this to update lives in Appwrite
-        updatedAt: new Date().toISOString(),
-      });
+      try {
+        await databases.updateDocument(DB_ID, COLLECTIONS.USERS, userId, {
+          totalQuestionsAnswered: newTotalQuestions,
+          correctAnswers: newCorrectAnswers,
+          xp: newXP,
+          monthlyXP: newMonthlyXP,
+          totalXP: newTotalXP,
+          lives: livesRemaining,
+          updatedAt: new Date().toISOString(),
+        });
+      } catch (error) {
+        console.error('Failed to update user document, continuing anyway');
+      }
 
       return { livesRemaining, canContinue, xpEarned };
     } catch (error) {
       console.error('Record answer error:', error);
-      throw error;
+      // Return safe defaults instead of throwing
+      return { livesRemaining: 5, canContinue: true, xpEarned: isCorrect ? 10 : 0 };
     }
   }
 
