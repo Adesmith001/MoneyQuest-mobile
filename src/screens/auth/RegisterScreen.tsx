@@ -60,22 +60,21 @@ const RegisterScreen: React.FC<Props> = ({ navigation }) => {
     });
   };
 
-  const handleSocialSignUp = async (provider: string) => {
-    if (provider === 'Google') {
-      try {
-        const result = await dispatch(signInWithGoogle());
-        if (signInWithGoogle.fulfilled.match(result)) {
-          Alert.alert('Success', 'Google signup successful!');
-        } else {
-          const errorMessage = result.payload as string;
-          Alert.alert('Google Signup Failed', errorMessage || 'Failed to signup with Google');
-        }
-      } catch (error) {
-        Alert.alert('Error', 'Google signup failed');
+  const handleGoogleSignUp = async () => {
+    try {
+      // Start Google OAuth flow
+      const result = await dispatch(signInWithGoogle());
+      
+      if (signInWithGoogle.fulfilled.match(result)) {
+        // OAuth flow started successfully
+        // The callback will be handled in AppNavigator
+        console.log('Google OAuth flow initiated');
+      } else {
+        const errorMessage = result.payload as string;
+        Alert.alert('Google Signup Failed', errorMessage || 'Failed to signup with Google');
       }
-    } else {
-      // Other providers coming soon
-      Alert.alert('Coming Soon', `${provider} signup will be available soon!`);
+    } catch (error) {
+      Alert.alert('Error', 'Google signup failed');
     }
   };
 
@@ -158,28 +157,15 @@ const RegisterScreen: React.FC<Props> = ({ navigation }) => {
 
               {/* <View style={styles.divider}>
                 <Text style={styles.dividerText}>OR SIGN UP WITH</Text>
-              </View>
+              </View> */}
 
-              <View style={styles.socialButtons}>
+              {/* <View style={styles.socialButtons}>
                 <TouchableOpacity
                   style={styles.socialButton}
-                  onPress={() => handleSocialSignUp('Google')}
+                  onPress={handleGoogleSignUp}
+                  disabled={isLoading}
                 >
-                  <Image source={require('../../../assets/google-icon.png')} style={styles.socialIcon} />
-                </TouchableOpacity>
-
-                <TouchableOpacity
-                  style={styles.socialButton}
-                  onPress={() => handleSocialSignUp('Facebook')}
-                >
-                  <Image source={require('../../../assets/facebook-icon.png')} style={styles.socialIcon} />
-                </TouchableOpacity>
-
-                <TouchableOpacity
-                  style={styles.socialButton}
-                  onPress={() => handleSocialSignUp('Twitter')}
-                >
-                  <Image source={require('../../../assets/twitter-icon.png')} style={styles.socialIcon} />
+                  <Text style={styles.googleIcon}>G</Text>
                 </TouchableOpacity>
               </View> */}
             </View>
@@ -275,6 +261,11 @@ const styles = StyleSheet.create({
   socialIcon: {
     width: 24,
     height: 24,
+  },
+  googleIcon: {
+    fontSize: 24,
+    fontWeight: 'bold',
+    color: '#DB4437',
   },
   footer: {
     flexDirection: "row",

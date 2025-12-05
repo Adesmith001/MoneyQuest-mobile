@@ -158,22 +158,25 @@ const LoginScreen: React.FC<Props> = ({ navigation }) => {
               <TouchableOpacity
                 style={styles.socialButton}
                 onPress={() => handleSocialLogin('Google')}
+                disabled={isLoading}
               >
-                <Image source={require('../../../assets/google-icon.png')} style={styles.socialIcon} />
+                <Ionicons name="logo-google" size={24} color="#DB4437" />
               </TouchableOpacity>
 
               <TouchableOpacity
                 style={styles.socialButton}
                 onPress={() => handleSocialLogin('Facebook')}
+                disabled={isLoading}
               >
-                <Image source={require('../../../assets/facebook-icon.png')} style={styles.socialIcon} />
+                <Ionicons name="logo-facebook" size={24} color="#4267B2" />
               </TouchableOpacity>
 
               <TouchableOpacity
                 style={styles.socialButton}
                 onPress={() => handleSocialLogin('Twitter')}
+                disabled={isLoading}
               >
-                <Image source={require('../../../assets/twitter-icon.png')} style={styles.socialIcon} />
+                <Ionicons name="logo-twitter" size={24} color="#1DA1F2" />
               </TouchableOpacity>
             </View> */}
           </View>

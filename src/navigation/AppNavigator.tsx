@@ -1,10 +1,13 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { NavigationContainer } from '@react-navigation/native';
 import { createStackNavigator } from '@react-navigation/stack';
-import { useSelector } from 'react-redux';
-import { RootState } from '../store';
+import { useSelector, useDispatch } from 'react-redux';
+import { RootState, AppDispatch } from '../store';
 import * as Linking from 'expo-linking';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
+import { Alert } from 'react-native';
+import googleAuthService from '../services/googleAuth';
+import { updateUser } from '../store/slices/authSlice';
 
 // Onboarding
 import OnboardingFlow from '../screens/onboarding/OnboardingFlow';
@@ -106,27 +109,73 @@ export type RootStackParamList = {
 const Stack = createStackNavigator<RootStackParamList>();
 
 const linking = {
-  prefixes: ['moneyquest://'],
+  prefixes: ['moneyquest://', 'https://moneyquest.app'],
   config: {
     screens: {
       ForgotPassword: {
-        path: 'reset-password/:userId/:secret',
+        path: 'reset-password/:userId?/:secret?',
         parse: {
-          userId: (userId: string) => userId,
-          secret: (secret: string) => secret,
+          userId: (userId: string) => userId || '',
+          secret: (secret: string) => secret || '',
         },
       },
+      Login: 'oauth/:result',
     },
   },
 };
 
 const AppNavigator: React.FC = () => {
   const { isAuthenticated, isLoading, showWelcomeScreen, user } = useSelector((state: RootState) => state.auth);
+  const dispatch = useDispatch<AppDispatch>();
   const [showOnboarding, setShowOnboarding] = useState<boolean>(true);
 
   const handleOnboardingComplete = () => {
     setShowOnboarding(false);
   };
+
+  // Handle OAuth callbacks
+  useEffect(() => {
+    const handleDeepLink = async (event: { url: string }) => {
+      const url = event.url;
+      console.log('Deep link received:', url);
+
+      // Handle OAuth callback
+      if (url.includes('oauth/success') || url.includes('oauth/failure')) {
+        const result = await googleAuthService.handleOAuthCallback(url);
+        
+        if (result.success && result.user) {
+          // Check if user needs onboarding
+          const needsOnboarding = !result.user.avatar || result.user.age === 0;
+          
+          // Update user in Redux store
+          dispatch(updateUser(result.user));
+          
+          if (needsOnboarding) {
+            Alert.alert('Welcome!', 'Let\'s complete your profile to get started.');
+            // User will be redirected to onboarding by AppNavigator logic
+          } else {
+            Alert.alert('Success', 'Successfully signed in with Google!');
+          }
+        } else {
+          Alert.alert('Error', result.error || 'Google sign-in failed');
+        }
+      }
+    };
+
+    // Listen for deep link events
+    const subscription = Linking.addEventListener('url', handleDeepLink);
+
+    // Check if app was opened with a deep link
+    Linking.getInitialURL().then((url) => {
+      if (url) {
+        handleDeepLink({ url });
+      }
+    });
+
+    return () => {
+      subscription.remove();
+    };
+  }, [dispatch]);
 
   // Show loading screen while auth state is being determined or during login/signup
   if (isLoading) {
@@ -163,72 +212,75 @@ const AppNavigator: React.FC = () => {
     );
   }
 
+  // Check if OAuth user needs onboarding
+  const oauthUserNeedsOnboarding = isAuthenticated && user && (
+    user.avatar === 'needs_onboarding' || 
+    user.learningLimit === 'needs_onboarding' ||
+    user.mainGoal === 'needs_onboarding'
+  );
+
   return (
     <SafeAreaProvider>
-      <NavigationContainer
-        linking={linking}
-      >
-      <Stack.Navigator
-        screenOptions={{
-          headerShown: false,
-          cardStyle: { backgroundColor: '#FFFFFF' },
-        }}
-      >
-        {!isAuthenticated ? (
-          // Auth Stack
-          <>
-            <Stack.Screen name="Welcome" component={WelcomeScreen} />
-            <Stack.Screen name="Login" component={LoginScreen} />
-            <Stack.Screen name="Register" component={RegisterScreen} />
-            <Stack.Screen name="ForgotPassword" component={ForgotPasswordScreen} />
-            <Stack.Screen name="ProfileSetup" component={ProfileSetupScreen} />
-            
-            {/* Onboarding Screens */}
-            <Stack.Screen name="AgeSelection" component={AgeSelectionScreen} />
-            <Stack.Screen name="LearningLimitSelection" component={LearningLimitScreen} />
-            <Stack.Screen name="GoalSelection" component={GoalSelectionScreen} />
-            <Stack.Screen name="ReferralSource" component={ReferralSourceScreen} />
-            <Stack.Screen name="AvatarSelection" component={AvatarSelectionScreen} />
-          </>
-        ) : (
-          // Authenticated Stack
+      <NavigationContainer linking={linking}>
+        <Stack.Navigator screenOptions={{ headerShown: false }}>
+          {!isAuthenticated ? (
+            // Auth Stack
             <>
-            <Stack.Screen name="MainApp" component={MainTabNavigator} />
-            <Stack.Screen name="MainTabs" component={MainTabNavigator} />
-            <Stack.Screen 
-              name="Question" 
-              component={QuestionScreen as any}
-              options={{
-              gestureEnabled: false, // Prevent swipe to go back during questions
-              }}
-            />
-            <Stack.Screen name="LevelCompletion" component={LevelCompletionScreen} />
-            <Stack.Screen 
-              name="Settings" 
-              component={SettingsScreen}
-              options={{
-              headerShown: true,
-              title: 'Settings',
-              }}
-            />
-            <Stack.Screen 
-              name="EditProfile" 
-              component={EditProfileScreen}
-              options={{
-              headerShown: false,
-              }}
-            />
-            <Stack.Screen 
-              name="ChangeAvatar" 
-              component={ChangeAvatarScreen}
-              options={{
-              headerShown: false,
-              }}
-            />
+              <Stack.Screen name="Welcome" component={WelcomeScreen} />
+              <Stack.Screen name="Login" component={LoginScreen} />
+              <Stack.Screen name="Register" component={RegisterScreen} />
+              <Stack.Screen name="ForgotPassword" component={ForgotPasswordScreen} />
+              <Stack.Screen name="ProfileSetup" component={ProfileSetupScreen} />
             </>
-        )}
-      </Stack.Navigator>
-    </NavigationContainer>
+          ) : oauthUserNeedsOnboarding ? (
+            // OAuth user needs onboarding
+            <>
+              <Stack.Screen name="AgeSelection" component={AgeSelectionScreen} />
+              <Stack.Screen name="LearningLimit" component={LearningLimitScreen} />
+              <Stack.Screen name="GoalSelection" component={GoalSelectionScreen} />
+              <Stack.Screen name="ReferralSource" component={ReferralSourceScreen} />
+              <Stack.Screen name="AvatarSelection" component={AvatarSelectionScreen} />
+              <Stack.Screen name="WelcomeSuccess" component={WelcomeSuccessScreen} />
+            </>
+          ) : (
+            // Authenticated Stack
+            <>
+              <Stack.Screen name="MainApp" component={MainTabNavigator} />
+              <Stack.Screen name="MainTabs" component={MainTabNavigator} />
+              <Stack.Screen 
+                name="Question" 
+                component={QuestionScreen as any}
+                options={{
+                gestureEnabled: false, // Prevent swipe to go back during questions
+                }}
+              />
+              <Stack.Screen name="LevelCompletion" component={LevelCompletionScreen} />
+              <Stack.Screen 
+                name="Settings" 
+                component={SettingsScreen}
+                options={{
+                headerShown: true,
+                title: 'Settings',
+                }}
+              />
+              <Stack.Screen 
+                name="EditProfile" 
+                component={EditProfileScreen}
+                options={{
+                headerShown: false,
+                }}
+              />
+              <Stack.Screen 
+                name="ChangeAvatar" 
+                component={ChangeAvatarScreen}
+                options={{
+                headerShown: false,
+                }}
+              />
+            </>
+          )}
+        </Stack.Navigator>
+      </NavigationContainer>
     </SafeAreaProvider>
   );
 };

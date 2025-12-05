@@ -615,7 +615,7 @@ class AuthService {
   // Send password recovery email
   async sendPasswordRecovery(email: string): Promise<void> {
     try {
-      const recoveryUrl = `https://reliable-twilight-323604.netlify.app/`;
+      const recoveryUrl = `moneyquest://reset-password`;
       await account.createRecovery(email, recoveryUrl);
     } catch (error: any) {
       console.error("Send password recovery error:", error);

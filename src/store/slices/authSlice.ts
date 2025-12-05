@@ -1,7 +1,9 @@
 import { createSlice, createAsyncThunk, PayloadAction } from '@reduxjs/toolkit';
 import { AuthState, User } from '../../types';
 import AuthService from '../../services/auth';
+import googleAuthService from '../../services/googleAuth';
 import { updateStreakOnLogin, resetStreakState } from './streakSlice';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 
 const initialState: AuthState = {
   user: null,
@@ -72,23 +74,36 @@ export const signOut = createAsyncThunk(
 );
 
 export const signInWithGoogle = createAsyncThunk(
-  'auth/signInWithGoogle',
-  async (_, { rejectWithValue, dispatch }) => {
+  "auth/signInWithGoogle",
+  async (_, { rejectWithValue }) => {
     try {
-      const result = await AuthService.signInWithGoogle();
+      // This will open the browser and return a URL
+      // The actual user data will come from handleOAuthCallback
+      const result = await googleAuthService.signInWithGoogle();
       
-      // Update streak on login
-      if (result.userDocument?.$id) {
-        dispatch(updateStreakOnLogin(result.userDocument.$id));
-      }
-      
-      // Make sure we return serializable data
-      return {
-        currentUser: result.currentUser,
-        userDocument: result.userDocument
-      };
+      // Return a pending state - actual login will complete via deep link
+      return { pending: true, url: result.url };
     } catch (error: any) {
-      return rejectWithValue(error.message);
+      return rejectWithValue(error.message || "Google sign-in failed");
+    }
+  }
+);
+
+// New thunk to handle OAuth callback
+export const handleOAuthCallback = createAsyncThunk(
+  "auth/handleOAuthCallback",
+  async (url: string, { rejectWithValue }) => {
+    try {
+      const result = await googleAuthService.handleOAuthCallback(url);
+      
+      if (result.success && result.user) {
+        await AsyncStorage.setItem("userId", result.user.$id);
+        return result.user;
+      } else {
+        return rejectWithValue(result.error || "OAuth callback failed");
+      }
+    } catch (error: any) {
+      return rejectWithValue(error.message || "OAuth callback failed");
     }
   }
 );
@@ -238,6 +253,32 @@ export const signUpWithOnboarding = createAsyncThunk(
   }
 );
 
+// Update OAuth user with onboarding data
+export const completeOAuthOnboarding = createAsyncThunk(
+  'auth/completeOAuthOnboarding',
+  async ({ 
+    userId,
+    onboardingData 
+  }: { 
+    userId: string;
+    onboardingData: {
+      age: number;
+      learningLimit: string;
+      mainGoal: string;
+      referralSource: string;
+      avatar: string;
+    };
+  }, { rejectWithValue }) => {
+    try {
+      // Update existing user document with onboarding data
+      const updatedUser = await AuthService.updateUserDocument(userId, onboardingData);
+      return updatedUser;
+    } catch (error: any) {
+      return rejectWithValue(error.message);
+    }
+  }
+);
+
 const authSlice = createSlice({
   name: 'auth',
   initialState,
@@ -306,19 +347,31 @@ const authSlice = createSlice({
       })
       // Google Sign In
       .addCase(signInWithGoogle.pending, (state) => {
-        state.isLoading = true;
+        state.loading = true;
         state.error = null;
       })
       .addCase(signInWithGoogle.fulfilled, (state, action) => {
-        state.isLoading = false;
-        state.isAuthenticated = true;
-        state.user = action.payload.userDocument;
+        // Keep loading state until OAuth callback completes
+        state.loading = true;
         state.error = null;
       })
       .addCase(signInWithGoogle.rejected, (state, action) => {
-        state.isLoading = false;
-        state.isAuthenticated = false;
-        state.user = null;
+        state.loading = false;
+        state.error = action.payload as string;
+      })
+      // Handle OAuth callback
+      .addCase(handleOAuthCallback.pending, (state) => {
+        state.loading = true;
+        state.error = null;
+      })
+      .addCase(handleOAuthCallback.fulfilled, (state, action) => {
+        state.loading = false;
+        state.isAuthenticated = true;
+        state.user = action.payload;
+        state.error = null;
+      })
+      .addCase(handleOAuthCallback.rejected, (state, action) => {
+        state.loading = false;
         state.error = action.payload as string;
       })
       // Get Current User
@@ -379,6 +432,21 @@ const authSlice = createSlice({
         state.isLoading = false;
         state.isAuthenticated = false;
         state.user = null;
+        state.error = action.payload as string;
+      })
+      // Complete OAuth Onboarding
+      .addCase(completeOAuthOnboarding.pending, (state) => {
+        state.isLoading = true;
+        state.error = null;
+      })
+      .addCase(completeOAuthOnboarding.fulfilled, (state, action) => {
+        state.isLoading = false;
+        state.user = action.payload;
+        state.error = null;
+        state.showWelcomeScreen = true; // Show welcome screen after completing onboarding
+      })
+      .addCase(completeOAuthOnboarding.rejected, (state, action) => {
+        state.isLoading = false;
         state.error = action.payload as string;
       })
       // Refresh User Data

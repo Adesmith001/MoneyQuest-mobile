@@ -36,7 +36,13 @@
           "autoVerify": true,
           "data": [
             {
-              "scheme": "moneyquest"
+              "scheme": "moneyquest",
+              "host": "*"
+            },
+            {
+              "scheme": "https",
+              "host": "moneyquest.app",
+              "pathPrefix": "/reset-password"
             }
           ],
           "category": [
