@@ -1,7 +1,10 @@
-import React from "react";
-import { View, StyleSheet, TouchableOpacity } from "react-native";
+import React, { useEffect, useState } from "react";
+import { View, StyleSheet, TouchableOpacity, Text } from "react-native";
+import { useSelector } from "react-redux";
 import { SPACING } from "../constants";
 import { Ionicons } from '@expo/vector-icons';
+import { RootState } from "../store";
+import { livesService } from "../services/lives";
 
 interface ProgressBarProps {
   progress: number;
@@ -12,6 +15,20 @@ const ProgressBar: React.FC<ProgressBarProps> = ({
   progress,
   onClose,
 }) => {
+  const { user } = useSelector((state: RootState) => state.auth);
+  const [displayLives, setDisplayLives] = useState(5);
+
+  // Update lives display from user data (Appwrite)
+  useEffect(() => {
+    if (user) {
+      const { lives } = livesService.calculateCurrentLives(
+        user.lives || 5,
+        user.lastLifeRegenTime || new Date().toISOString()
+      );
+      setDisplayLives(lives);
+    }
+  }, [user?.lives, user?.lastLifeRegenTime]);
+
   return (
     <View style={styles.container}>
       <TouchableOpacity onPress={onClose} style={styles.closeButton}>
@@ -21,6 +38,10 @@ const ProgressBar: React.FC<ProgressBarProps> = ({
         <View style={styles.progressContainer}>
           <View style={[styles.progress, { width: `${progress}%` }]} />
         </View>
+      </View>
+      <View style={styles.livesContainer}>
+        <Ionicons name="heart" size={20} color="#FF5722" />
+        <Text style={styles.livesText}>{displayLives}</Text>
       </View>
     </View>
   );
@@ -54,13 +75,20 @@ const styles = StyleSheet.create({
     backgroundColor: "#FF5722",
     borderRadius: 25,
   },
-  healthContainer: {
+  livesContainer: {
     flexDirection: "row",
     alignItems: "center",
     marginLeft: SPACING.md,
     paddingHorizontal: 8,
     paddingVertical: 4,
     borderRadius: 12,
+    backgroundColor: "#FFE8E3",
+  },
+  livesText: {
+    fontSize: 16,
+    fontWeight: "bold",
+    color: "#FF5722",
+    marginLeft: 4,
   },
 });
 

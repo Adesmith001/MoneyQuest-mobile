@@ -25,6 +25,7 @@ import { BackendLevel } from "../../types";
 import { useFocusEffect } from "@react-navigation/native";
 import { updateUser } from "../../store/slices/authSlice";
 import cacheService from "../../services/cacheService";
+import { livesService } from "../../services/lives";
 import LearningPathSkeleton from "../../components/skeletons/LearningPathSkeleton";
 
 interface Props {
@@ -64,6 +65,25 @@ const HomeScreen: React.FC<Props> = ({ navigation }) => {
       async function fetchLearningPath() {
         try {
           setIsLoading(true);
+          
+          // 🩺 STEP 0: Refresh user lives from Appwrite
+          if (user?.$id) {
+            try {
+              const { lives, lastLifeRegenTime } = await livesService.refreshLives(
+                user.$id,
+                user.lives || 5,
+                user.lastLifeRegenTime || new Date().toISOString()
+              );
+              
+              // Update Redux store if lives changed
+              if (lives !== user.lives || lastLifeRegenTime !== user.lastLifeRegenTime) {
+                dispatch(updateUser({ lives, lastLifeRegenTime }));
+                console.log(`✅ Lives refreshed on HomeScreen: ${lives}/5`);
+              }
+            } catch (error) {
+              console.error('Failed to refresh lives on HomeScreen:', error);
+            }
+          }
           
           let latestCompletedLevels = new Set<string>();
 

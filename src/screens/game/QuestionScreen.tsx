@@ -12,13 +12,12 @@ import {
 } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
 import { useDispatch, useSelector } from "react-redux";
+import { useFocusEffect } from "@react-navigation/native";
 import { COLORS, FONT_SIZES, SPACING } from "../../constants";
 import {
   nextQuestion,
   nextLevel,
-  addHealth,
   addXP,
-  removeHealth,
   setHealth,
 } from "../../store/slices/gameSlice";
 import { refreshUserData, updateUser } from "../../store/slices/authSlice";
@@ -62,7 +61,6 @@ const QuestionScreen: React.FC<Props> = ({ navigation, route }) => {
   const { levelId, sectionId, levelTitle, sectionTitle } = route.params;
   const dispatch = useDispatch();
   const { user } = useSelector((state: RootState) => state.auth);
-  const { health } = useSelector((state: RootState) => state.game);
 
   const [questions, setQuestions] = useState<AnyQuestion[]>([]);
   const [levelData, setLevelData] = useState<any>(null);
@@ -97,16 +95,32 @@ const QuestionScreen: React.FC<Props> = ({ navigation, route }) => {
     incorrect: string[];
   }>({ correct: [], incorrect: [] });
 
-  // Initialize health from user's actual lives when component mounts
-  useEffect(() => {
-    if (user?.lives !== undefined) {
-      const { lives } = livesService.calculateCurrentLives(
-        user.lives,
-        user.lastLifeRegenTime || new Date().toISOString()
-      );
-      dispatch(setHealth(lives));
-    }
-  }, [user?.lives, user?.lastLifeRegenTime, dispatch]);
+  // Refresh lives from Appwrite when screen is focused
+  useFocusEffect(
+    React.useCallback(() => {
+      const refreshUserLives = async () => {
+        if (!user?.$id) return;
+        
+        try {
+          const { lives, lastLifeRegenTime } = await livesService.refreshLives(
+            user.$id,
+            user.lives || 5,
+            user.lastLifeRegenTime || new Date().toISOString()
+          );
+          
+          // Update Redux store with new lives
+          dispatch(setHealth(lives));
+          dispatch(updateUser({ lives, lastLifeRegenTime }));
+          
+          console.log(`✅ Lives refreshed from Appwrite: ${lives}/5`);
+        } catch (error) {
+          console.error('Failed to refresh lives:', error);
+        }
+      };
+
+      refreshUserLives();
+    }, [user?.$id, dispatch])
+  );
 
   // Load level data and questions from backend
   useEffect(() => {
@@ -484,10 +498,13 @@ const QuestionScreen: React.FC<Props> = ({ navigation, route }) => {
     console.log("this is the matching questions", matchingAnswers);
     setFillInGapAnswers({});
 
-    // If health is 0, user cannot continue
-    if (health <= 0) {
+    // Get current lives from user (Appwrite source of truth)
+    const currentLives = user?.lives || 0;
+    
+    // If lives is 0, user cannot continue
+    if (currentLives <= 0) {
       const timeUntilNextLife = livesService.getTimeUntilNextLife(
-        user?.lives || 0,
+        currentLives,
         user?.lastLifeRegenTime || new Date().toISOString()
       );
       const timeFormatted = livesService.formatTimeRemaining(timeUntilNextLife);
@@ -593,37 +610,53 @@ const QuestionScreen: React.FC<Props> = ({ navigation, route }) => {
           updateData.currentLevelId = result.next_level_id;
           updateData.currentSectionId = sectionId; // Keep same section or update if needed
 
-          // Add 1 life on level completion
-          const newLives = Math.min((user.lives || 5) + 1, 5); // Cap at 5 lives
+          // Add 1 life on level completion (cap at 5)
+          const currentLivesValue = user.lives || 5;
+          const newLives = Math.min(currentLivesValue + 1, 5);
+          const newLastLifeRegenTime = new Date().toISOString(); // Reset regeneration time
+          
           updateData.lives = newLives;
-          dispatch(addHealth(1));
+          updateData.lastLifeRegenTime = newLastLifeRegenTime;
+          
+          dispatch(setHealth(newLives));
 
-          // Update Redux store with new currentLevelId
+          // Update Redux store with new currentLevelId and lives
           dispatch(
             updateUser({
               currentLevelId: result.next_level_id,
               currentSectionId: sectionId,
               lives: newLives,
+              lastLifeRegenTime: newLastLifeRegenTime,
             })
           );
+          
+          console.log(`✅ Level completed! Lives increased to ${newLives}/5`);
         } else if (result.passed && !result.next_level_id) {
           // Level completed but no next level (end of section/course)
           // Keep current level ID so progress is maintained
           updateData.currentLevelId = levelId;
           updateData.currentSectionId = sectionId;
 
-          // Add 1 life on level completion
-          const newLives = Math.min((user.lives || 5) + 1, 5);
+          // Add 1 life on level completion (cap at 5)
+          const currentLivesValue = user.lives || 5;
+          const newLives = Math.min(currentLivesValue + 1, 5);
+          const newLastLifeRegenTime = new Date().toISOString();
+          
           updateData.lives = newLives;
-          dispatch(addHealth(1));
+          updateData.lastLifeRegenTime = newLastLifeRegenTime;
+          
+          dispatch(setHealth(newLives));
 
           dispatch(
             updateUser({
               currentLevelId: levelId,
               currentSectionId: sectionId,
               lives: newLives,
+              lastLifeRegenTime: newLastLifeRegenTime,
             })
           );
+          
+          console.log(`✅ Level completed! Lives increased to ${newLives}/5`);
         }
 
         await databases.updateDocument(
