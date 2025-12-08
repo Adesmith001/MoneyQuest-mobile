@@ -46,6 +46,10 @@ class GoogleAuthService {
         failureUrl
       );
 
+      if (!oauthUrl) {
+        throw new Error('Failed to generate OAuth URL');
+      }
+
       console.log('Opening WebBrowser with URL:', oauthUrl);
 
       // 2. Open the browser
@@ -200,7 +204,7 @@ class GoogleAuthService {
       correctAnswers: userDoc.correctAnswers || 0,
       monthlyXP: userDoc.monthlyXP || 0,
       totalXP: userDoc.totalXP || 0,
-      lives: userDoc.lives !== undefined ? userDoc.lives : 5,
+      lives: userDoc.lives !== undefined && userDoc.lives !== null ? userDoc.lives : 5,
       lastLifeRegenTime: userDoc.lastLifeRegenTime || new Date().toISOString(),
       currentLevelId: userDoc.currentLevelId,
       currentSectionId: userDoc.currentSectionId,

@@ -19,12 +19,12 @@ class LivesService {
     currentLives: number,
     lastRegenTime: string
   ): { lives: number; lastLifeRegenTime: string } {
-    // Validate inputs
-    if (typeof currentLives !== 'number' || isNaN(currentLives)) {
+    // Validate inputs - only default to 5 if undefined/null, NOT if 0
+    if (currentLives === null || currentLives === undefined || typeof currentLives !== 'number' || isNaN(currentLives)) {
       currentLives = 5;
     }
 
-    // Ensure currentLives is within valid range
+    // Ensure currentLives is within valid range (0 is valid!)
     currentLives = Math.max(0, Math.min(currentLives, MAX_LIVES));
 
     // If already at max lives, no need to calculate

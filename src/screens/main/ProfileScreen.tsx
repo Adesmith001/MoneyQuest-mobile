@@ -46,7 +46,7 @@ const ProfileScreen: React.FC<Props> = ({ navigation }) => {
         try {
           const { lives, lastLifeRegenTime } = await livesService.refreshLives(
             user.$id,
-            user.lives || 5,
+            user.lives !== undefined && user.lives !== null ? user.lives : 5,
             user.lastLifeRegenTime || new Date().toISOString()
           );
           
@@ -93,7 +93,7 @@ const ProfileScreen: React.FC<Props> = ({ navigation }) => {
     const updateLivesTimer = () => {
       try {
         // Use lives directly from user object (Appwrite)
-        const currentLivesValue = typeof user.lives === 'number' ? user.lives : 5;
+        const currentLivesValue = user.lives !== undefined && user.lives !== null ? user.lives : 5;
         const regenTime = user.lastLifeRegenTime || new Date().toISOString();
 
         const timeRemaining = livesService.getTimeUntilNextLife(
@@ -132,7 +132,7 @@ const ProfileScreen: React.FC<Props> = ({ navigation }) => {
     currentStreak: currentStreak,
     totalStreak: totalStreak,
     daysThisMonth: daysThisMonth,
-    lives: user?.lives || 5,
+    lives: user?.lives !== undefined && user?.lives !== null ? user.lives : 5,
     maxLives: livesService.getMaxLives(),
   };
 

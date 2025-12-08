@@ -43,7 +43,7 @@ function AppContent() {
       try {
         await livesService.refreshLives(
           user.$id,
-          user.lives || 5,
+          user.lives !== undefined && user.lives !== null ? user.lives : 5,
           user.lastLifeRegenTime || new Date().toISOString()
         );
       } catch (error) {

@@ -1,6 +1,6 @@
 import React from "react";
 import { createBottomTabNavigator } from "@react-navigation/bottom-tabs";
-import { View, StyleSheet, Platform } from "react-native";
+import { View, StyleSheet, Platform, Image } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 // Tab Screens
@@ -33,12 +33,14 @@ const MainTabNavigator: React.FC = () => {
         name="Home"
         component={HomeScreen}
         options={{
-          tabBarIcon: ({ color, size, focused }) => (
-            <Ionicons
-              name={focused ? "home" : "home-outline"}
-              size={size}
-              color={color}
-            />
+          tabBarIcon: ({ focused }) => (
+            <View style={[styles.iconContainer, focused && styles.focusedIconContainer]}>
+              <Image
+                source={require("../../assets/homeIcon.png")}
+                style={styles.tabIcon}
+                resizeMode="contain"
+              />
+            </View>
           ),
         }}
       />
@@ -55,12 +57,14 @@ const MainTabNavigator: React.FC = () => {
         name="Streak"
         component={DailyStreakScreen}
         options={{
-          tabBarIcon: ({ color, size, focused }) => (
-            <Ionicons
-              name={focused ? "flame" : "flame-outline"}
-              size={size}
-              color={color}
-            />
+          tabBarIcon: ({ focused }) => (
+            <View style={[styles.iconContainer, focused && styles.focusedIconContainer]}>
+              <Image
+                source={require("../../assets/streakIcon.png")}
+                style={styles.tabIcon}
+                resizeMode="contain"
+              />
+            </View>
           ),
         }}
       />
@@ -83,10 +87,21 @@ const styles = StyleSheet.create({
     paddingTop: 10,
     height: 70,
   },
+  iconContainer: {
+    width: 50,
+    height: 50,
+    borderRadius: 10,
+    justifyContent: "center",
+    alignItems: "center",
+  },
   focusedIconContainer: {
-    backgroundColor: "rgba(255, 107, 53, 0.1)",
-    borderRadius: 16,
-    padding: 12,
+    backgroundColor: "#DDF4FF",
+    borderWidth: 2,
+    borderColor: "#FF5C02",
+  },
+  tabIcon: {
+    width: 32,
+    height: 32,
   },
 });
 

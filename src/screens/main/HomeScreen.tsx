@@ -71,7 +71,7 @@ const HomeScreen: React.FC<Props> = ({ navigation }) => {
             try {
               const { lives, lastLifeRegenTime } = await livesService.refreshLives(
                 user.$id,
-                user.lives || 5,
+                user.lives !== undefined && user.lives !== null ? user.lives : 5,
                 user.lastLifeRegenTime || new Date().toISOString()
               );
               
@@ -287,6 +287,30 @@ const HomeScreen: React.FC<Props> = ({ navigation }) => {
 
     const handleNodePress = async () => {
       if (node.isUnlocked || node.isCurrent) {
+        // Check if user has lives before allowing them to start a level
+        if (user) {
+          const { lives } = livesService.calculateCurrentLives(
+            user.lives !== undefined && user.lives !== null ? user.lives : 5,
+            user.lastLifeRegenTime || new Date().toISOString()
+          );
+
+          if (lives === 0) {
+            // Calculate time until next life
+            const timeRemaining = livesService.getTimeUntilNextLife(
+              0,
+              user.lastLifeRegenTime || new Date().toISOString()
+            );
+            const timeFormatted = livesService.formatTimeRemaining(timeRemaining);
+
+            Alert.alert(
+              'No Lives Available',
+              `You have 0 lives remaining. Your next life will regenerate in ${timeFormatted}.`,
+              [{ text: 'OK', style: 'default' }]
+            );
+            return; // Don't navigate
+          }
+        }
+
         // Update user's current progress in Appwrite
         try {
           if (user?.$id) {

@@ -177,51 +177,63 @@ class QuestionService {
       console.log('Number of pairs received:', response?.questions?.length);
       
       if (response && response.questions && response.questions.length > 0) {
-        // Aggregate pairs into a single matching question
-        const pairs = response.questions;
+        const allPairs = response.questions;
+        const matchingQuestions: MatchingQuestion[] = [];
         
-        console.log('Creating matching question with', pairs.length, 'pairs');
+        console.log('Total pairs received:', allPairs.length);
         
-        // Create left items with sequential IDs
-        const leftItems = pairs.map((p: any, idx: number) => ({
-          id: `left_${p.pair_id || idx + 1}`,
-          text: p.column_a
-        }));
+        // Split pairs into chunks of maximum 5
+        const MAX_PAIRS_PER_QUESTION = 5;
+        const numQuestions = Math.ceil(allPairs.length / MAX_PAIRS_PER_QUESTION);
         
-        // Create right items with their original pair IDs (before shuffling)
-        const rightItemsWithPairIds = pairs.map((p: any, idx: number) => ({
-          id: `right_${p.pair_id || idx + 1}`,
-          text: p.column_b,
-          originalPairId: p.pair_id || idx + 1 // Keep track of original pair
-        }));
+        for (let i = 0; i < numQuestions; i++) {
+          const startIdx = i * MAX_PAIRS_PER_QUESTION;
+          const endIdx = Math.min(startIdx + MAX_PAIRS_PER_QUESTION, allPairs.length);
+          const pairs = allPairs.slice(startIdx, endIdx);
+          
+          console.log(`Creating matching question ${i + 1} with ${pairs.length} pairs`);
+          
+          // Create left items with sequential IDs
+          const leftItems = pairs.map((p: any, idx: number) => ({
+            id: `left_${p.pair_id || idx + 1}`,
+            text: p.column_a
+          }));
+          
+          // Create right items with their original pair IDs (before shuffling)
+          const rightItemsWithPairIds = pairs.map((p: any, idx: number) => ({
+            id: `right_${p.pair_id || idx + 1}`,
+            text: p.column_b,
+            originalPairId: p.pair_id || idx + 1 // Keep track of original pair
+          }));
+          
+          // Shuffle right items for display (this randomizes the order)
+          const shuffledRightItems = randomize ? this.shuffleArray(rightItemsWithPairIds) : rightItemsWithPairIds;
+          
+          // Create correct matches mapping based on pair_id
+          const correctMatches: { [key: string]: string } = {};
+          pairs.forEach((p: any, idx: number) => {
+            const pairId = p.pair_id || idx + 1;
+            correctMatches[`left_${pairId}`] = `right_${pairId}`;
+          });
+          
+          // Remove the originalPairId from the final right items (not needed in UI)
+          const finalRightItems = shuffledRightItems.map(({ id, text }: { id: string; text: string; originalPairId: number }) => ({ id, text }));
+          
+          matchingQuestions.push({
+            question_type: 'matching',
+            question: pairs.length > 1 
+              ? 'Match the items in the left column with their correct descriptions in the right column'
+              : 'Match the item with its correct description',
+            left_items: leftItems,
+            right_items: finalRightItems,
+            correct_matches: correctMatches,
+            explanation: 'Match each concept with its correct definition or example.',
+            difficulty: 'medium',
+          } as MatchingQuestion);
+        }
         
-        // Shuffle right items for display (this randomizes the order)
-        const shuffledRightItems = randomize ? this.shuffleArray(rightItemsWithPairIds) : rightItemsWithPairIds;
-        
-        // Create correct matches mapping based on pair_id
-        // Each left item should match with the right item that has the same pair_id
-        const correctMatches: { [key: string]: string } = {};
-        pairs.forEach((p: any, idx: number) => {
-          const pairId = p.pair_id || idx + 1;
-          correctMatches[`left_${pairId}`] = `right_${pairId}`;
-        });
-        
-        // Remove the originalPairId from the final right items (not needed in UI)
-        const finalRightItems = shuffledRightItems.map(({ id, text }: { id: string; text: string; originalPairId: number }) => ({ id, text }));
-        
-        console.log('Left items:', leftItems.length);
-        console.log('Right items:', finalRightItems.length);
-        console.log('Correct matches:', Object.keys(correctMatches).length);
-        
-        return [{
-          question_type: 'matching',
-          question: 'Match the items in the left column with their correct descriptions in the right column',
-          left_items: leftItems,
-          right_items: finalRightItems,
-          correct_matches: correctMatches,
-          explanation: 'Match each concept with its correct definition or example.',
-          difficulty: 'medium',
-        }] as MatchingQuestion[];
+        console.log(`Split into ${matchingQuestions.length} matching questions`);
+        return matchingQuestions;
       }
       return [];
     } catch (error) {
@@ -419,14 +431,14 @@ class QuestionService {
       const newMonthlyXP = (user.monthlyXP || 0) + xpEarned;
       const newTotalXP = (user.totalXP || 0) + xpEarned;
 
-      let livesRemaining = user.lives || 5;
+      let livesRemaining = user.lives !== undefined && user.lives !== null ? user.lives : 5;
       let canContinue = true;
 
       // Deduct a life if answer is incorrect
       if (!isCorrect) {
         const livesResult = await livesService.deductLife(
           userId,
-          user.lives || 5,
+          user.lives !== undefined && user.lives !== null ? user.lives : 5,
           user.lastLifeRegenTime || new Date().toISOString()
         );
         livesRemaining = livesResult.lives;

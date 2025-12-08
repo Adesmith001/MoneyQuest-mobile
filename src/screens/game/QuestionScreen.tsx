@@ -104,7 +104,7 @@ const QuestionScreen: React.FC<Props> = ({ navigation, route }) => {
         try {
           const { lives, lastLifeRegenTime } = await livesService.refreshLives(
             user.$id,
-            user.lives || 5,
+            user.lives !== undefined && user.lives !== null ? user.lives : 5,
             user.lastLifeRegenTime || new Date().toISOString()
           );
           
@@ -439,7 +439,7 @@ const QuestionScreen: React.FC<Props> = ({ navigation, route }) => {
         const { lives, lastLifeRegenTime, canContinue } =
           await livesService.deductLife(
             user.$id,
-            user.lives || 5,
+            user.lives !== undefined && user.lives !== null ? user.lives : 5,
             user.lastLifeRegenTime || new Date().toISOString()
           );
 
@@ -612,7 +612,7 @@ const QuestionScreen: React.FC<Props> = ({ navigation, route }) => {
           updateData.currentSectionId = sectionId; // Keep same section or update if needed
 
           // Add 1 life on level completion (cap at 5)
-          const currentLivesValue = user.lives || 5;
+          const currentLivesValue = user.lives !== undefined && user.lives !== null ? user.lives : 5;
           const newLives = Math.min(currentLivesValue + 1, 5);
           const newLastLifeRegenTime = new Date().toISOString(); // Reset regeneration time
           
@@ -639,7 +639,7 @@ const QuestionScreen: React.FC<Props> = ({ navigation, route }) => {
           updateData.currentSectionId = sectionId;
 
           // Add 1 life on level completion (cap at 5)
-          const currentLivesValue = user.lives || 5;
+          const currentLivesValue = user.lives !== undefined && user.lives !== null ? user.lives : 5;
           const newLives = Math.min(currentLivesValue + 1, 5);
           const newLastLifeRegenTime = new Date().toISOString();
           
@@ -691,7 +691,9 @@ const QuestionScreen: React.FC<Props> = ({ navigation, route }) => {
   if (isLoading || !levelData) {
     return (
       <SafeAreaView style={styles.container}>
-        <ActivityIndicator size="large" color={COLORS.primary} />
+        <View style={styles.loadingContainer}>
+          <ActivityIndicator size="large" color={COLORS.primary} />
+        </View>
       </SafeAreaView>
     );
   }
@@ -1002,6 +1004,11 @@ const styles = StyleSheet.create({
   container: {
     flex: 1,
     backgroundColor: COLORS.background,
+  },
+  loadingContainer: {
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
   },
   header: {
     flexDirection: "row",

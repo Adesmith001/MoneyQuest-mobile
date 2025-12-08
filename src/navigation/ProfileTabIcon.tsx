@@ -1,5 +1,5 @@
 import React from 'react';
-import { Image, StyleSheet } from 'react-native';
+import { Image, StyleSheet, View } from 'react-native';
 import { useSelector } from 'react-redux';
 import { RootState } from '../store';
 import { getAvatarById } from '../utils/avatarUtils';
@@ -13,24 +13,34 @@ const ProfileTabIcon: React.FC<Props> = ({ focused }) => {
   const avatarSource = getAvatarById(user?.avatar);
 
   return (
-    <Image
-      source={avatarSource}
-      style={[styles.icon, focused && styles.focused]}
-    />
+    <View style={[styles.container, focused && styles.focusedContainer]}>
+      <Image
+        source={avatarSource}
+        style={styles.icon}
+        resizeMode="cover"
+      />
+    </View>
   );
 };
 
 const styles = StyleSheet.create({
-  icon: {
-    width: 28,
-    height: 28,
-    borderRadius: 14,
-    borderWidth: 1,
-    borderColor: 'transparent',
+  container: {
+    width: 50,
+    height: 50,
+    borderRadius: 10,
+    justifyContent: 'center',
+    alignItems: 'center',
+    overflow: 'hidden',
   },
-  focused: {
-    borderColor: '#FF5722', // Use your app's primary color
+  focusedContainer: {
+    backgroundColor: "#DDF4FF",
     borderWidth: 2,
+    borderColor: "#FF5C02",
+  },
+  icon: {
+    width: 32,
+    height: 32,
+    borderRadius: 16,
   },
 });
 

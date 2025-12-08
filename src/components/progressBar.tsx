@@ -22,7 +22,7 @@ const ProgressBar: React.FC<ProgressBarProps> = ({
   useEffect(() => {
     if (user) {
       const { lives } = livesService.calculateCurrentLives(
-        user.lives || 5,
+        user.lives !== undefined && user.lives !== null ? user.lives : 5,
         user.lastLifeRegenTime || new Date().toISOString()
       );
       setDisplayLives(lives);
@@ -52,7 +52,7 @@ const styles = StyleSheet.create({
     flexDirection: "row",
     justifyContent: "center",
     alignItems: "center",
-    width: "83%",
+    width: "95%",
   },
   closeButton: {
     padding: SPACING.sm,
