@@ -380,7 +380,10 @@ const HomeScreen: React.FC<Props> = ({ navigation }) => {
               ) : node.isCompleted ? (
                 <Text style={styles.completedNodeIcon}>✓</Text>
               ) : node.isUnlocked ? (
-                <Text style={styles.nodeIcon}>🔓</Text>
+                <Image
+                  source={require("../../../assets/starIcon.png")}
+                  style={styles.starIcon}
+                />
               ) : (
                 <Image
                   source={require("../../../assets/lockIcon.png")}

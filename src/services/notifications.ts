@@ -31,13 +31,42 @@ class NotificationService {
         return false;
       }
 
-      // For Android, create a notification channel
+      // For Android, create notification channels
       if (Platform.OS === 'android') {
+        // Default channel
         await Notifications.setNotificationChannelAsync('default', {
-          name: 'default',
+          name: 'Default Notifications',
           importance: Notifications.AndroidImportance.MAX,
           vibrationPattern: [0, 250, 250, 250],
           lightColor: '#FF6B35',
+          sound: 'default',
+          enableLights: true,
+          enableVibrate: true,
+          showBadge: true,
+        });
+
+        // Learning reminders channel
+        await Notifications.setNotificationChannelAsync('learning-reminders', {
+          name: 'Learning Reminders',
+          importance: Notifications.AndroidImportance.HIGH,
+          vibrationPattern: [0, 250, 250, 250],
+          lightColor: '#FF6B35',
+          sound: 'default',
+          enableLights: true,
+          enableVibrate: true,
+          showBadge: true,
+        });
+
+        // Lives notifications channel
+        await Notifications.setNotificationChannelAsync('lives-notifications', {
+          name: 'Lives Notifications',
+          importance: Notifications.AndroidImportance.DEFAULT,
+          vibrationPattern: [0, 250, 250, 250],
+          lightColor: '#FF6B35',
+          sound: 'default',
+          enableLights: true,
+          enableVibrate: true,
+          showBadge: true,
         });
       }
 
@@ -100,6 +129,9 @@ class NotificationService {
             body: peak.body,
             sound: true,
             priority: Notifications.AndroidNotificationPriority.HIGH,
+            ...(Platform.OS === 'android' && {
+              channelId: 'learning-reminders',
+            }),
           },
           trigger: {
             type: Notifications.SchedulableTriggerInputTypes.CALENDAR,
@@ -133,6 +165,9 @@ class NotificationService {
           title: "Lives Restored! ❤️",
           body: "Your lives are full! Time to continue your learning journey.",
           sound: true,
+          ...(Platform.OS === 'android' && {
+            channelId: 'lives-notifications',
+          }),
         },
         trigger: {
           type: Notifications.SchedulableTriggerInputTypes.TIME_INTERVAL,

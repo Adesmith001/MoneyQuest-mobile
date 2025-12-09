@@ -118,8 +118,8 @@ class BackendApiService {
    * Get level description and title only (lightweight)
    * @param levelId - UUID of the level
    */
-  async getLevelDescription(levelId: string): Promise<{ level_id: string; title: string; description: string }> {
-    return await this.fetchApi<{ level_id: string; title: string; description: string }>(
+  async getLevelDescription(levelId: string): Promise<{ level_id: string; title: string; description: string; level_summary?: string }> {
+    return await this.fetchApi<{ level_id: string; title: string; description: string; level_summary?: string }>(
       `/levels/${levelId}/description`
     );
   }

@@ -183,7 +183,10 @@ const ProfileScreen: React.FC<Props> = ({ navigation }) => {
               <View style={styles.statCard}>
                 <View style={styles.statRow}>
                   <View style={styles.statTopRow}>
-                    <Text style={styles.statIcon}>💎</Text>
+                    <Image
+                      source={require("../../../assets/xp-icon.png")}
+                      style={styles.statIconImage}
+                    />
                   </View>
                   <View style={styles.statBottomRow}>
                     <Text style={styles.statValue}>
@@ -345,6 +348,12 @@ const styles = StyleSheet.create({
   statIcon: {
     fontSize: 20,
     marginRight: 8,
+  },
+  statIconImage: {
+    width: 24,
+    height: 24,
+    marginRight: 8,
+    resizeMode: "contain",
   },
   statValue: {
     fontSize: 16,

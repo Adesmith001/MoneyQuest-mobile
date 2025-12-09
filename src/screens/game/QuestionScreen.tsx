@@ -128,9 +128,17 @@ const QuestionScreen: React.FC<Props> = ({ navigation, route }) => {
       try {
         setIsLoading(true);
 
-        // Get level details
+        // Get level description (includes level_summary for article view)
+        const levelDescription = await backendApi.getLevelDescription(levelId);
+        
+        // Get full level details
         const levelDetails = await backendApi.getLevelDetails(levelId);
-        setLevelData(levelDetails);
+        
+        // Merge description data into levelDetails
+        setLevelData({
+          ...levelDetails,
+          level_summary: levelDescription.level_summary || levelDescription.description,
+        });
 
         // Get questions for this level
         const levelQuestions = await questionService.getQuestionsForLevel(
@@ -311,7 +319,7 @@ const QuestionScreen: React.FC<Props> = ({ navigation, route }) => {
 
     try {
       setIsPlayingArticle(true);
-      const articleText = levelData.content || levelData.description || '';
+      const articleText = levelData.level_summary || levelData.level?.description || levelData.description || '';
       await audioService.readQuestion(articleText);
       setIsPlayingArticle(false);
     } catch (error) {
@@ -606,10 +614,46 @@ const QuestionScreen: React.FC<Props> = ({ navigation, route }) => {
         await cacheService.addCompletedLevel(levelId);
         console.log('✅ Saved to cache:', levelId);
 
+        // Determine next level: check if this was the last level in the section
+        let nextLevelToUnlock = result.next_level_id;
+        let nextSectionId = sectionId;
+
+        if (result.passed && !result.next_level_id) {
+          // No next level returned means we're at the end of the current section
+          console.log('🎉 Section completed! Finding next section...');
+          
+          try {
+            // Get all sections
+            const allSections = await backendApi.getSections();
+            const currentSectionIndex = allSections.findIndex(s => s.section_id === sectionId);
+            
+            if (currentSectionIndex !== -1 && currentSectionIndex < allSections.length - 1) {
+              // There is a next section
+              const nextSection = allSections[currentSectionIndex + 1];
+              console.log('📚 Next section found:', nextSection.title);
+              
+              // Get the first level of the next section
+              if (nextSection.section_id) {
+                const nextSectionLevels = await backendApi.getSectionLevels(nextSection.section_id);
+                
+                if (nextSectionLevels.length > 0) {
+                  nextLevelToUnlock = nextSectionLevels[0].level_id;
+                  nextSectionId = nextSection.section_id;
+                  console.log('🔓 Unlocking first level of next section:', nextSectionLevels[0].title);
+                }
+              }
+            } else {
+              console.log('🎓 All sections completed!');
+            }
+          } catch (error) {
+            console.error('Failed to find next section:', error);
+          }
+        }
+
         // Update current level if passed and there's a next level
-        if (result.passed && result.next_level_id) {
-          updateData.currentLevelId = result.next_level_id;
-          updateData.currentSectionId = sectionId; // Keep same section or update if needed
+        if (result.passed && nextLevelToUnlock) {
+          updateData.currentLevelId = nextLevelToUnlock;
+          updateData.currentSectionId = nextSectionId;
 
           // Add 1 life on level completion (cap at 5)
           const currentLivesValue = user.lives !== undefined && user.lives !== null ? user.lives : 5;
@@ -624,16 +668,17 @@ const QuestionScreen: React.FC<Props> = ({ navigation, route }) => {
           // Update Redux store with new currentLevelId and lives
           dispatch(
             updateUser({
-              currentLevelId: result.next_level_id,
-              currentSectionId: sectionId,
+              currentLevelId: nextLevelToUnlock,
+              currentSectionId: nextSectionId,
               lives: newLives,
               lastLifeRegenTime: newLastLifeRegenTime,
             })
           );
           
           console.log(`✅ Level completed! Lives increased to ${newLives}/5`);
-        } else if (result.passed && !result.next_level_id) {
-          // Level completed but no next level (end of section/course)
+          console.log(`✅ Next level unlocked: ${nextLevelToUnlock} in section: ${nextSectionId}`);
+        } else if (result.passed && !nextLevelToUnlock) {
+          // Level completed but no next level (end of all sections/course)
           // Keep current level ID so progress is maintained
           updateData.currentLevelId = levelId;
           updateData.currentSectionId = sectionId;
@@ -658,6 +703,7 @@ const QuestionScreen: React.FC<Props> = ({ navigation, route }) => {
           );
           
           console.log(`✅ Level completed! Lives increased to ${newLives}/5`);
+          console.log('🎓 All content completed!');
         }
 
         await databases.updateDocument(
@@ -675,7 +721,7 @@ const QuestionScreen: React.FC<Props> = ({ navigation, route }) => {
           xpGained: xpGained,
           accuracy,
           passed: result.passed,
-          nextLevelId: result.next_level_id,
+          nextLevelId: nextLevelToUnlock,
         });
       } catch (error) {
         console.error("Error submitting level:", error);
@@ -730,7 +776,8 @@ const QuestionScreen: React.FC<Props> = ({ navigation, route }) => {
 
           {/* Display content or description */}
           <Text style={styles.articleContent}>
-            {levelData.content ||
+            {levelData.level_summary ||
+              levelData.level?.description ||
               levelData.description ||
               "No content available for this level."}
           </Text>

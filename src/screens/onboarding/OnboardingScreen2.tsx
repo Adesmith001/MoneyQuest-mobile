@@ -80,7 +80,7 @@ const styles = StyleSheet.create({
     resizeMode: "contain",
   },
   welcomeText: {
-    fontSize: 20,
+    fontSize: 25,
     color: "#000000",
     textAlign: "center",
     lineHeight: 28,
