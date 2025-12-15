@@ -483,29 +483,31 @@ const HomeScreen: React.FC<Props> = ({ navigation }) => {
           </Text>
         </View>
 
+        {/* Fixed Section Header */}
+        <View style={styles.sectionHeaderContainer}>
+          <View style={styles.sectionHeader}>
+            <View style={styles.sectionHeaderContent}>
+              <Text style={styles.sectionTitle}>
+                {section.title}
+              </Text>
+              <Text style={styles.sectionSubtitle}>
+                {section.levels.length} {section.levels.length === 1 ? 'Level' : 'Levels'}
+              </Text>
+            </View>
+            <View style={styles.bookIcon}>
+              <Image
+                source={require("../../../assets/bookIcon.png")}
+                style={styles.bookIconImage}
+              />
+            </View>
+          </View>
+        </View>
+
+        {/* Scrollable Levels */}
         <ScrollView
           style={styles.sectionScrollView}
           showsVerticalScrollIndicator={false}
         >
-          <View style={styles.sectionHeaderContainer}>
-            <View style={styles.sectionHeader}>
-              <View style={styles.sectionHeaderContent}>
-                <Text style={styles.sectionTitle}>
-                  {section.title}
-                </Text>
-                <Text style={styles.sectionSubtitle}>
-                  {section.levels.length} {section.levels.length === 1 ? 'Level' : 'Levels'}
-                </Text>
-              </View>
-              <View style={styles.bookIcon}>
-                <Image
-                  source={require("../../../assets/bookIcon.png")}
-                  style={styles.bookIconImage}
-                />
-              </View>
-            </View>
-          </View>
-
           <View style={styles.levelsContainer}>
             {section.levels
               .slice()
@@ -603,6 +605,7 @@ const styles = StyleSheet.create({
   },
   sectionScrollView: {
     flex: 1,
+    marginTop: 0,
   },
   cloudsContainer: {
     position: "absolute",
@@ -619,6 +622,7 @@ const styles = StyleSheet.create({
     paddingHorizontal: 20,
     marginTop: 30,
     marginBottom: 20,
+    paddingTop: 10,
   },
   sectionHeader: {
     backgroundColor: "#FF5722", // Orange
