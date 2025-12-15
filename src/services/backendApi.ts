@@ -15,6 +15,7 @@ import {
   BackendTTSStreamRequest,
   BackendTTSJsonResponse,
   BackendSectionList,
+  RecapSectionResponse,
 } from '../types';
 
 class BackendApiService {
@@ -449,6 +450,27 @@ class BackendApiService {
     const audio = new Audio(`data:audio/${format};base64,${base64Audio}`);
     audio.play();
     return audio;
+  }
+
+  /**
+   * Get or create recap section (every 10th section: 10, 20, 30, etc.)
+   * Aggregates questions from previous 9 sections
+   * @param sectionNumber - The recap section number (must be divisible by 10)
+   * @param limitPerSection - Maximum number of questions per question type per section (default: 10)
+   * @param randomize - Whether to randomize question order (default: true)
+   */
+  async getRecapSection(
+    sectionNumber: number,
+    limitPerSection: number = 10,
+    randomize: boolean = true
+  ): Promise<RecapSectionResponse> {
+    const params = new URLSearchParams();
+    params.append('limit_per_section', limitPerSection.toString());
+    params.append('randomize', randomize.toString());
+
+    return await this.fetchApi<RecapSectionResponse>(
+      `/sections/recap/${sectionNumber}?${params.toString()}`
+    );
   }
 }
 

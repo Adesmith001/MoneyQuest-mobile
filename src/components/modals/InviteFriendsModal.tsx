@@ -138,13 +138,12 @@ const styles = StyleSheet.create({
   },
   foxImage: {
     width: Math.max(screenWidth * 0.28, 100), // Responsive width (28% of screen, min 100)
-    height: Math.max(screenHeight * 0.18, 140), // Responsive height
-    resizeMode: 'contain',
+    height: Math.max(screenHeight * 0.20, 140), // Responsive height
   },
   speechBubble: {
     position: 'absolute',
-    top: Math.max(screenHeight * 0.055, 35), // Position near fox's mouth (responsive)
-    right: Math.max(-screenWidth * 0.28, -110), // Position to the right of fox
+    top: Math.max(screenHeight * 0.045, 0), // Position near fox's mouth (responsive)
+    right: Math.max(-screenWidth * 0.28, 2), // Position to the right of fox
     backgroundColor: '#FF6B35',
     borderRadius: 16,
     paddingHorizontal: Math.max(screenWidth * 0.04, 16),
@@ -154,7 +153,7 @@ const styles = StyleSheet.create({
     shadowOpacity: 0.1,
     shadowRadius: 4,
     elevation: 3,
-    maxWidth: screenWidth * 0.4, // Max width to prevent overflow on small screens
+    maxWidth: screenWidth * 0.8, // Max width to prevent overflow on small screens
   },
   speechBubbleText: {
     color: 'white',

@@ -86,10 +86,11 @@ const QuestionScreen: React.FC<Props> = ({ navigation, route }) => {
   const [correctAnswersCount, setCorrectAnswersCount] = useState(0);
   const [xpGained, setXpGained] = useState(0);
   const [startTime, setStartTime] = useState<number>(Date.now());
-  const [isPlayingAudio, setIsPlayingAudio] = useState(false);
-  const [isPlayingExplanation, setIsPlayingExplanation] = useState(false);
-  const [isPlayingLevelInfo, setIsPlayingLevelInfo] = useState(false);
-  const [isPlayingArticle, setIsPlayingArticle] = useState(false);
+  // 🔇 AUDIO FEATURE - COMMENTED OUT FOR COST REDUCTION
+  // const [isPlayingAudio, setIsPlayingAudio] = useState(false);
+  // const [isPlayingExplanation, setIsPlayingExplanation] = useState(false);
+  // const [isPlayingLevelInfo, setIsPlayingLevelInfo] = useState(false);
+  // const [isPlayingArticle, setIsPlayingArticle] = useState(false);
   const [matchingResults, setMatchingResults] = useState<{
     correct: string[];
     incorrect: string[];
@@ -128,25 +129,132 @@ const QuestionScreen: React.FC<Props> = ({ navigation, route }) => {
       try {
         setIsLoading(true);
 
-        // Get level description (includes level_summary for article view)
-        const levelDescription = await backendApi.getLevelDescription(levelId);
+        // Check if this is a recap level (format: recap_10_source_1)
+        const isRecapLevel = levelId.startsWith('recap_');
         
-        // Get full level details
-        const levelDetails = await backendApi.getLevelDetails(levelId);
-        
-        // Merge description data into levelDetails
-        setLevelData({
-          ...levelDetails,
-          level_summary: levelDescription.level_summary || levelDescription.description,
-        });
+        if (isRecapLevel) {
+          // Extract recap section number from levelId (e.g., "recap_10_source_1" -> 10)
+          const recapMatch = levelId.match(/^recap_(\d+)_source_(\d+)$/);
+          if (!recapMatch) {
+            throw new Error('Invalid recap level ID format');
+          }
+          
+          const recapSectionNumber = parseInt(recapMatch[1], 10);
+          const sourceSectionNumber = parseInt(recapMatch[2], 10);
+          
+          // Fetch the recap section data
+          const recapData = await backendApi.getRecapSection(recapSectionNumber, 10, true);
+          
+          // Find the specific source section we're reviewing
+          const sourceSection = recapData.source_sections.find(
+            s => s.section_number === sourceSectionNumber
+          );
+          
+          if (!sourceSection) {
+            throw new Error(`Source section ${sourceSectionNumber} not found in recap data`);
+          }
+          
+          // Set level data for recap
+          setLevelData({
+            level: {
+              level_id: levelId,
+              title: `Review: ${sourceSection.section_title}`,
+              description: `Comprehensive review of ${sourceSection.section_title}. Test your knowledge across all question types.`,
+              has_quiz: true,
+              min_score_to_pass: 70,
+            },
+            section: {
+              section_id: recapData.recap_section_id,
+              title: recapData.recap_section_title,
+            },
+            level_summary: `This recap level reviews material from ${sourceSection.section_title}. You'll answer ${sourceSection.question_count} questions covering all the key concepts.`,
+          });
+          
+          // Aggregate all questions from this source section
+          const allQuestions: AnyQuestion[] = [];
+          
+          // Add quiz questions
+          sourceSection.questions_by_type.quiz.forEach(q => {
+            allQuestions.push({
+              question: q.question_text || '',
+              options: {
+                A: q.option_a || '',
+                B: q.option_b || '',
+                C: q.option_c || '',
+                D: q.option_d || '',
+              },
+              correct_answer: q.correct_answer || 'A',
+              explanations: {
+                A: q.explanation_a || '',
+                B: q.explanation_b || '',
+                C: q.explanation_c || '',
+                D: q.explanation_d || '',
+              },
+              difficulty: q.difficulty || 'medium',
+              question_type: 'mcq',
+            });
+          });
+          
+          // Add scenario questions
+          sourceSection.questions_by_type.scenario.forEach(q => {
+            allQuestions.push({
+              question: q.question_text || '',
+              options: {
+                A: q.option_a || '',
+                B: q.option_b || '',
+                C: q.option_c || '',
+                D: q.option_d || '',
+              },
+              correct_answer: q.correct_answer || 'A',
+              explanations: {
+                A: q.explanation_a || '',
+                B: q.explanation_b || '',
+                C: q.explanation_c || '',
+                D: q.explanation_d || '',
+              },
+              difficulty: q.difficulty || 'medium',
+              question_type: 'scenario',
+              scenario_context: q.scenario || '',
+            });
+          });
+          
+          // Add matching questions
+          sourceSection.questions_by_type.matching.forEach(q => {
+            allQuestions.push({
+              question_type: 'matching',
+              question: `Match the following: ${q.column_a}`,
+              left_items: [{ id: q.pair_id?.toString() || '1', text: q.column_a || '' }],
+              right_items: [{ id: q.pair_id?.toString() || '1', text: q.column_b || '' }],
+              correct_matches: { [q.pair_id?.toString() || '1']: q.pair_id?.toString() || '1' },
+              explanation: `${q.column_a} matches with ${q.column_b}`,
+              difficulty: 'medium',
+            });
+          });
+          
+          console.log(`✅ Loaded ${allQuestions.length} recap questions from ${sourceSection.section_title}`);
+          setQuestions(allQuestions);
+        } else {
+          // Regular level - existing logic
+          // Get level description (includes level_summary for article view)
+          const levelDescription = await backendApi.getLevelDescription(levelId);
+          
+          // Get full level details
+          const levelDetails = await backendApi.getLevelDetails(levelId);
+          
+          // Merge description data into levelDetails
+          setLevelData({
+            ...levelDetails,
+            level_summary: levelDescription.level_summary || levelDescription.description,
+          });
 
-        // Get questions for this level
-        const levelQuestions = await questionService.getQuestionsForLevel(
-          levelId,
-          10,
-          "mixed"
-        );
-        setQuestions(levelQuestions);
+          // Get questions for this level
+          const levelQuestions = await questionService.getQuestionsForLevel(
+            levelId,
+            10,
+            "mixed"
+          );
+          setQuestions(levelQuestions);
+        }
 
         // Check if user has saved progress for this level
         if (user?.$id) {
@@ -254,80 +362,84 @@ const QuestionScreen: React.FC<Props> = ({ navigation, route }) => {
     }
   };
 
-  const handlePlayAudio = async () => {
-    if (!questions[currentQuestionIndex] || isPlayingAudio) return;
+  // 🔇 AUDIO FEATURE - COMMENTED OUT FOR COST REDUCTION
+  // const handlePlayAudio = async () => {
+  //   if (!questions[currentQuestionIndex] || isPlayingAudio) return;
 
-    try {
-      setIsPlayingAudio(true);
-      const currentQ = questions[currentQuestionIndex];
+  //   try {
+  //     setIsPlayingAudio(true);
+  //     const currentQ = questions[currentQuestionIndex];
 
-      // If it's a Scenario question, read context + question + options
-      if (currentQ.question_type === "scenario" && "scenario_context" in currentQ) {
-        const scenarioQ = currentQ as ScenarioQuestion;
-        const fullText = `Scenario: ${scenarioQ.scenario_context}. Question: ${scenarioQ.question}`;
-        await audioService.readQuestionWithOptions(fullText, scenarioQ.options);
-      }
-      // If it's an MCQ with options, read question + options
-      else if (currentQ.question_type === "mcq" && "options" in currentQ) {
-        const mcqQ = currentQ as GeneratedQuestion;
-        await audioService.readQuestionWithOptions(mcqQ.question, mcqQ.options);
-      } else {
-        // For other question types, just read the question
-        await audioService.readQuestion(currentQ.question);
-      }
+  //     // If it's a Scenario question, read context + question + options
+  //     if (currentQ.question_type === "scenario" && "scenario_context" in currentQ) {
+  //       const scenarioQ = currentQ as ScenarioQuestion;
+  //       const fullText = `Scenario: ${scenarioQ.scenario_context}. Question: ${scenarioQ.question}`;
+  //       await audioService.readQuestionWithOptions(fullText, scenarioQ.options);
+  //     }
+  //     // If it's an MCQ with options, read question + options
+  //     else if (currentQ.question_type === "mcq" && "options" in currentQ) {
+  //       const mcqQ = currentQ as GeneratedQuestion;
+  //       await audioService.readQuestionWithOptions(mcqQ.question, mcqQ.options);
+  //     } else {
+  //       // For other question types, just read the question
+  //       await audioService.readQuestion(currentQ.question);
+  //     }
 
-      setIsPlayingAudio(false);
-    } catch (error) {
-      console.error("Failed to play audio:", error);
-      setIsPlayingAudio(false);
-      Alert.alert("Audio Error", "Failed to play audio. Please try again.");
-    }
-  };
+  //     setIsPlayingAudio(false);
+  //   } catch (error) {
+  //     console.error("Failed to play audio:", error);
+  //     setIsPlayingAudio(false);
+  //     Alert.alert("Audio Error", "Failed to play audio. Please try again.");
+  //   }
+  // };
 
-  const handlePlayExplanation = async () => {
-    if (isPlayingExplanation) return;
+  // 🔇 AUDIO FEATURE - COMMENTED OUT FOR COST REDUCTION
+  // const handlePlayExplanation = async () => {
+  //   if (isPlayingExplanation) return;
 
-    try {
-      setIsPlayingExplanation(true);
-      const explanation = getExplanation();
-      await audioService.readExplanation(explanation);
-      setIsPlayingExplanation(false);
-    } catch (error) {
-      console.error("Failed to play explanation audio:", error);
-      setIsPlayingExplanation(false);
-      Alert.alert("Audio Error", "Failed to play explanation audio.");
-    }
-  };
+  //   try {
+  //     setIsPlayingExplanation(true);
+  //     const explanation = getExplanation();
+  //     await audioService.readExplanation(explanation);
+  //     setIsPlayingExplanation(false);
+  //   } catch (error) {
+  //     console.error("Failed to play explanation audio:", error);
+  //     setIsPlayingExplanation(false);
+  //     Alert.alert("Audio Error", "Failed to play explanation audio.");
+  //   }
+  // };
 
-  const handlePlayLevelInfo = async () => {
-    if (isPlayingLevelInfo) return;
+  // 🔇 AUDIO FEATURE - COMMENTED OUT FOR COST REDUCTION
+  // const handlePlayLevelInfo = async () => {
+  //   if (isPlayingLevelInfo) return;
 
-    try {
-      setIsPlayingLevelInfo(true);
-      const levelInfoText = `${sectionTitle}. ${levelTitle}.`;
-      await audioService.readQuestion(levelInfoText);
-      setIsPlayingLevelInfo(false);
-    } catch (error) {
-      console.error("Failed to play level info audio:", error);
-      setIsPlayingLevelInfo(false);
-      Alert.alert("Audio Error", "Failed to play level info audio.");
-    }
-  };
+  //   try {
+  //     setIsPlayingLevelInfo(true);
+  //     const levelInfoText = `${sectionTitle}. ${levelTitle}.`;
+  //     await audioService.readQuestion(levelInfoText);
+  //     setIsPlayingLevelInfo(false);
+  //   } catch (error) {
+  //     console.error("Failed to play level info audio:", error);
+  //     setIsPlayingLevelInfo(false);
+  //     Alert.alert("Audio Error", "Failed to play level info audio.");
+  //   }
+  // };
 
-  const handlePlayArticle = async () => {
-    if (isPlayingArticle || !levelData) return;
+  // 🔇 AUDIO FEATURE - COMMENTED OUT FOR COST REDUCTION
+  // const handlePlayArticle = async () => {
+  //   if (isPlayingArticle || !levelData) return;
 
-    try {
-      setIsPlayingArticle(true);
-      const articleText = levelData.level_summary || levelData.level?.description || levelData.description || '';
-      await audioService.readQuestion(articleText);
-      setIsPlayingArticle(false);
-    } catch (error) {
-      console.error('Failed to play article audio:', error);
-      setIsPlayingArticle(false);
-      Alert.alert('Audio Error', 'Failed to play article audio.');
-    }
-  };
+  //   try {
+  //     setIsPlayingArticle(true);
+  //     const articleText = levelData.level_summary || levelData.level?.description || levelData.description || '';
+  //     await audioService.readQuestion(articleText);
+  //     setIsPlayingArticle(false);
+  //   } catch (error) {
+  //     console.error('Failed to play article audio:', error);
+  //     setIsPlayingArticle(false);
+  //     Alert.alert('Audio Error', 'Failed to play article audio.');
+  //   }
+  // };
 
   const handleSubmit = async () => {
     const currentQuestion = questions[currentQuestionIndex];
@@ -752,14 +864,11 @@ const QuestionScreen: React.FC<Props> = ({ navigation, route }) => {
           <TouchableOpacity onPress={() => navigation.goBack()}>
             <Text style={styles.closeButton}>✕</Text>
           </TouchableOpacity>
-          <Text style={styles.headerTitle}>{sectionTitle}</Text>
+          <Text style={styles.headerTitle}>{levelTitle}</Text>
         </View>
 
         <ScrollView contentContainerStyle={styles.articleContainer}>
-          {/* <Text style={styles.articleTitle}>{levelData.title}</Text> */}
-
-          {/* Audio Button */}
-          <TouchableOpacity
+          {/* <TouchableOpacity
             style={styles.articleAudioButton}
             onPress={handlePlayArticle}
             disabled={isPlayingArticle}
@@ -772,7 +881,7 @@ const QuestionScreen: React.FC<Props> = ({ navigation, route }) => {
             <Text style={styles.articleAudioText}>
               {isPlayingArticle ? "Playing..." : "Listen to article"}
             </Text>
-          </TouchableOpacity>
+          </TouchableOpacity> */}
 
           {/* Display content or description */}
           <Text style={styles.articleContent}>
@@ -876,8 +985,9 @@ const QuestionScreen: React.FC<Props> = ({ navigation, route }) => {
           selectedAnswer={selectedAnswer}
           onAnswerSelect={handleAnswerSelect}
           disabled={isCorrectModalVisible || isIncorrectModalVisible}
-          onPlayAudio={handlePlayAudio}
-          isPlayingAudio={isPlayingAudio}
+          // 🔇 AUDIO FEATURE - COMMENTED OUT FOR COST REDUCTION 
+          // onPlayAudio={handlePlayAudio}
+          // isPlayingAudio={isPlayingAudio}
         />
       );
     } else if (currentQuestion.question_type === "matching") {
@@ -896,8 +1006,9 @@ const QuestionScreen: React.FC<Props> = ({ navigation, route }) => {
           }}
           disabled={isCorrectModalVisible || isIncorrectModalVisible}
           showResults={isCorrectModalVisible || isIncorrectModalVisible}
-          onPlayAudio={handlePlayAudio}
-          isPlayingAudio={isPlayingAudio}
+          // 🔇 AUDIO FEATURE - COMMENTED OUT FOR COST REDUCTION 
+          // onPlayAudio={handlePlayAudio}
+          // isPlayingAudio={isPlayingAudio}
         />
       );
     } else if (currentQuestion.question_type === "fill_in_gap") {
@@ -909,8 +1020,9 @@ const QuestionScreen: React.FC<Props> = ({ navigation, route }) => {
             setFillInGapAnswers({ ...fillInGapAnswers, [blankId]: answer });
           }}
           disabled={isCorrectModalVisible || isIncorrectModalVisible}
-          onPlayAudio={handlePlayAudio}
-          isPlayingAudio={isPlayingAudio}
+          // 🔇 AUDIO FEATURE - COMMENTED OUT FOR COST REDUCTION 
+          // onPlayAudio={handlePlayAudio}
+          // isPlayingAudio={isPlayingAudio}
         />
       );
     } else {
@@ -927,7 +1039,7 @@ const QuestionScreen: React.FC<Props> = ({ navigation, route }) => {
         <>
           <View style={styles.questionWithAudioContainer}>
             <Text style={styles.questionText}>{mcqQ.question}</Text>
-            <TouchableOpacity
+            {/* <TouchableOpacity
               style={styles.playButton}
               onPress={handlePlayAudio}
               disabled={isPlayingAudio}
@@ -937,7 +1049,7 @@ const QuestionScreen: React.FC<Props> = ({ navigation, route }) => {
                 size={32}
                 color={COLORS.primary}
               />
-            </TouchableOpacity>
+            </TouchableOpacity> */}
           </View>
           <View style={styles.optionsContainer}>
             {optionsArray.map((option) => (
@@ -986,7 +1098,7 @@ const QuestionScreen: React.FC<Props> = ({ navigation, route }) => {
               <Text style={styles.sectionTitleText}>{sectionTitle}</Text>
               <Text style={styles.levelTitleText}>{levelTitle}</Text>
             </View>
-            <TouchableOpacity
+            {/* <TouchableOpacity
               style={styles.levelInfoAudioButton}
               onPress={handlePlayLevelInfo}
               disabled={isPlayingLevelInfo}
@@ -996,7 +1108,7 @@ const QuestionScreen: React.FC<Props> = ({ navigation, route }) => {
                 size={24}
                 color={COLORS.card}
               />
-            </TouchableOpacity>
+            </TouchableOpacity> */}
           </View>
         </View>
 
@@ -1061,7 +1173,7 @@ const styles = StyleSheet.create({
     flexDirection: "row",
     alignItems: "center",
     paddingHorizontal: SPACING.md,
-    paddingTop: SPACING.md,
+    paddingTop: 20,
     paddingBottom: SPACING.sm,
   },
   headerTitle: {
@@ -1069,6 +1181,7 @@ const styles = StyleSheet.create({
     fontWeight: "bold",
     color: COLORS.text,
     marginLeft: SPACING.sm,
+    paddingTop: 10,
   },
   closeButton: {
     fontSize: 22,

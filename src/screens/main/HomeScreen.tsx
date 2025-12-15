@@ -142,7 +142,10 @@ const HomeScreen: React.FC<Props> = ({ navigation }) => {
 
           const sectionsData: Section[] = [];
 
-          for (const section of backendSections) {
+          // Process regular sections and insert recap sections after every 9th section
+          for (let i = 0; i < backendSections.length; i++) {
+            const section = backendSections[i];
+            
             try {
               // Skip sections without a valid section_id
               if (!section.section_id) {
@@ -188,6 +191,50 @@ const HomeScreen: React.FC<Props> = ({ navigation }) => {
                 title: section.title,
                 levels: levelNodes,
               });
+
+              // Check if we should insert a recap section after this section
+              // After every 9 regular sections, insert a recap at position 10, 20, 30, etc.
+              // Recap 10 reviews sections 1-9, recap 20 reviews 11-19, etc.
+              const currentSectionCount = sectionsData.length;
+              if (currentSectionCount % 9 === 0) {
+                try {
+                  // Calculate the recap section number (10, 20, 30, etc.)
+                  // This aligns with backend which expects recap sections at 10, 20, 30
+                  const recapSectionNumber = Math.floor(currentSectionCount / 9) * 10;
+                  console.log(`Fetching recap section ${recapSectionNumber} after ${currentSectionCount} regular sections...`);
+                  
+                  const recapData = await backendApi.getRecapSection(recapSectionNumber, 10, true);
+                  
+                  // Create level nodes for recap section
+                  // Each source section becomes a "level" in the recap
+                  const recapLevelNodes: LevelNode[] = recapData.source_sections.map((sourceSection, idx) => {
+                    const recapLevelId = `recap_${recapSectionNumber}_source_${sourceSection.section_number}`;
+                    
+                    return {
+                      id: recapLevelId,
+                      sectionTitle: recapData.recap_section_title,
+                      levelTitle: `Review: ${sourceSection.section_title}`,
+                      isUnlocked: false, // Will be calculated by progress logic
+                      isCompleted: false,
+                      isCurrent: false,
+                      sectionId: recapData.recap_section_id,
+                      levelId: recapLevelId,
+                    };
+                  });
+
+                  sectionsData.push({
+                    id: recapData.recap_section_id,
+                    title: recapData.recap_section_title,
+                    levels: recapLevelNodes,
+                  });
+
+                  console.log(`✅ Added recap section ${recapSectionNumber} with ${recapLevelNodes.length} levels`);
+                } catch (recapError: any) {
+                  // If recap section doesn't exist or fails, just log and continue
+                  // This is expected for section 10 if only 3 sections exist
+                  console.warn(`Could not fetch recap section ${currentSectionCount}:`, recapError.message || recapError);
+                }
+              }
             } catch (error) {
               console.error(`Failed to fetch levels for section ${section.title}:`, error);
             }

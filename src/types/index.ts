@@ -199,6 +199,60 @@ export interface BackendQuestionResponse {
   sources_used: string[];
 }
 
+// Recap Section Types
+export interface RecapQuestion {
+  // Common fields for all question types
+  question_type: 'quiz' | 'scenario' | 'matching';
+  source_level_id: string;
+  source_level_title: string;
+  
+  // Quiz/Scenario question fields
+  question_id?: number;
+  question_text?: string;
+  scenario?: string; // For scenario questions
+  option_a?: string;
+  option_b?: string;
+  option_c?: string;
+  option_d?: string;
+  correct_answer?: 'A' | 'B' | 'C' | 'D';
+  explanation_a?: string;
+  explanation_b?: string;
+  explanation_c?: string;
+  explanation_d?: string;
+  difficulty?: string;
+  
+  // Matching question fields
+  pair_id?: number;
+  level_id?: string;
+  column_a?: string;
+  column_b?: string;
+  created_at?: string;
+}
+
+export interface RecapSourceSection {
+  section_number: number;
+  section_id: string;
+  section_title: string;
+  questions_by_type: {
+    quiz: RecapQuestion[];
+    scenario: RecapQuestion[];
+    matching: RecapQuestion[];
+  };
+  question_count: number;
+}
+
+export interface RecapSectionResponse {
+  recap_section_id: string;
+  recap_section_number: number;
+  recap_section_title: string;
+  recap_section_description: string;
+  source_sections: RecapSourceSection[];
+  total_questions: number;
+  randomized: boolean;
+  limit_per_section: number;
+  source_section_range: string;
+}
+
 export interface BackendSubmitLevelResponse {
   passed: boolean;
   score: number;

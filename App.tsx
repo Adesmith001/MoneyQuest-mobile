@@ -38,9 +38,16 @@ export default function App() {
         }
 
         // Initialize notifications
+        await NotificationService.initialize();
         const hasPermission = await NotificationService.requestPermissions();
         if (hasPermission) {
-          console.log('✅ Notifications initialized');
+          // Schedule daily learning reminders
+          await NotificationService.scheduleDailyReminder();
+          // Schedule engagement notifications for inactivity tracking
+          await NotificationService.scheduleEngagementNotifications();
+          console.log('✅ Notifications initialized and scheduled');
+        } else {
+          console.log('⚠️ Notification permissions not granted');
         }
 
         // Initialize sound service
@@ -57,6 +64,7 @@ export default function App() {
     // Cleanup on unmount
     return () => {
       soundService.cleanup();
+      NotificationService.cleanup();
     };
   }, []);
 
