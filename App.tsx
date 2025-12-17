@@ -15,12 +15,11 @@ export default function App() {
 
   useEffect(() => {
     const initializeApp = async () => {
+      // Load custom fonts (critical - block rendering until done)
       try {
-        // Load custom fonts
         await Font.loadAsync({
           'Arial-Rounded-MT-Bold': require('./assets/fonts/ArialRoundedMTBold.ttf'),
         });
-        setFontsLoaded(true);
         console.log('✅ Fonts loaded');
 
         // Set default font for all Text components
@@ -29,33 +28,45 @@ export default function App() {
         Text.defaultProps = Text.defaultProps || {};
         // @ts-ignore
         Text.defaultProps.style = defaultFontFamily;
+      } catch (error) {
+        console.error('❌ Font loading error:', error);
+      } finally {
+        // Always allow app to render, even if fonts fail
+        setFontsLoaded(true);
+      }
 
-        // Configure navigation bar for Android
-        if (Platform.OS === 'android') {
+      // Configure navigation bar for Android (non-critical)
+      if (Platform.OS === 'android') {
+        try {
           await NavigationBar.setVisibilityAsync('hidden');
           await NavigationBar.setBehaviorAsync('inset-swipe');
           await NavigationBar.setBackgroundColorAsync('#00000000');
+        } catch (error) {
+          console.error('❌ NavigationBar setup error:', error);
         }
+      }
 
-        // Initialize notifications
+      // Initialize notifications (non-critical)
+      try {
         await NotificationService.initialize();
         const hasPermission = await NotificationService.requestPermissions();
         if (hasPermission) {
-          // Schedule daily learning reminders
           await NotificationService.scheduleDailyReminder();
-          // Schedule engagement notifications for inactivity tracking
           await NotificationService.scheduleEngagementNotifications();
           console.log('✅ Notifications initialized and scheduled');
         } else {
           console.log('⚠️ Notification permissions not granted');
         }
+      } catch (error) {
+        console.error('❌ Notification initialization error:', error);
+      }
 
-        // Initialize sound service
+      // Initialize sound service (non-critical)
+      try {
         await soundService.initialize();
         console.log('✅ Sound service initialized');
       } catch (error) {
-        console.error('❌ App initialization error:', error);
-        setFontsLoaded(true); // Continue even if font loading fails
+        console.error('❌ Sound service initialization error:', error);
       }
     };
 
@@ -63,8 +74,16 @@ export default function App() {
 
     // Cleanup on unmount
     return () => {
-      soundService.cleanup();
-      NotificationService.cleanup();
+      try {
+        soundService.cleanup();
+      } catch (e) {
+        console.error('Sound cleanup error:', e);
+      }
+      try {
+        NotificationService.cleanup();
+      } catch (e) {
+        console.error('Notification cleanup error:', e);
+      }
     };
   }, []);
 

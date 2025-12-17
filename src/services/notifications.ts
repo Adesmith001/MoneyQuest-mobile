@@ -4,13 +4,18 @@ import { Platform, AppState, AppStateStatus } from 'react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 
 // Configure how notifications should be handled when the app is in foreground
-Notifications.setNotificationHandler({
-  handleNotification: async () => ({
-    shouldShowAlert: true,
-    shouldPlaySound: true,
-    shouldSetBadge: true,
-  }),
-});
+// Wrap in try-catch to prevent iOS crash if notification system isn't ready
+try {
+  Notifications.setNotificationHandler({
+    handleNotification: async () => ({
+      shouldShowAlert: true,
+      shouldPlaySound: true,
+      shouldSetBadge: true,
+    }),
+  });
+} catch (error) {
+  console.warn('Failed to set notification handler:', error);
+}
 
 class NotificationService {
   private appStateSubscription: any = null;
@@ -242,10 +247,6 @@ class NotificationService {
             }),
             ...(Platform.OS === 'ios' && {
               categoryIdentifier: 'learning',
-              attachments: [{
-                identifier: 'logo',
-                url: require('../../assets/logo-black.png'),
-              }],
             }),
           },
           trigger: scheduledDate,
