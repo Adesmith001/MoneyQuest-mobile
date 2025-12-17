@@ -134,9 +134,7 @@ const AppNavigator: React.FC = () => {
   const [showOnboarding, setShowOnboarding] = useState<boolean>(true);
 
   const handleOnboardingComplete = () => {
-    setTimeout(() => {
-      setShowOnboarding(false);
-    }, 100);
+    setShowOnboarding(false);
   };
 
   // Handle OAuth callbacks
@@ -209,6 +207,21 @@ const AppNavigator: React.FC = () => {
     );
   }
 
+  // Show onboarding flow
+  if (showOnboarding) {
+    return (
+      <SafeAreaProvider>
+        <NavigationContainer>
+          <Stack.Navigator screenOptions={{ headerShown: false }}>
+            <Stack.Screen name="Onboarding">
+              {() => <OnboardingFlow onComplete={handleOnboardingComplete} />}
+            </Stack.Screen>
+          </Stack.Navigator>
+        </NavigationContainer>
+      </SafeAreaProvider>
+    );
+  }
+
   // Check if OAuth user needs onboarding
   const oauthUserNeedsOnboarding = isAuthenticated && user && (
     user.avatar === 'needs_onboarding' || 
@@ -220,12 +233,7 @@ const AppNavigator: React.FC = () => {
     <SafeAreaProvider>
       <NavigationContainer linking={linking}>
         <Stack.Navigator screenOptions={{ headerShown: false }}>
-          {showOnboarding ? (
-            // Onboarding Flow - wrapped in Stack.Screen to prevent crash
-            <Stack.Screen name="Onboarding">
-              {() => <OnboardingFlow onComplete={handleOnboardingComplete} />}
-            </Stack.Screen>
-          ) : !isAuthenticated ? (
+          {!isAuthenticated ? (
             // Auth Stack
             <>
               <Stack.Screen name="Welcome" component={WelcomeScreen} />

@@ -97,7 +97,7 @@ const ChangeAvatarScreen: React.FC<Props> = ({ navigation }) => {
 };
 
 const styles = StyleSheet.create({
-  container: { flexGrow: 1, backgroundColor: '#FFFFFF' },
+  container: { flex: 1, backgroundColor: '#FFFFFF' },
   header: { alignItems: 'center', paddingVertical: 16, paddingTop: 40 },
   title: { fontSize: 20, fontWeight: 'bold', color: '#333' },
   avatarGrid: {
