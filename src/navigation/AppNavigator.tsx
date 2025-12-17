@@ -209,15 +209,6 @@ const AppNavigator: React.FC = () => {
     );
   }
 
-  // Show onboarding flow
-  if (showOnboarding) {
-    return (
-      <SafeAreaProvider>
-        <OnboardingFlow onComplete={handleOnboardingComplete} />
-      </SafeAreaProvider>
-    );
-  }
-
   // Check if OAuth user needs onboarding
   const oauthUserNeedsOnboarding = isAuthenticated && user && (
     user.avatar === 'needs_onboarding' || 
@@ -229,7 +220,12 @@ const AppNavigator: React.FC = () => {
     <SafeAreaProvider>
       <NavigationContainer linking={linking}>
         <Stack.Navigator screenOptions={{ headerShown: false }}>
-          {!isAuthenticated ? (
+          {showOnboarding ? (
+            // Onboarding Flow - wrapped in Stack.Screen to prevent crash
+            <Stack.Screen name="Onboarding">
+              {() => <OnboardingFlow onComplete={handleOnboardingComplete} />}
+            </Stack.Screen>
+          ) : !isAuthenticated ? (
             // Auth Stack
             <>
               <Stack.Screen name="Welcome" component={WelcomeScreen} />
