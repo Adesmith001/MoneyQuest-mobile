@@ -17,7 +17,10 @@
       "bundleIdentifier": "com.expo.moneyquest",
       "buildNumber": "1.0.0",
       "infoPlist": {
-        "UIBackgroundModes": ["remote-notification"]
+        "UIBackgroundModes": [
+          "remote-notification"
+        ],
+        "ITSAppUsesNonExemptEncryption": false
       }
     },
     "android": {
@@ -27,7 +30,6 @@
         "foregroundImage": "./assets/logo-black.png",
         "backgroundColor": "#ffffff"
       },
-      
       "notification": {
         "icon": "./assets/logo-black.png",
         "color": "#FF6B35"
@@ -79,7 +81,9 @@
       [
         "expo-font",
         {
-          "fonts": ["./assets/fonts/ArialRoundedMTBold.ttf"]
+          "fonts": [
+            "./assets/fonts/ArialRoundedMTBold.ttf"
+          ]
         }
       ],
       [
@@ -87,8 +91,7 @@
         {
           "icon": "./assets/logo-black.png",
           "color": "#FF6B35",
-          "sounds": [],
-          "mode": "default"
+          "sounds": []
         }
       ]
     ]
