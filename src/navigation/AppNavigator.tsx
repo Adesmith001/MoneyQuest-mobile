@@ -134,7 +134,9 @@ const AppNavigator: React.FC = () => {
   const [showOnboarding, setShowOnboarding] = useState<boolean>(true);
 
   const handleOnboardingComplete = () => {
-    setShowOnboarding(false);
+    setTimeout(() => {
+      setShowOnboarding(false);
+    }, 100);
   };
 
   // Handle OAuth callbacks
