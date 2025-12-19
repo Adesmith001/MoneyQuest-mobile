@@ -16,11 +16,20 @@
       "supportsTablet": true,
       "bundleIdentifier": "com.expo.moneyquest",
       "buildNumber": "1.0.0",
+      "deploymentTarget": "13.0",
+      "jsEngine": "hermes",
       "infoPlist": {
         "UIBackgroundModes": [
-          "remote-notification"
+          "remote-notification",
+          "audio"
         ],
-        "ITSAppUsesNonExemptEncryption": false
+        "ITSAppUsesNonExemptEncryption": false,
+        "NSPhotoLibraryUsageDescription": "MoneyQuest needs access to your photo library to let you choose a profile picture.",
+        "NSCameraUsageDescription": "MoneyQuest needs access to your camera to take profile pictures.",
+        "NSMicrophoneUsageDescription": "MoneyQuest uses audio to provide text-to-speech for questions and explanations.",
+        "NSUserTrackingUsageDescription": "MoneyQuest uses this to provide a better learning experience.",
+        "NSLocationWhenInUseUsageDescription": "MoneyQuest needs your location to personalize your learning experience.",
+        "UIViewControllerBasedStatusBarAppearance": false
       }
     },
     "android": {

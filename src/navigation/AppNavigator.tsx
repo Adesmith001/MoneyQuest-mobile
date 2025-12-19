@@ -140,29 +140,34 @@ const AppNavigator: React.FC = () => {
   // Handle OAuth callbacks
   useEffect(() => {
     const handleDeepLink = async (event: { url: string }) => {
-      const url = event.url;
-      console.log('Deep link received:', url);
+      try {
+        const url = event.url;
+        console.log('Deep link received:', url);
 
-      // Handle OAuth callback
-      if (url.includes('oauth/success') || url.includes('oauth/failure')) {
-        const result = await googleAuthService.handleOAuthCallback(url);
-        
-        if (result.success && result.user) {
-          // Check if user needs onboarding
-          const needsOnboarding = !result.user.avatar || result.user.age === 0;
+        // Handle OAuth callback
+        if (url.includes('oauth/success') || url.includes('oauth/failure')) {
+          const result = await googleAuthService.handleOAuthCallback(url);
           
-          // Update user in Redux store
-          dispatch(updateUser(result.user));
-          
-          if (needsOnboarding) {
-            Alert.alert('Welcome!', 'Let\'s complete your profile to get started.');
-            // User will be redirected to onboarding by AppNavigator logic
+          if (result.success && result.user) {
+            // Check if user needs onboarding
+            const needsOnboarding = !result.user.avatar || result.user.age === 0;
+            
+            // Update user in Redux store
+            dispatch(updateUser(result.user));
+            
+            if (needsOnboarding) {
+              Alert.alert('Welcome!', 'Let\'s complete your profile to get started.');
+              // User will be redirected to onboarding by AppNavigator logic
+            } else {
+              Alert.alert('Success', 'Successfully signed in with Google!');
+            }
           } else {
-            Alert.alert('Success', 'Successfully signed in with Google!');
+            Alert.alert('Error', result.error || 'Google sign-in failed');
           }
-        } else {
-          Alert.alert('Error', result.error || 'Google sign-in failed');
         }
+      } catch (error) {
+        console.error('Deep link handling error:', error);
+        Alert.alert('Error', 'Failed to process deep link');
       }
     };
 
@@ -174,6 +179,8 @@ const AppNavigator: React.FC = () => {
       if (url) {
         handleDeepLink({ url });
       }
+    }).catch((error) => {
+      console.error('Error getting initial URL:', error);
     });
 
     return () => {

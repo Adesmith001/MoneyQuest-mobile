@@ -11,18 +11,29 @@ import {
   APPWRITE_STORAGE_BUCKET_ID_EXPORT as APPWRITE_STORAGE_BUCKET_ID,
 } from '../config/appwrite';
 
-// Initialize Appwrite client
+// Initialize Appwrite client with error handling
 const client = new Client();
 
-// Log configuration for debugging
-console.log('Appwrite Configuration:');
-console.log('Endpoint:', APPWRITE_ENDPOINT);
-console.log('Project ID:', APPWRITE_PROJECT_ID);
+try {
+  // Log configuration for debugging
+  console.log('Appwrite Configuration:');
+  console.log('Endpoint:', APPWRITE_ENDPOINT);
+  console.log('Project ID:', APPWRITE_PROJECT_ID);
 
-client
-  .setEndpoint(APPWRITE_ENDPOINT || 'https://fra.cloud.appwrite.io/v1')
-  .setProject(APPWRITE_PROJECT_ID)
-  .setPlatform('com.expo.moneyquest'); 
+  if (!APPWRITE_ENDPOINT || !APPWRITE_PROJECT_ID) {
+    console.error('⚠️ Missing Appwrite configuration!');
+    throw new Error('Appwrite configuration is incomplete');
+  }
+
+  client
+    .setEndpoint(APPWRITE_ENDPOINT || 'https://fra.cloud.appwrite.io/v1')
+    .setProject(APPWRITE_PROJECT_ID)
+    .setPlatform('com.expo.moneyquest');
+
+  console.log('✅ Appwrite client initialized');
+} catch (error) {
+  console.error('❌ Failed to initialize Appwrite client:', error);
+} 
 
 // Initialize services
 export const account = new Account(client);

@@ -12,12 +12,13 @@ class SoundService {
     if (this.isInitialized) return;
 
     try {
-      // Set audio mode
+      // Set audio mode - iOS specific settings to prevent crashes
       await Audio.setAudioModeAsync({
         allowsRecordingIOS: false,
         playsInSilentModeIOS: true,
         staysActiveInBackground: false,
         shouldDuckAndroid: true,
+        playThroughEarpieceAndroid: false,
       });
 
       // Load sound preference from storage
@@ -31,6 +32,7 @@ class SoundService {
       console.log('✅ Sound service initialized');
     } catch (error) {
       console.error('Failed to initialize sound service:', error);
+      // Don't throw - allow app to continue without sound
     }
   }
 

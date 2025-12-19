@@ -25,11 +25,13 @@ class AudioService {
         playsInSilentModeIOS: true,
         staysActiveInBackground: false,
         shouldDuckAndroid: true,
+        playThroughEarpieceAndroid: false,
       });
       this.isInitialized = true;
       console.log('✅ Audio service initialized');
     } catch (error) {
       console.error('Failed to initialize audio:', error);
+      // Don't throw - allow app to continue without audio
     }
   }
 
