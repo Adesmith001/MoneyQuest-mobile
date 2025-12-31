@@ -18,6 +18,7 @@
       "buildNumber": "1.0.0",
       "deploymentTarget": "13.0",
       "jsEngine": "hermes",
+      "newArchEnabled": false,
       "infoPlist": {
         "UIBackgroundModes": [
           "remote-notification",
