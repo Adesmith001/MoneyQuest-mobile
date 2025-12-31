@@ -18,6 +18,12 @@
       "autoIncrement": true,
       "android": {
         "buildType": "apk"
+      },
+      "ios": {
+        "buildConfiguration": "Release"
+      },
+      "env": {
+        "RCT_NEW_ARCH_ENABLED": "0"
       }
     }
   },
