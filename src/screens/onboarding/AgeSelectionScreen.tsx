@@ -5,8 +5,8 @@ import {
   StyleSheet,
   SafeAreaView,
   Dimensions,
+  TextInput,
 } from 'react-native';
-import Slider from '@react-native-community/slider';
 import CustomButton from '../../components/CustomButton';
 
 interface Props {
@@ -16,12 +16,23 @@ interface Props {
 
 const AgeSelectionScreen: React.FC<Props> = ({ navigation, route }) => {
   const [age, setAge] = useState(7);
+  const [ageText, setAgeText] = useState('7');
   const { width } = Dimensions.get('window');
 
+  const handleAgeChange = (text: string) => {
+    setAgeText(text);
+  };
+
   const handleContinue = () => {
+    const numericValue = parseInt(ageText, 10);
+    const fallback = 7;
+    const rawAge = isNaN(numericValue) ? fallback : numericValue;
+    const finalAge = Math.max(7, Math.min(150, rawAge));
+    setAge(finalAge);
+    setAgeText(String(finalAge));
     navigation.navigate('LearningLimitSelection', {
       registrationData: route.params.registrationData,
-      age,
+      age: finalAge,
     });
   };
 
@@ -38,30 +49,22 @@ const AgeSelectionScreen: React.FC<Props> = ({ navigation, route }) => {
           <Text style={styles.mainTitle}>Enter your age</Text>
         </View>
 
-        {/* Age Display */}
+        {/* Age Input */}
         <View style={styles.ageContainer}>
           <Text style={styles.ageLabel}>Your age:</Text>
-          <Text style={styles.ageNumber}>{age}</Text>
-          <Text style={styles.ageSubtext}>for the wise</Text>
-        </View>
-
-        {/* Slider */}
-        <View style={styles.sliderContainer}>
-          <Slider
-            style={styles.slider}
-            minimumValue={7}
-            maximumValue={150}
-            step={1}
-            value={age}
-            onValueChange={(value: number) => setAge(value)}
-            minimumTrackTintColor="#FF5722"
-            maximumTrackTintColor="#E0E0E0"
-            thumbTintColor="#FF5722"
+          <TextInput
+            style={styles.ageInput}
+            value={ageText}
+            onChangeText={handleAgeChange}
+            keyboardType="number-pad"
+            maxLength={3}
+            placeholder="Enter age"
+            placeholderTextColor="#999"
+            textAlign="center"
+            returnKeyType="done"
           />
-          <View style={styles.sliderLabels}>
-            <Text style={styles.sliderLabel}>7</Text>
-            <Text style={styles.sliderLabel}>150</Text>
-          </View>
+          <Text style={styles.ageSubtext}>for the wise</Text>
+          <Text style={styles.ageHint}>(between 7 and 150)</Text>
         </View>
 
         <View style={styles.spacer} />
@@ -112,35 +115,26 @@ const styles = StyleSheet.create({
     color: '#212121',
     marginBottom: 20,
   },
-  ageNumber: {
-    fontSize: 120,
+  ageInput: {
+    fontSize: 60,
     fontWeight: 'bold',
     color: '#212121',
-    lineHeight: 120,
+    lineHeight: 80,
+    borderBottomWidth: 3,
+    borderBottomColor: '#FF5722',
+    minWidth: 180,
+    paddingVertical: 8,
+    paddingHorizontal: 16,
   },
   ageSubtext: {
     fontSize: 16,
     color: '#666',
     marginTop: 10,
   },
-  sliderContainer: {
-    width: '100%',
-    marginBottom: 20,
-  },
-  slider: {
-    width: '100%',
-    height: 40,
-  },
-  sliderLabels: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    paddingHorizontal: 10,
-    marginTop: 5,
-  },
-  sliderLabel: {
+  ageHint: {
     fontSize: 14,
-    color: '#666',
-    fontWeight: '500',
+    color: '#999',
+    marginTop: 6,
   },
   spacer: {
     flex: 1,
