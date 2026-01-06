@@ -10,6 +10,7 @@ import LeaderboardScreen from "../screens/main/LeaderboardScreen";
 import ProfileStackNavigator from "./ProfileStackNavigator";
 import ProfileTabIcon from "./ProfileTabIcon";
 import NotificationTestScreen from '../screens/common/NotificationTestScreen';
+import SubscriptionGuard from "../components/SubscriptionGuard";
 
 const Tab = createBottomTabNavigator();
 
@@ -17,7 +18,8 @@ const MainTabNavigator: React.FC = () => {
   const insets = useSafeAreaInsets();
   
   return (
-    <Tab.Navigator
+    <SubscriptionGuard showTrialInfo={true}>
+      <Tab.Navigator
       screenOptions={({ route }) => ({
         headerShown: false,
         tabBarShowLabel: false,
@@ -82,6 +84,7 @@ const MainTabNavigator: React.FC = () => {
         options={{ title: '🔔 Notification Tests' }}
       /> */}
     </Tab.Navigator>
+    </SubscriptionGuard>
   );
 };
 

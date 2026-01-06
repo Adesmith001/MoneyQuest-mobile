@@ -1,0 +1,17 @@
+{
+  "name": "korapay-webhook",
+  "version": "1.0.0",
+  "description": "KoraPay webhook handler for secure payment verification",
+  "main": "src/main.js",
+  "type": "module",
+  "scripts": {
+    "format": "prettier --write ."
+  },
+  "dependencies": {
+    "node-appwrite": "^13.0.0"
+  },
+  "devDependencies": {
+    "@types/node": "^20.11.5",
+    "prettier": "^3.0.0"
+  }
+}

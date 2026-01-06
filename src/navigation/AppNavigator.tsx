@@ -30,6 +30,8 @@ import MainTabNavigator from './MainTabNavigator';
 
 // Other Screens
 import LoadingScreen from '../screens/common/LoadingScreen'; // Import the new loading screen
+import PremiumScreen from '../screens/common/PremiumScreen';
+import PaymentPendingScreen from '../screens/common/PaymentPendingScreen';
 import QuestionScreen from '../screens/game/QuestionScreen';
 import LevelCompletionScreen from '../screens/game/LevelCompletionScreen';
 import SettingsScreen from '../screens/profile/SettingsScreen';
@@ -92,6 +94,13 @@ export type RootStackParamList = {
   // Main App
   MainApp: undefined;
   MainTabs: undefined;
+  
+  // Subscription
+  Premium: undefined;
+  PaymentPending: {
+    reference: string;
+    planType: 'monthly' | 'annual';
+  };
   
   // Game Screens
   Question: {
@@ -273,6 +282,22 @@ const AppNavigator: React.FC = () => {
             <>
               <Stack.Screen name="MainApp" component={MainTabNavigator} />
               <Stack.Screen name="MainTabs" component={MainTabNavigator} />
+              <Stack.Screen 
+                name="Premium" 
+                component={PremiumScreen}
+                options={{
+                  headerShown: false,
+                  presentation: 'modal',
+                }}
+              />
+              <Stack.Screen 
+                name="PaymentPending" 
+                component={PaymentPendingScreen}
+                options={{
+                  headerShown: false,
+                  gestureEnabled: false,
+                }}
+              />
               <Stack.Screen 
                 name="Question" 
                 component={QuestionScreen as any}

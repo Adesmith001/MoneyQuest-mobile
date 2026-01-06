@@ -21,4 +21,10 @@ declare module '@env' {
   export const API_BASE_URL_DEV: string;
   export const API_BASE_URL_PROD: string;
   export const MONEYQUEST_API_BASE_URL: string;
+  export const KORAPAY_PUBLIC_KEY: string;
+  export const KORAPAY_SECRET_KEY: string;
+  export const KORAPAY_MERCHANT_ID: string;
+  export const KORAPAY_WEBHOOK_SECRET: string;
+  export const KORAPAY_API_URL: string;
+  export const APPWRITE_SUBSCRIPTIONS_COLLECTION_ID: string;
 }
