@@ -15,4 +15,5 @@ declare module '@env' {
   export const OPENAI_API_KEY: string;
   export const AI_API_KEY: string;
   export const AI_API_ENDPOINT: string;
+  export const MONEYQUEST_API_BASE_URL: string;
 }
