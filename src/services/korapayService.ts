@@ -63,7 +63,7 @@ class KoraPayService {
       };
 
       const response = await axios.post<KoraPayInitializeResponse>(
-        `${this.apiUrl}/charges/initialize`,
+        `${this.apiUrl}/checkout/initialize`,
         paymentIntent,
         {
           headers: {
@@ -94,7 +94,7 @@ class KoraPayService {
   async verifyPayment(reference: string): Promise<any> {
     try {
       const response = await axios.get(
-        `${this.apiUrl}/charges/${reference}`,
+        `${this.apiUrl}/charges/status/${reference}`,
         {
           headers: {
             Authorization: `Bearer ${this.publicKey}`,

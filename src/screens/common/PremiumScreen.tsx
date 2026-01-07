@@ -89,7 +89,10 @@ const PremiumScreen: React.FC = () => {
     try {
       setIsLoading(true);
 
-      // Initialize payment with KoraPay
+      // Create trial subscription first
+      await subscriptionService.createTrialSubscription(user.$id);
+
+      // Initialize payment with KoraPay for after trial period
       const paymentResponse = await koraPayService.initializePayment(
         user.$id,
         selectedPlan,
@@ -195,7 +198,7 @@ const PremiumScreen: React.FC = () => {
         {/* CTA Button */}
         <TouchableOpacity
           style={[styles.ctaButton, isLoading && styles.ctaButtonDisabled]}
-          onPress={handleStartTrial}
+          onPress={handleSubscribe}
           disabled={isLoading}
           activeOpacity={0.8}
         >

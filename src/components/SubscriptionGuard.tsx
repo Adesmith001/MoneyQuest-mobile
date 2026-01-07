@@ -99,15 +99,21 @@ const SubscriptionGuard: React.FC<SubscriptionGuardProps> = ({
   if (showTrialInfo && subscription?.status === 'trial' && trialDaysRemaining > 0) {
     return (
       <>
-        <View style={styles.trialBanner}>
-          <Text style={styles.trialText}>
-            ⏰ {trialDaysRemaining} {trialDaysRemaining === 1 ? 'day' : 'days'} left in trial
-          </Text>
-          <TouchableOpacity onPress={handleUpgradePress}>
-            <Text style={styles.upgradeLink}>Upgrade</Text>
-          </TouchableOpacity>
-        </View>
         {children}
+        <View style={styles.floatingBanner}>
+          <View style={styles.bannerContent}>
+            <Text style={styles.trialText}>
+              ⏰ {trialDaysRemaining} {trialDaysRemaining === 1 ? 'day' : 'days'} left in trial
+            </Text>
+            <TouchableOpacity 
+              onPress={handleUpgradePress} 
+              style={styles.upgradeButtonFloating}
+              activeOpacity={0.8}
+            >
+              <Text style={styles.upgradeButtonText}>Upgrade</Text>
+            </TouchableOpacity>
+          </View>
+        </View>
       </>
     );
   }
@@ -159,27 +165,47 @@ const styles = StyleSheet.create({
     borderRadius: 12,
   },
   upgradeButtonText: {
-    fontSize: 18,
+    fontSize: 16,
     fontWeight: 'bold',
-    color: '#1A1A1A',
+    color: '#000',
   },
-  trialBanner: {
-    backgroundColor: '#FFD93D',
-    paddingHorizontal: 16,
-    paddingVertical: 12,
-    flexDirection: 'row',
-    justifyContent: 'space-between',
+  floatingBanner: {
+    position: 'absolute',
+    bottom: 80,
+    left: 20,
+    right: 20,
+    backgroundColor: '#FF6B35',
+    borderRadius: 16,
+    paddingVertical: 16,
+    paddingHorizontal: 20,
+    zIndex: 1000,
+    elevation: 8,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.3,
+    shadowRadius: 8,
+  },
+  bannerContent: {
+    flexDirection: 'column',
     alignItems: 'center',
+    gap: 12,
   },
   trialText: {
-    fontSize: 14,
+    fontSize: 15,
     fontWeight: '600',
-    color: '#1A1A1A',
+    color: '#FFF',
+    textAlign: 'center',
   },
-  upgradeLink: {
-    fontSize: 14,
-    fontWeight: 'bold',
-    color: '#FF6B35',
+  upgradeButtonFloating: {
+    backgroundColor: '#FFF',
+    paddingHorizontal: 32,
+    paddingVertical: 12,
+    borderRadius: 25,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.2,
+    shadowRadius: 4,
+    elevation: 3,
   },
 });
 

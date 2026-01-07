@@ -21,7 +21,7 @@ export interface Subscription {
   status: SubscriptionStatus;
   trialStartDate: string;
   trialEndDate: string;
-  subscriptionStartDate?: string;
+  subscriptionStartDate: string; // Required field in Appwrite
   subscriptionEndDate?: string;
   lastPaymentDate?: string;
   nextBillingDate?: string;

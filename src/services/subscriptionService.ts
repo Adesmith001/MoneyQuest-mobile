@@ -26,6 +26,7 @@ class SubscriptionService {
         status: 'trial',
         trialStartDate: now.toISOString(),
         trialEndDate: trialEndDate.toISOString(),
+        subscriptionStartDate: now.toISOString(), // Required field for Appwrite schema
         autoRenew: false,
         amount: 0,
         currency: 'NGN',
