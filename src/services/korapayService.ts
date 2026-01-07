@@ -3,7 +3,7 @@ import {
   KORAPAY_PUBLIC_KEY,
   KORAPAY_API_URL,
 } from '../../env';
-import { randomBytes } from 'expo-crypto';
+import { getRandomBytes } from 'expo-crypto';
 import {
   PaymentIntent,
   KoraPayInitializeResponse,
@@ -26,7 +26,7 @@ class KoraPayService {
   generateReference(): string {
     const timestamp = Date.now();
     // Use expo-crypto for secure random generation
-    const bytes = randomBytes(8);
+    const bytes = getRandomBytes(8);
     const random = Array.from(bytes)
       .map(b => b.toString(16).padStart(2, '0'))
       .join('')

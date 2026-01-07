@@ -55,9 +55,16 @@ const PaymentPendingScreen: React.FC = () => {
         const status = await koraPayService.getPaymentStatus(reference);
 
         if (status.status === 'success') {
-          // Activate subscription
+          // Activate subscription with amount verification
           if (user) {
-            await subscriptionService.activateSubscription(user.$id, planType, reference);
+            // Extract the paid amount from payment data for verification
+            const paidAmount = status.data?.amount;
+            await subscriptionService.activateSubscription(
+              user.$id, 
+              planType, 
+              reference,
+              paidAmount // Pass amount for verification
+            );
           }
           setPaymentStatus('success');
           setIsVerifying(false);

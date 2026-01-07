@@ -25,7 +25,155 @@
 
 ---
 
-## 🚀 Required Actions
+## 🚀 Implementation Options
+
+### Option A: Without Webhook (Simpler, Good Security) ⭐ CURRENT
+
+This approach uses client-side activation with row-level security and amount verification.
+
+#### Required Steps:
+
+1. **Update Appwrite Subscription Permissions** ✅
+   - Navigate to: **Databases → MoneyQuest → Subscriptions → Settings → Permissions**
+   
+   **Permissions Configuration:**
+   
+   **READ:**
+   - ✅ Role: `Users`
+   - ✅ Enable **Document Security**
+   - ✅ Condition: `userId == $userId`
+   
+   **CREATE:**
+   - ✅ Role: `Users` (for trial creation)
+   
+   **UPDATE:**
+   - ✅ Role: `Users`
+   - ✅ Enable **Document Security**
+   - ✅ Condition: `userId == $userId` (users can only update their own subscriptions)
+   
+   **DELETE:**
+   - ❌ Disabled (users cannot delete subscriptions)
+
+2. **Security Features Enabled:** ✅
+   - Amount verification (payment amount must match plan price)
+   - Secure random generation for transaction references
+   - Row-level security prevents cross-user modifications
+   - Public key only used in client (no secret keys)
+
+3. **Testing Checklist:**
+   - [ ] Test trial subscription creation
+   - [ ] Complete a test payment
+   - [ ] Verify amount validation works
+   - [ ] Try to modify another user's subscription (should fail)
+
+---
+
+### Option B: With Webhook (Maximum Security) 🔒
+
+This approach uses server-side activation via Appwrite Functions.
+
+#### When to Use:
+- You need audit trails of all payment events
+- You want to eliminate all client-side trust
+- You need to handle refunds or chargebacks server-side
+
+---
+
+## 🚀 Required Actions (Without Webhook)
+
+### ✅ Step 1: Update Appwrite Permissions (COMPLETED)
+
+You've already done this! Just verify the settings:
+
+**In Appwrite Console → Subscriptions → Permissions:**
+- ✅ UPDATE: Users role with document security (`userId == $userId`)
+- ✅ READ: Users role with document security (`userId == $userId`)
+- ✅ CREATE: Users role
+- ✅ DELETE: Disabled
+
+### ✅ Step 2: Security Code Updates (COMPLETED)
+
+The following security improvements are already implemented:
+- ✅ Amount verification in payment flow
+- ✅ Secure random generation for transaction references
+- ✅ No secret keys in client code
+
+### Step 3: Configure KoraPay Settings
+
+1. **Go to KoraPay Dashboard:**
+   - Navigate to: https://merchant.korapay.com/dashboard/settings/api-integrations
+
+2. **Verify Your Public Key:**
+   - Confirm your public key matches `KORAPAY_PUBLIC_KEY` in your `.env` file
+   - Public key format: `pk_test_...` or `pk_live_...`
+
+3. **Test Mode Settings:**
+   - While in test mode, you can use test cards to verify payments
+   - Test cards: https://korapay.com/docs/testing
+
+---
+
+## 🧪 Testing Your Payment Flow
+
+### Test Trial Subscription:
+1. ✅ Sign up new user
+2. ✅ Click "Start 30-day trial"
+3. ✅ Verify subscription created with `status='trial'`
+4. ✅ Check trial end date is 30 days from now
+
+### Test Paid Subscription:
+1. ✅ User with trial subscription
+2. ✅ Navigate to subscription upgrade screen
+3. ✅ Select a plan (Basic/Premium)
+4. ✅ Click subscribe button
+5. ✅ Complete payment using test card
+6. ✅ Verify redirect to PaymentPendingScreen
+7. ✅ Wait for verification (polls every 3 seconds)
+8. ✅ Verify subscription status changes to `active`
+9. ✅ Check subscription end date is set correctly
+
+### Security Tests:
+1. ✅ Try to pay less than plan price (should fail amount verification)
+2. ✅ Try to update another user's subscription via Appwrite (should fail permissions)
+3. ✅ Verify transaction references are unique and cryptographically secure
+
+---
+
+## 📝 Current Implementation Summary
+
+### Payment Flow:
+1. User selects subscription plan
+2. Client generates secure transaction reference using `expo-crypto`
+3. Client initiates payment with KoraPay using public key
+4. User completes payment on KoraPay checkout
+5. KoraPay redirects back to app
+6. App polls payment status every 3 seconds (max 10 attempts)
+7. When payment succeeds, client verifies amount and activates subscription
+8. Amount verification ensures payment matches plan price
+
+### Security Layers:
+- ✅ **Row-Level Security**: Users can only modify their own subscriptions
+- ✅ **Amount Verification**: Payment amount must match plan price
+- ✅ **Secure References**: Cryptographically secure transaction IDs
+- ✅ **No Secret Keys**: Only public key used in client
+- ✅ **Status Polling**: Verifies payment with KoraPay before activation
+
+---
+
+## ⚡ When to Add Webhook (Future Enhancement)
+
+Consider adding the webhook handler when you need:
+- **Automatic payment updates** without polling
+- **Failed payment handling** and retry logic
+- **Subscription renewals** for auto-renew subscriptions
+- **Audit logging** of all payment events server-side
+- **Refund handling** and chargeback processing
+
+The webhook setup instructions are preserved below if you decide to implement it later.
+
+---
+
+## 🔒 Webhook Setup (Optional - For Future)
 
 ### Step 1: Deploy Appwrite Function
 
@@ -70,32 +218,17 @@
    - Copy the webhook secret from KoraPay
    - Add it to Appwrite Function environment variables as `KORAPAY_WEBHOOK_SECRET`
 
-### Step 3: Update Appwrite Permissions 🔴 CRITICAL
+### Step 3: Update Appwrite Permissions (For Webhook-Only Updates) 🔴
 
-**Current Issue:** Users can directly modify subscription records!
-
-**Fix in Appwrite Console:**
+If using webhook, update permissions so ONLY the webhook can modify subscriptions:
 
 1. **Go to:** Databases → MoneyQuest → Subscriptions → Settings → Permissions
 
 2. **Update Permissions:**
 
-   **READ Permission:**
-   - ✅ Keep: `Users` (users can read their own subscriptions)
-   - ❌ Remove: `Any` (remove public read access)
-   - Add Document-level security: `userId == $user_id`
-
-   **CREATE Permission:**
-   - ✅ Keep: `Users` (for trial creation)
-   - ❌ Remove: `Any`
-
    **UPDATE Permission:**
    - ❌ Remove: `Users` (users should NOT be able to update subscriptions)
-   - ❌ Remove: `Any`
    - ✅ Add: `API Key` (only backend/webhook can update)
-
-   **DELETE Permission:**
-   - ❌ Keep disabled (current setting is correct)
 
 3. **Create Server API Key:**
    - Go to: Project Settings → API Keys → Create API Key
@@ -105,7 +238,9 @@
      - ✅ `databases.write`
    - Copy the key and add to Appwrite Function environment
 
-### Step 4: Update Environment Variables
+---
+
+## 🛡️ Security Checklist (Without Webhook)
 
 **In your `.env` file:**
 
@@ -140,7 +275,20 @@ For Option B, you can implement later if needed.
 
 ---
 
-## 🛡️ Security Checklist
+## 🛡️ Security Checklist (Without Webhook)
+
+- [x] Secret key removed from client code
+- [x] Secure webhook handler created
+- [x] Cryptographic random generation for references
+- [x] Amount verification added
+- [x] Appwrite permissions updated with row-level security
+- [ ] KoraPay test payment completed successfully
+- [ ] Amount verification tested (try paying wrong amount)
+- [ ] Permission security tested (try updating another user's subscription)
+
+---
+
+## 🛡️ Security Checklist (With Webhook - Optional)
 
 - [x] Secret key removed from client code
 - [x] Secure webhook handler created
@@ -148,14 +296,13 @@ For Option B, you can implement later if needed.
 - [x] Amount verification added
 - [ ] Appwrite Function deployed
 - [ ] KoraPay webhook configured
-- [ ] Appwrite permissions updated (CRITICAL)
+- [ ] Appwrite permissions updated (webhook-only updates)
 - [ ] Server API key created
-- [ ] Environment variables updated
-- [ ] Test payment flow
+- [ ] Test payment flow with webhook
 
 ---
 
-## 🧪 Testing
+## 🧪 Testing (Webhook Setup)
 
 ### Test Trial Subscription:
 1. Sign up new user

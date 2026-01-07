@@ -1,4 +1,4 @@
-import { ID, Query } from 'react-native-appwrite';
+import { ID, Query, Permission, Role } from 'react-native-appwrite';
 import { databases } from './appwrite';
 import {
   APPWRITE_DATABASE_ID,
@@ -37,7 +37,12 @@ class SubscriptionService {
         APPWRITE_DATABASE_ID,
         APPWRITE_SUBSCRIPTIONS_COLLECTION_ID,
         ID.unique(),
-        subscription
+        subscription,
+        [
+          Permission.read(Role.user(userId)),
+          Permission.update(Role.user(userId)),
+          Permission.delete(Role.user(userId)),
+        ]
       );
 
       return response as unknown as Subscription;
