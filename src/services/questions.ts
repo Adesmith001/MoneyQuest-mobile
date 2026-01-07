@@ -1,6 +1,7 @@
 import { databases, DB_ID, COLLECTIONS, Query } from './appwrite';
 import { Question, BackendQuestion, GeneratedQuestion, UserProgress, AnyQuestion, ScenarioQuestion, MatchingQuestion, FillInGapQuestion } from '../types';
 import { backendApi } from './backendApi';
+import cachedBackendApi from './cachedBackendApi';
 import { levelProgressService } from './levelProgress';
 import { livesService } from './lives';
 
@@ -522,7 +523,7 @@ class QuestionService {
    */
   async getSectionLevels(sectionId: string) {
     try {
-      return await backendApi.getSectionLevels(sectionId);
+      return await cachedBackendApi.getLevels(sectionId);
     } catch (error) {
       console.error('Get section levels error:', error);
       throw error;

@@ -1,4 +1,5 @@
 import { backendApi } from './backendApi';
+import cachedBackendApi from './cachedBackendApi';
 import {
   BackendSection,
   BackendLevel,
@@ -21,7 +22,7 @@ class LearningService {
    */
   async getAllSections(): Promise<BackendSection[]> {
     try {
-      const sections = await backendApi.getSections();
+      const sections = await cachedBackendApi.getSections();
       console.log('Fetched sections:', sections);
       return sections;
     } catch (error) {
@@ -56,7 +57,7 @@ class LearningService {
    */
   async getLevelsForSection(sectionId: string): Promise<BackendLevel[]> {
     try {
-      const levels = await backendApi.getSectionLevels(sectionId);
+      const levels = await cachedBackendApi.getLevels(sectionId);
       console.log(`Fetched ${levels.length} levels for section ${sectionId}`);
       return levels;
     } catch (error) {

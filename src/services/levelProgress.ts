@@ -1,5 +1,6 @@
 import { databases, DB_ID, COLLECTIONS } from './appwrite';
 import { backendApi } from './backendApi';
+import cachedBackendApi from './cachedBackendApi';
 import { User, BackendSubmitLevelResponse } from '../types';
 
 /**
@@ -152,8 +153,8 @@ class LevelProgressService {
    */
   async getNextLevel(currentLevelId: string, sectionId: string) {
     try {
-      // Get all levels in the section
-      const levels = await backendApi.getSectionLevels(sectionId);
+      // Get all levels in the section with caching
+      const levels = await cachedBackendApi.getLevels(sectionId);
       
       // Find current level index
       const currentIndex = levels.findIndex(l => l.level_id === currentLevelId);
@@ -178,8 +179,8 @@ class LevelProgressService {
    */
   async initializeProgress(userId: string, sectionId: string): Promise<void> {
     try {
-      // Get first level in section
-      const levels = await backendApi.getSectionLevels(sectionId);
+      // Get first level in section with caching
+      const levels = await cachedBackendApi.getLevels(sectionId);
       
       if (levels.length === 0) {
         throw new Error('No levels found in section');

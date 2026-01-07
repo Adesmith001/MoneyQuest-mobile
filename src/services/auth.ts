@@ -13,6 +13,7 @@ import { User } from "../types";
 import * as WebBrowser from "expo-web-browser";
 import * as Linking from "expo-linking";
 import { backendApi } from "./backendApi";
+import cachedBackendApi from "./cachedBackendApi";
 import { levelProgressService } from "./levelProgress";
 
 class AuthService {
@@ -491,12 +492,12 @@ class AuthService {
       // Initialize progress with first level from backend
       try {
         console.log('Initializing user progress...');
-        const sections = await backendApi.getSections();
+        const sections = await cachedBackendApi.getSections();
         if (sections.length > 0) {
           const firstSection = sections[0];
           
           if (firstSection.section_id) {
-            const levels = await backendApi.getSectionLevels(firstSection.section_id);
+            const levels = await cachedBackendApi.getLevels(firstSection.section_id);
             
             if (levels.length > 0) {
               const firstLevel = levels[0];

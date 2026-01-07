@@ -20,6 +20,7 @@ import {
 
 class BackendApiService {
   private baseUrl: string;
+  private pendingRequests: Map<string, Promise<any>> = new Map();
 
   constructor() {
     this.baseUrl = MONEYQUEST_API_BASE_URL;
@@ -63,8 +64,21 @@ class BackendApiService {
    * Get all available sections
    */
   async getSections(): Promise<BackendSection[]> {
-    const response = await this.fetchApi<BackendSectionList>('/sections');
-    return response.sections || [];
+    const key = 'sections';
+    
+    // If request is already in flight, return the existing promise
+    if (this.pendingRequests.has(key)) {
+      console.log('⏳ Reusing pending sections request');
+      return this.pendingRequests.get(key)!;
+    }
+
+    // Start new request
+    const promise = this.fetchApi<BackendSectionList>('/sections')
+      .then(response => response.sections || [])
+      .finally(() => this.pendingRequests.delete(key));
+    
+    this.pendingRequests.set(key, promise);
+    return promise;
   }
 
   /**
@@ -78,10 +92,23 @@ class BackendApiService {
   }
 
   async getSectionLevels(sectionId: string): Promise<BackendLevel[]> {
-    const response = await this.fetchApi<{ section_id: string; levels: BackendLevel[] }>(
+    const key = `levels_${sectionId}`;
+    
+    // If request is already in flight, return the existing promise
+    if (this.pendingRequests.has(key)) {
+      console.log(`⏳ Reusing pending levels request for ${sectionId}`);
+      return this.pendingRequests.get(key)!;
+    }
+
+    // Start new request
+    const promise = this.fetchApi<{ section_id: string; levels: BackendLevel[] }>(
       `/sections/${sectionId}/levels`
-    );
-    return response.levels || [];
+    )
+      .then(response => response.levels || [])
+      .finally(() => this.pendingRequests.delete(key));
+    
+    this.pendingRequests.set(key, promise);
+    return promise;
   }
 
   /**

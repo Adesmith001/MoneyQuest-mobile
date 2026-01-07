@@ -28,6 +28,7 @@ import ProgressBar from "../../components/progressBar";
 import CustomButton from "../../components/CustomButton";
 import questionService from "../../services/questions";
 import { backendApi } from "../../services/backendApi";
+import cachedBackendApi from "../../services/cachedBackendApi";
 import { databases, DB_ID, COLLECTIONS, Query } from "../../services/appwrite";
 import {
   AnyQuestion,
@@ -247,8 +248,8 @@ const QuestionScreen: React.FC<Props> = ({ navigation, route }) => {
             level_summary: levelDescription.level_summary || levelDescription.description,
           });
 
-          // Get questions for this level
-          const levelQuestions = await questionService.getQuestionsForLevel(
+          // Get questions for this level with caching
+          const levelQuestions = await cachedBackendApi.getQuestions(
             levelId,
             10,
             "mixed"
@@ -735,8 +736,8 @@ const QuestionScreen: React.FC<Props> = ({ navigation, route }) => {
           console.log('🎉 Section completed! Finding next section...');
           
           try {
-            // Get all sections
-            const allSections = await backendApi.getSections();
+            // Get all sections with caching
+            const allSections = await cachedBackendApi.getSections();
             const currentSectionIndex = allSections.findIndex(s => s.section_id === sectionId);
             
             if (currentSectionIndex !== -1 && currentSectionIndex < allSections.length - 1) {
@@ -744,9 +745,9 @@ const QuestionScreen: React.FC<Props> = ({ navigation, route }) => {
               const nextSection = allSections[currentSectionIndex + 1];
               console.log('📚 Next section found:', nextSection.title);
               
-              // Get the first level of the next section
+              // Get the first level of the next section with caching
               if (nextSection.section_id) {
-                const nextSectionLevels = await backendApi.getSectionLevels(nextSection.section_id);
+                const nextSectionLevels = await cachedBackendApi.getLevels(nextSection.section_id);
                 
                 if (nextSectionLevels.length > 0) {
                   nextLevelToUnlock = nextSectionLevels[0].level_id;

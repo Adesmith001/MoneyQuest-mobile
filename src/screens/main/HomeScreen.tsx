@@ -20,6 +20,7 @@ import {
   setCurrentSection,
 } from "../../store/slices/gameSlice";
 import { backendApi } from "../../services/backendApi";
+import cachedBackendApi from "../../services/cachedBackendApi";
 import { databases, DB_ID, COLLECTIONS, Query } from "../../services/appwrite";
 import { BackendLevel } from "../../types";
 import { useFocusEffect } from "@react-navigation/native";
@@ -133,8 +134,8 @@ const HomeScreen: React.FC<Props> = ({ navigation }) => {
           // ✨ Update state with latest completed levels BEFORE building sections
           setCompletedLevels(latestCompletedLevels);
 
-          // Get all sections (documents) from backend
-          const backendSections = await backendApi.getSections();
+          // Get all sections (documents) from backend with caching
+          const backendSections = await cachedBackendApi.getSections();
           console.log('Fetched sections:', backendSections);
 
           // Find the first valid section ID for the "default unlock" logic
@@ -153,8 +154,8 @@ const HomeScreen: React.FC<Props> = ({ navigation }) => {
                 continue;
               }
 
-              // Fetch levels for this section using section_id
-              const levels = await backendApi.getSectionLevels(section.section_id);
+              // Fetch levels for this section using section_id with caching
+              const levels = await cachedBackendApi.getLevels(section.section_id);
               console.log(`Levels for ${section.title}:`, levels);
 
               if (levels.length === 0) continue;
