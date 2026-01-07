@@ -1,10 +1,11 @@
 import React, { useEffect, useState } from 'react';
-import { View, Text, StyleSheet, ActivityIndicator, TouchableOpacity, Alert } from 'react-native';
+import { View, Text, StyleSheet, ActivityIndicator, TouchableOpacity, Alert, Animated } from 'react-native';
 import { useNavigation } from '@react-navigation/native';
 import { useSelector } from 'react-redux';
 import { RootState } from '../store';
 import { subscriptionService } from '../services/subscriptionService';
 import { Subscription } from '../types/subscription';
+import { Ionicons } from '@expo/vector-icons';
 
 interface SubscriptionGuardProps {
   children: React.ReactNode;
@@ -28,6 +29,7 @@ const SubscriptionGuard: React.FC<SubscriptionGuardProps> = ({
   const [hasAccess, setHasAccess] = useState(false);
   const [subscription, setSubscription] = useState<Subscription | null>(null);
   const [trialDaysRemaining, setTrialDaysRemaining] = useState(0);
+  const [showBanner, setShowBanner] = useState(true);
 
   useEffect(() => {
     checkSubscription();
@@ -81,38 +83,55 @@ const SubscriptionGuard: React.FC<SubscriptionGuardProps> = ({
   if (!hasAccess) {
     return (
       <View style={styles.blockedContainer}>
-        <Text style={styles.blockedEmoji}>🔒</Text>
-        <Text style={styles.blockedTitle}>Subscription Required</Text>
+        <View style={styles.lockIconWrapper}>
+          <Ionicons name="lock-closed" size={32} color="#FF6B35" />
+        </View>
+        <Text style={styles.blockedTitle}>
+          {subscription?.status === 'expired' ? 'Subscription Expired' : 'Premium Required'}
+        </Text>
         <Text style={styles.blockedSubtitle}>
           {subscription?.status === 'expired' 
-            ? 'Your subscription has expired. Please renew to continue.'
-            : 'Please subscribe to access this content.'}
+            ? 'Renew your subscription to continue your learning journey.'
+            : 'Unlock unlimited access to all lessons and features.'}
         </Text>
         <TouchableOpacity style={styles.upgradeButton} onPress={handleUpgradePress}>
           <Text style={styles.upgradeButtonText}>View Plans</Text>
+          <Ionicons name="arrow-forward" size={18} color="#1A1A1A" style={{ marginLeft: 8 }} />
         </TouchableOpacity>
       </View>
     );
   }
 
   // Show trial info banner if in trial
-  if (showTrialInfo && subscription?.status === 'trial' && trialDaysRemaining > 0) {
+  if (showTrialInfo && subscription?.status === 'trial' && trialDaysRemaining > 0 && showBanner) {
     return (
       <>
         {children}
-        <View style={styles.floatingBanner}>
-          <View style={styles.bannerContent}>
-            <Text style={styles.trialText}>
-              ⏰ {trialDaysRemaining} {trialDaysRemaining === 1 ? 'day' : 'days'} left in trial
+        <TouchableOpacity 
+          style={styles.minimalPill}
+          onPress={handleUpgradePress}
+          activeOpacity={0.9}
+        >
+          <View style={styles.pillContent}>
+            <Text style={styles.pillText}>
+              {trialDaysRemaining}d left
             </Text>
-            <TouchableOpacity 
-              onPress={handleUpgradePress} 
-              style={styles.upgradeButtonFloating}
-              activeOpacity={0.8}
-            >
-              <Text style={styles.upgradeButtonText}>Upgrade</Text>
-            </TouchableOpacity>
+            <View style={styles.pillDivider} />
+            <Text style={styles.pillUpgrade}>Upgrade</Text>
           </View>
+        </TouchableOpacity>
+      </>
+    );
+  }
+
+  // Show premium badge for paid subscribers
+  if (subscription?.status === 'active') {
+    return (
+      <>
+        {children}
+        <View style={styles.premiumBadge}>
+          <Ionicons name="diamond" size={12} color="#FF6B35" />
+          <Text style={styles.premiumText}>Premium</Text>
         </View>
       </>
     );
@@ -138,74 +157,110 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     alignItems: 'center',
     backgroundColor: '#1A1A1A',
-    paddingHorizontal: 30,
+    paddingHorizontal: 40,
   },
-  blockedEmoji: {
-    fontSize: 80,
-    marginBottom: 20,
+  lockIconWrapper: {
+    width: 64,
+    height: 64,
+    borderRadius: 32,
+    backgroundColor: 'rgba(255, 107, 53, 0.12)',
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginBottom: 24,
   },
   blockedTitle: {
-    fontSize: 28,
-    fontWeight: 'bold',
+    fontSize: 24,
+    fontWeight: '700',
     color: '#FFF',
-    marginBottom: 10,
+    marginBottom: 12,
     textAlign: 'center',
+    letterSpacing: -0.5,
   },
   blockedSubtitle: {
-    fontSize: 16,
-    color: '#B0B0B0',
+    fontSize: 15,
+    color: 'rgba(255, 255, 255, 0.6)',
     textAlign: 'center',
-    marginBottom: 30,
-    lineHeight: 24,
+    marginBottom: 36,
+    lineHeight: 22,
+    maxWidth: 280,
   },
   upgradeButton: {
-    backgroundColor: '#4ECDC4',
-    paddingHorizontal: 40,
-    paddingVertical: 16,
-    borderRadius: 12,
+    backgroundColor: '#FF6B35',
+    paddingHorizontal: 32,
+    paddingVertical: 14,
+    borderRadius: 24,
+    flexDirection: 'row',
+    alignItems: 'center',
+    shadowColor: '#FF6B35',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.3,
+    shadowRadius: 12,
+    elevation: 6,
   },
   upgradeButtonText: {
     fontSize: 16,
-    fontWeight: 'bold',
-    color: '#000',
+    fontWeight: '700',
+    color: '#1A1A1A',
+    letterSpacing: 0.3,
   },
-  floatingBanner: {
+  minimalPill: {
     position: 'absolute',
-    bottom: 80,
-    left: 20,
-    right: 20,
-    backgroundColor: '#FF6B35',
-    borderRadius: 16,
-    paddingVertical: 16,
-    paddingHorizontal: 20,
-    zIndex: 1000,
-    elevation: 8,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.3,
-    shadowRadius: 8,
-  },
-  bannerContent: {
-    flexDirection: 'column',
+    top: 50,
+    right: 16,
+    backgroundColor: 'rgba(0, 0, 0, 0.75)',
+    borderRadius: 20,
+    paddingVertical: 8,
+    paddingLeft: 14,
+    paddingRight: 8,
+    flexDirection: 'row',
     alignItems: 'center',
-    gap: 12,
-  },
-  trialText: {
-    fontSize: 15,
-    fontWeight: '600',
-    color: '#FFF',
-    textAlign: 'center',
-  },
-  upgradeButtonFloating: {
-    backgroundColor: '#FFF',
-    paddingHorizontal: 32,
-    paddingVertical: 12,
-    borderRadius: 25,
+    zIndex: 999,
     shadowColor: '#000',
     shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.2,
-    shadowRadius: 4,
-    elevation: 3,
+    shadowOpacity: 0.15,
+    shadowRadius: 8,
+    elevation: 4,
+  },
+  pillContent: {
+    flexDirection: 'row',
+    alignItems: 'center',
+  },
+  pillText: {
+    fontSize: 12,
+    fontWeight: '600',
+    color: 'rgba(255, 255, 255, 0.9)',
+    letterSpacing: 0.3,
+  },
+  pillDivider: {
+    width: 1,
+    height: 12,
+    backgroundColor: 'rgba(255, 255, 255, 0.3)',
+    marginHorizontal: 10,
+  },
+  pillUpgrade: {
+    fontSize: 12,
+    fontWeight: '700',
+    color: '#FF6B35',
+    letterSpacing: 0.3,
+  },
+  premiumBadge: {
+    position: 'absolute',
+    top: 50,
+    right: 16,
+    backgroundColor: 'rgba(255, 107, 53, 0.15)',
+    borderRadius: 16,
+    paddingVertical: 6,
+    paddingHorizontal: 12,
+    flexDirection: 'row',
+    alignItems: 'center',
+    zIndex: 999,
+  },
+  premiumText: {
+    fontSize: 11,
+    fontWeight: '700',
+    color: '#FF6B35',
+    marginLeft: 5,
+    letterSpacing: 0.5,
   },
 });
 

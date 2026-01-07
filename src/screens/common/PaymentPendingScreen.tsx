@@ -103,9 +103,11 @@ const PaymentPendingScreen: React.FC = () => {
     if (isVerifying) {
       return (
         <>
-          <ActivityIndicator size="large" color="#4ECDC4" style={styles.loader} />
-          <Text style={styles.title}>Verifying Payment...</Text>
-          <Text style={styles.subtitle}>Please wait while we confirm your payment</Text>
+          <View style={styles.iconWrapper}>
+            <ActivityIndicator size="large" color="#4ECDC4" />
+          </View>
+          <Text style={styles.title}>Verifying Payment</Text>
+          <Text style={styles.subtitle}>This will only take a moment</Text>
         </>
       );
     }
@@ -113,15 +115,14 @@ const PaymentPendingScreen: React.FC = () => {
     if (paymentStatus === 'success') {
       return (
         <>
-          <View style={styles.iconContainer}>
-            <Ionicons name="checkmark-circle" size={100} color="#4ECDC4" />
+          <View style={[styles.iconWrapper, styles.successWrapper]}>
+            <Ionicons name="checkmark" size={40} color="#4ECDC4" />
           </View>
-          <Text style={styles.title}>Payment Successful! 🎉</Text>
-          <Text style={styles.subtitle}>
-            Your premium subscription has been activated. Enjoy unlimited access!
-          </Text>
-          <TouchableOpacity style={styles.button} onPress={handleContinue}>
-            <Text style={styles.buttonText}>Continue to App</Text>
+          <Text style={styles.title}>Payment Complete</Text>
+          <Text style={styles.subtitle}>Your premium subscription is now active</Text>
+          <TouchableOpacity style={styles.successButton} onPress={handleContinue}>
+            <Text style={styles.buttonText}>Continue</Text>
+            <Ionicons name="arrow-forward" size={18} color="#1A1A1A" style={styles.buttonIcon} />
           </TouchableOpacity>
         </>
       );
@@ -129,13 +130,14 @@ const PaymentPendingScreen: React.FC = () => {
 
     return (
       <>
-        <View style={styles.iconContainer}>
-          <Ionicons name="close-circle" size={100} color="#FF6B6B" />
+        <View style={[styles.iconWrapper, styles.failedWrapper]}>
+          <Ionicons name="close" size={40} color="#FF6B6B" />
         </View>
         <Text style={styles.title}>Payment Failed</Text>
-        <Text style={styles.subtitle}>{errorMessage || 'Something went wrong with your payment.'}</Text>
-        <TouchableOpacity style={[styles.button, styles.retryButton]} onPress={handleContinue}>
+        <Text style={styles.subtitle}>{errorMessage || 'Unable to process payment'}</Text>
+        <TouchableOpacity style={styles.retryButton} onPress={handleContinue}>
           <Text style={styles.buttonText}>Try Again</Text>
+          <Ionicons name="refresh" size={18} color="#1A1A1A" style={styles.buttonIcon} />
         </TouchableOpacity>
       </>
     );
@@ -157,43 +159,72 @@ const styles = StyleSheet.create({
     flex: 1,
     justifyContent: 'center',
     alignItems: 'center',
-    paddingHorizontal: 30,
+    paddingHorizontal: 40,
   },
-  loader: {
-    marginBottom: 20,
+  iconWrapper: {
+    width: 80,
+    height: 80,
+    borderRadius: 40,
+    backgroundColor: 'rgba(78, 205, 196, 0.12)',
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginBottom: 28,
   },
-  iconContainer: {
-    marginBottom: 20,
+  successWrapper: {
+    backgroundColor: 'rgba(78, 205, 196, 0.12)',
+  },
+  failedWrapper: {
+    backgroundColor: 'rgba(255, 107, 107, 0.12)',
   },
   title: {
-    fontSize: 28,
-    fontWeight: 'bold',
+    fontSize: 24,
+    fontWeight: '700',
     color: '#FFF',
-    marginBottom: 10,
+    marginBottom: 12,
     textAlign: 'center',
+    letterSpacing: -0.5,
   },
   subtitle: {
-    fontSize: 16,
-    color: '#B0B0B0',
+    fontSize: 15,
+    color: 'rgba(255, 255, 255, 0.6)',
     textAlign: 'center',
-    marginBottom: 30,
-    lineHeight: 24,
+    marginBottom: 40,
+    lineHeight: 22,
+    maxWidth: 260,
   },
-  button: {
+  successButton: {
     backgroundColor: '#4ECDC4',
-    paddingHorizontal: 40,
-    paddingVertical: 16,
-    borderRadius: 12,
-    minWidth: 200,
+    paddingHorizontal: 28,
+    paddingVertical: 14,
+    borderRadius: 24,
+    flexDirection: 'row',
     alignItems: 'center',
+    shadowColor: '#4ECDC4',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.25,
+    shadowRadius: 12,
+    elevation: 6,
   },
   retryButton: {
     backgroundColor: '#FF6B35',
+    paddingHorizontal: 28,
+    paddingVertical: 14,
+    borderRadius: 24,
+    flexDirection: 'row',
+    alignItems: 'center',
+    shadowColor: '#FF6B35',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.25,
+    shadowRadius: 12,
+    elevation: 6,
   },
   buttonText: {
-    fontSize: 18,
-    fontWeight: 'bold',
+    fontSize: 16,
+    fontWeight: '600',
     color: '#1A1A1A',
+  },
+  buttonIcon: {
+    marginLeft: 8,
   },
 });
 

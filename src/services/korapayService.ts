@@ -1,6 +1,6 @@
 import axios from 'axios';
 import {
-  KORAPAY_PUBLIC_KEY,
+  KORAPAY_SECRET_KEY,
   KORAPAY_API_URL,
 } from '../../env';
 import { getRandomBytes } from 'expo-crypto';
@@ -12,11 +12,11 @@ import {
 } from '../types/subscription';
 
 class KoraPayService {
-  private publicKey: string;
+  private secretKey: string;
   private apiUrl: string;
 
   constructor() {
-    this.publicKey = KORAPAY_PUBLIC_KEY;
+    this.secretKey = KORAPAY_SECRET_KEY;
     this.apiUrl = KORAPAY_API_URL;
   }
 
@@ -47,7 +47,7 @@ class KoraPayService {
       const plan = SUBSCRIPTION_PLANS[planType];
       const reference = this.generateReference();
 
-      const paymentIntent: PaymentIntent = {
+      const payload = {
         amount: plan.price,
         currency: plan.currency,
         reference,
@@ -62,12 +62,17 @@ class KoraPayService {
         },
       };
 
+      const url = `${this.apiUrl}/charges/initialize`;
+      console.log('KoraPay API URL:', url);
+      console.log('KoraPay Payload:', JSON.stringify(payload, null, 2));
+      console.log('Using Secret Key:', this.secretKey ? `${this.secretKey.substring(0, 10)}...` : 'NOT SET');
+
       const response = await axios.post<KoraPayInitializeResponse>(
-        `${this.apiUrl}/checkout/initialize`,
-        paymentIntent,
+        url,
+        payload,
         {
           headers: {
-            Authorization: `Bearer ${this.publicKey}`,
+            Authorization: `Bearer ${this.secretKey}`,
             'Content-Type': 'application/json',
           },
         }
@@ -94,10 +99,10 @@ class KoraPayService {
   async verifyPayment(reference: string): Promise<any> {
     try {
       const response = await axios.get(
-        `${this.apiUrl}/charges/status/${reference}`,
+        `${this.apiUrl}/charges/${reference}`,
         {
           headers: {
-            Authorization: `Bearer ${this.publicKey}`,
+            Authorization: `Bearer ${this.secretKey}`,
             'Content-Type': 'application/json',
           },
         }
