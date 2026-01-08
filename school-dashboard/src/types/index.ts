@@ -8,16 +8,20 @@ export type SchoolPlanType = 'monthly' | 'annual';
 
 export interface School {
   $id: string;
+  $createdAt?: string;
   name: string;
   email: string;
   contactPerson: string;
   phoneNumber?: string;
+  phone?: string;
   address?: string;
   city?: string;
   state?: string;
   country: string;
   logo?: string;
   status: SchoolStatus;
+  isVerified?: boolean;
+  subscriptionStatus?: 'active' | 'trial' | 'expired' | 'none';
   totalSeatsEverPurchased: number;
   createdAt: string;
   updatedAt: string;

@@ -23,7 +23,7 @@ export default function SettingsPage() {
   const [profileData, setProfileData] = useState({
     name: school?.name || '',
     contactPerson: school?.contactPerson || '',
-    phone: school?.phone || '',
+    phoneNumber: school?.phoneNumber || '',
     address: school?.address || '',
   });
 
@@ -129,8 +129,8 @@ export default function SettingsPage() {
 
               <Input
                 label="Phone"
-                value={profileData.phone}
-                onChange={(e) => handleProfileChange('phone', e.target.value)}
+                value={profileData.phoneNumber}
+                onChange={(e) => handleProfileChange('phoneNumber', e.target.value)}
                 placeholder="Phone number"
                 icon={<Phone className="w-5 h-5" />}
               />

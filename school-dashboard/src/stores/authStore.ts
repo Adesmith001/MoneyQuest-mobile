@@ -53,7 +53,7 @@ export const useAuthStore = create<AuthState>()(
           await account.createEmailSession(email, password);
 
           // Get the current user
-          const user = await account.get();
+          await account.get();
 
           // Fetch school data from database
           const response = await databases.listDocuments(

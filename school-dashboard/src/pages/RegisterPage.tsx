@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { useAuthStore } from '../stores/authStore';
-import { GraduationCap, Mail, Lock, User, Phone, MapPin, Building } from 'lucide-react';
+import { Mail, Lock, User, Phone, MapPin, Building } from 'lucide-react';
 import Button from '../components/ui/Button';
 import Input from '../components/ui/Input';
 import toast from 'react-hot-toast';

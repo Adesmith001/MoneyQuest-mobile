@@ -1,12 +1,12 @@
 import { databases, account, ID, Query } from '../lib/appwrite';
-import { config, SCHOOL_PRICING, SchoolPlanType } from '../config';
+import { config, SchoolPlanType } from '../config';
 import { SchoolCode, SchoolPayment, DashboardStats, SchoolStudent, School } from '../types';
 import { generateSchoolCode, calculatePrice } from '../lib/utils';
 
 // Schools API
 export const schoolsApi = {
   // Update school profile
-  async update(schoolId: string, data: Partial<Pick<School, 'name' | 'contactPerson' | 'phone' | 'address'>>): Promise<School> {
+  async update(schoolId: string, data: Partial<Pick<School, 'name' | 'contactPerson' | 'phoneNumber' | 'address'>>): Promise<School> {
     const response = await databases.updateDocument(
       config.appwrite.databaseId,
       config.collections.schools,
