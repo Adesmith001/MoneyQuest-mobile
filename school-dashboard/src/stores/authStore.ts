@@ -42,8 +42,15 @@ export const useAuthStore = create<AuthState>()(
         try {
           set({ isLoading: true, error: null });
 
+          // Delete any existing session first
+          try {
+            await account.deleteSession('current');
+          } catch (e) {
+            // No session exists, continue
+          }
+
           // Create session with Appwrite
-          await account.createEmailPasswordSession(email, password);
+          await account.createEmailSession(email, password);
 
           // Get the current user
           const user = await account.get();
@@ -79,27 +86,29 @@ export const useAuthStore = create<AuthState>()(
         try {
           set({ isLoading: true, error: null });
 
+          // Delete any existing session first
+          try {
+            await account.deleteSession('current');
+          } catch (e) {
+            // No session exists, continue
+          }
+
           // Create Appwrite account
           await account.create(ID.unique(), data.email, data.password, data.name);
 
           // Create session
-          await account.createEmailPasswordSession(data.email, data.password);
-
-          const now = new Date().toISOString();
+          await account.createEmailSession(data.email, data.password);
 
           // Create school document
           const schoolData = {
             name: data.name,
             email: data.email,
             contactPerson: data.contactPerson,
-            phoneNumber: data.phoneNumber || '',
-            city: data.city || '',
-            state: data.state || '',
-            country: data.country || 'Nigeria',
-            status: 'active',
             totalSeatsEverPurchased: 0,
-            createdAt: now,
-            updatedAt: now,
+            phone: data.phoneNumber || '',
+            address: data.city || '',
+            status: 'active',
+            isVerified: false,
           };
 
           const school = await databases.createDocument(

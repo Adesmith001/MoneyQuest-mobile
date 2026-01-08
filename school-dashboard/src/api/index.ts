@@ -29,15 +29,17 @@ export const schoolsApi = {
 export const codesApi = {
   // Get all codes for a school
   async getAll(schoolId: string): Promise<SchoolCode[]> {
+    console.log('Fetching codes for schoolId:', schoolId);
     const response = await databases.listDocuments(
       config.appwrite.databaseId,
       config.collections.schoolCodes,
       [
         Query.equal('schoolId', schoolId),
-        Query.orderDesc('createdAt'),
+        Query.orderDesc('$createdAt'),
         Query.limit(100),
       ]
     );
+    console.log('Found codes:', response.documents);
     return response.documents as unknown as SchoolCode[];
   },
 
@@ -72,6 +74,7 @@ export const codesApi = {
     const pricing = calculatePrice(planType, seats);
     const code = generateSchoolCode();
 
+    // Only include fields that exist in your Appwrite collection
     const codeData = {
       schoolId,
       code,
@@ -86,9 +89,9 @@ export const codesApi = {
       amount: pricing.totalPrice,
       pricePerSeat: pricing.pricePerSeat,
       currency: 'NGN',
-      createdAt: now.toISOString(),
-      updatedAt: now.toISOString(),
     };
+
+    console.log('Creating code with data:', codeData);
 
     const response = await databases.createDocument(
       config.appwrite.databaseId,

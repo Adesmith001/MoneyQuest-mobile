@@ -2,10 +2,10 @@ import { useState, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useQueryClient } from '@tanstack/react-query';
 import { useAuthStore } from '../stores/authStore';
-import { paymentsApi } from '../api';
+import { codesApi, paymentsApi } from '../api';
 import { SCHOOL_PRICING, SchoolPlanType } from '../config';
 import { calculatePrice, formatCurrency } from '../lib/utils';
-import { generateReference, initializeKoraPayCheckout, verifyPaymentAndCreateCode } from '../lib/korapay';
+import { generateReference, initializeKoraPayCheckout } from '../lib/korapay';
 import { Card, CardHeader } from '../components/ui/Card';
 import Button from '../components/ui/Button';
 import Input from '../components/ui/Input';
@@ -58,30 +58,23 @@ export default function BuySeatsPage() {
         reference,
         seats,
         planType,
-        onSuccess: async () => {
+        onSuccess: async (data) => {
           try {
-            // Payment successful - verify and create code via secure backend
-            const result = await verifyPaymentAndCreateCode({
-              reference,
-              schoolId: school.$id,
-              codeName,
-              seats,
-              planType,
-            });
+            // Payment successful - create the code directly
+            await codesApi.create(school.$id, codeName, seats, planType, reference);
+            
+            // Update payment status
+            await paymentsApi.updateStatus(reference, 'success', data.payment_reference);
 
-            if (result.success) {
-              // Invalidate queries to refresh data
-              queryClient.invalidateQueries({ queryKey: ['codes'] });
-              queryClient.invalidateQueries({ queryKey: ['payments'] });
-              queryClient.invalidateQueries({ queryKey: ['dashboard-stats'] });
+            // Invalidate queries to refresh data
+            queryClient.invalidateQueries({ queryKey: ['codes'] });
+            queryClient.invalidateQueries({ queryKey: ['payments'] });
+            queryClient.invalidateQueries({ queryKey: ['dashboard-stats'] });
 
-              toast.success('Payment successful! Code created.');
-              navigate('/codes');
-            } else {
-              toast.error(result.message || 'Failed to create code. Contact support.');
-            }
+            toast.success('Payment successful! Code created.');
+            navigate('/codes');
           } catch (error: any) {
-            console.error('Error processing successful payment:', error);
+            console.error('Error creating code:', error);
             toast.error('Payment received but code creation failed. Contact support.');
           } finally {
             setIsProcessing(false);
