@@ -25,6 +25,7 @@ export default function BuySeatsPage() {
   
   // Track payment reference for the current transaction
   const paymentRef = useRef<string | null>(null);
+  const isCreatingCode = useRef(false);
 
   const pricing = calculatePrice(planType, seats);
   const plan = SCHOOL_PRICING[planType];
@@ -47,22 +48,40 @@ export default function BuySeatsPage() {
       const reference = generateReference();
       paymentRef.current = reference;
 
-      // Create pending payment record in database
-      await paymentsApi.createPending(school.$id, seats, planType, reference);
+      // Create pending payment record in database with codeName
+      await paymentsApi.createPending(school.$id, seats, planType, reference, codeName);
 
       // Initialize KoraPay checkout
       await initializeKoraPayCheckout({
         amount: pricing.totalPrice,
         schoolName: school.name,
         schoolEmail: school.email,
+        schoolId: school.$id,
         reference,
         seats,
         planType,
+        codeName,
         onSuccess: async (data) => {
+          // Prevent duplicate code creation if already processing
+          if (isCreatingCode.current) {
+            console.log('Already creating code, skipping duplicate call');
+            return;
+          }
+
+          isCreatingCode.current = true;
+
           try {
-            // Payment successful - create the code directly
-            await codesApi.create(school.$id, codeName, seats, planType, reference);
+            // Payment successful - create code directly (has duplicate prevention built-in)
+            toast.loading('Creating your enrollment code...', { id: 'create-code' });
             
+            const code = await codesApi.create(
+              school.$id,
+              codeName,
+              seats,
+              planType,
+              reference
+            );
+
             // Update payment status
             await paymentsApi.updateStatus(reference, 'success', data.payment_reference);
 
@@ -71,13 +90,14 @@ export default function BuySeatsPage() {
             queryClient.invalidateQueries({ queryKey: ['payments'] });
             queryClient.invalidateQueries({ queryKey: ['dashboard-stats'] });
 
-            toast.success('Payment successful! Code created.');
+            toast.success(`Code created: ${code.code}`, { id: 'create-code' });
             navigate('/codes');
           } catch (error: any) {
             console.error('Error creating code:', error);
-            toast.error('Payment received but code creation failed. Contact support.');
+            toast.error('Payment received but code creation failed. Contact support.', { id: 'create-code' });
           } finally {
             setIsProcessing(false);
+            isCreatingCode.current = false;
           }
         },
         onFailed: async (data) => {
@@ -98,6 +118,7 @@ export default function BuySeatsPage() {
           if (isProcessing) {
             toast('Payment cancelled');
             setIsProcessing(false);
+            isCreatingCode.current = false;
           }
         },
       });

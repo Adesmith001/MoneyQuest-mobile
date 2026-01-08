@@ -213,7 +213,8 @@ export const paymentsApi = {
     schoolId: string,
     seats: number,
     planType: SchoolPlanType,
-    transactionReference: string
+    transactionReference: string,
+    codeName?: string
   ): Promise<SchoolPayment> {
     const pricing = calculatePrice(planType, seats);
 
@@ -224,6 +225,7 @@ export const paymentsApi = {
       currency: 'NGN',
       seats,
       planType,
+      codeName: codeName || 'Code',
       status: 'pending',
       createdAt: new Date().toISOString(),
     };

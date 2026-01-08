@@ -89,9 +89,11 @@ export interface InitializePaymentParams {
   amount: number;
   schoolName: string;
   schoolEmail: string;
+  schoolId: string;
   reference: string;
   seats: number;
   planType: string;
+  codeName?: string;
   onSuccess: (data: KoraPaySuccessData) => void;
   onFailed: (data: KoraPayFailedData) => void;
   onClose: () => void;
@@ -115,8 +117,10 @@ export async function initializeKoraPayCheckout(params: InitializePaymentParams)
     },
     metadata: {
       type: 'school_subscription',
+      schoolId: params.schoolId,
       seats: params.seats,
       planType: params.planType,
+      codeName: params.codeName || 'Code',
     },
     onClose: params.onClose,
     onSuccess: params.onSuccess,

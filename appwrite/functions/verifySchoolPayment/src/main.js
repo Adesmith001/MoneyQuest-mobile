@@ -38,7 +38,7 @@ export default async ({ req, res, log, error: logError }) => {
     // Parse request
     const { reference, schoolId, codeName, seats, planType } = JSON.parse(req.body || '{}');
 
-    if (!reference || !schoolId || !codeName || !seats || !planType) {
+    if (!reference || !schoolId || !seats || !planType) {
       return res.json({
         success: false,
         message: 'Missing required parameters',
@@ -46,6 +46,26 @@ export default async ({ req, res, log, error: logError }) => {
     }
 
     log(`Verifying payment: ${reference} for school: ${schoolId}`);
+
+    // Get payment record to retrieve codeName
+    let paymentRecord = null;
+    let finalCodeName = codeName || 'Code';
+    
+    try {
+      const payments = await databases.listDocuments(
+        dbId,
+        'school_payments',
+        [Query.equal('transactionReference', reference), Query.limit(1)]
+      );
+      
+      if (payments.documents.length > 0) {
+        paymentRecord = payments.documents[0];
+        finalCodeName = paymentRecord.codeName || codeName || 'Code';
+        log(`Found payment record with codeName: ${finalCodeName}`);
+      }
+    } catch (err) {
+      log('Could not fetch payment record, using provided codeName');
+    }
 
     // Verify payment with KoraPay
     const verification = await verifyWithKoraPay(reference, process.env.KORAPAY_SECRET_KEY);
@@ -93,6 +113,30 @@ export default async ({ req, res, log, error: logError }) => {
       code += chars.charAt(Math.floor(Math.random() * chars.length));
     }
 
+    // Check if a code already exists for this payment reference (prevent duplicates)
+    const existingCodes = await databases.listDocuments(
+      dbId,
+      'school_codes',
+      [Query.equal('paymentReference', reference), Query.limit(1)]
+    );
+
+    if (existingCodes.documents.length > 0) {
+      log(`Code already exists for payment reference: ${reference}`);
+      const existingCode = existingCodes.documents[0];
+      
+      return res.json({
+        success: true,
+        message: 'Code already created for this payment',
+        data: {
+          codeId: existingCode.$id,
+          code: existingCode.code,
+          name: existingCode.name,
+          seats: existingCode.seatsPurchased,
+          expirationDate: existingCode.expirationDate,
+        },
+      });
+    }
+
     // Calculate expiration date
     const now = new Date();
     const expirationDate = new Date(now);
@@ -110,7 +154,7 @@ export default async ({ req, res, log, error: logError }) => {
       {
         schoolId,
         code,
-        name: codeName,
+        name: finalCodeName,
         seatsPurchased: seats,
         seatsUsed: 0,
         planType,

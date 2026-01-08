@@ -114,9 +114,97 @@ export default async ({ req, res, log, error: logError }) => {
 
         const databases = new Databases(client);
         const dbId = process.env.APPWRITE_DATABASE_ID;
-        const collectionId = process.env.APPWRITE_SUBSCRIPTIONS_COLLECTION_ID;
 
-        // Extract metadata from KoraPay
+        // Check if this is a school payment (has type === 'school_subscription')
+        if (metadata?.type === 'school_subscription') {
+          log('Processing school subscription payment');
+          
+          const { schoolId, seats, planType, codeName } = metadata;
+          
+          if (!schoolId || !seats || !planType) {
+            logError('Missing school payment metadata');
+            return res.json({ error: 'Invalid school payment metadata' }, 400);
+          }
+
+          // Check if code already exists for this payment
+          const existingCodes = await databases.listDocuments(
+            dbId,
+            'school_codes',
+            [Query.equal('paymentReference', reference), Query.limit(1)]
+          );
+
+          if (existingCodes.documents.length === 0) {
+            // Generate unique code
+            const chars = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789';
+            let code = 'MQ-';
+            for (let i = 0; i < 6; i++) {
+              code += chars.charAt(Math.floor(Math.random() * chars.length));
+            }
+
+            // Calculate expiration
+            const now = new Date();
+            const expirationDate = new Date(now);
+            if (planType === 'annual') {
+              expirationDate.setFullYear(expirationDate.getFullYear() + 1);
+            } else {
+              expirationDate.setMonth(expirationDate.getMonth() + 1);
+            }
+
+            // Get price per seat
+            const plan = SUBSCRIPTION_PLANS[planType];
+            const pricePerSeat = plan ? plan.price : (planType === 'annual' ? 35000 : 3000);
+
+            // Create school code
+            await databases.createDocument(
+              dbId,
+              'school_codes',
+              'unique()',
+              {
+                schoolId,
+                code,
+                name: codeName || 'Code',
+                seatsPurchased: parseInt(seats),
+                seatsUsed: 0,
+                planType,
+                status: 'active',
+                expirationDate: expirationDate.toISOString(),
+                activationDate: now.toISOString(),
+                paymentReference: reference,
+                amount: parseInt(seats) * pricePerSeat,
+                pricePerSeat,
+                currency: 'NGN',
+              }
+            );
+
+            log(`School code created: ${code} for school: ${schoolId}`);
+          } else {
+            log(`Code already exists for payment: ${reference}`);
+          }
+
+          // Update payment record
+          const payments = await databases.listDocuments(
+            dbId,
+            'school_payments',
+            [Query.equal('transactionReference', reference), Query.limit(1)]
+          );
+
+          if (payments.documents.length > 0) {
+            await databases.updateDocument(
+              dbId,
+              'school_payments',
+              payments.documents[0].$id,
+              {
+                status: 'success',
+                paidAt: new Date().toISOString(),
+              }
+            );
+          }
+
+          return res.json({ success: true, message: 'School code created' });
+        }
+
+        // Handle user subscriptions (original code)
+        const collectionId = process.env.APPWRITE_SUBSCRIPTIONS_COLLECTION_ID;
         const userId = metadata?.userId;
         const planType = metadata?.planType;
 
