@@ -149,7 +149,7 @@ const SubscriptionGuard: React.FC<SubscriptionGuardProps> = ({
       <>
         {children}
         <View style={styles.schoolBadge}>
-          <Ionicons name="school" size={12} color="#4ECDC4" />
+          <Ionicons name="school" size={12} color="#FF6B35" />
           <Text style={styles.schoolText}>School</Text>
         </View>
       </>
@@ -298,7 +298,7 @@ const styles = StyleSheet.create({
     position: 'absolute',
     top: 50,
     right: 16,
-    backgroundColor: 'rgba(78, 205, 196, 0.15)',
+    backgroundColor: 'rgba(255, 107, 53, 0.15)',
     borderRadius: 16,
     paddingVertical: 6,
     paddingHorizontal: 12,
@@ -309,7 +309,7 @@ const styles = StyleSheet.create({
   schoolText: {
     fontSize: 11,
     fontWeight: '700',
-    color: '#4ECDC4',
+    color: '#FF6B35',
     marginLeft: 5,
     letterSpacing: 0.5,
   },
