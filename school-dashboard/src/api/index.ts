@@ -61,6 +61,18 @@ export const codesApi = {
     planType: SchoolPlanType,
     paymentReference: string
   ): Promise<SchoolCode> {
+    // Check if a code with this payment reference already exists (prevent duplicates)
+    const existingCodes = await databases.listDocuments(
+      config.appwrite.databaseId,
+      config.collections.schoolCodes,
+      [Query.equal('paymentReference', paymentReference), Query.limit(1)]
+    );
+
+    if (existingCodes.documents.length > 0) {
+      console.log('Code already exists for this payment reference:', paymentReference);
+      return existingCodes.documents[0] as unknown as SchoolCode;
+    }
+
     const now = new Date();
     const expirationDate = new Date(now);
     
