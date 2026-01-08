@@ -266,7 +266,7 @@ export default function SettingsPage() {
                     : 'bg-white/10 text-white/50'
                 }`}
               >
-                {school?.subscriptionStatus || 'None'}
+                {school?.subscriptionStatus || 'Active'}
               </span>
             </div>
           </div>
