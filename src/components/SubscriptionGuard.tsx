@@ -4,7 +4,9 @@ import { useNavigation } from '@react-navigation/native';
 import { useSelector } from 'react-redux';
 import { RootState } from '../store';
 import { subscriptionService } from '../services/subscriptionService';
+import { schoolService } from '../services/schoolService';
 import { Subscription } from '../types/subscription';
+import { SchoolStudent } from '../types/school';
 import { Ionicons } from '@expo/vector-icons';
 
 interface SubscriptionGuardProps {
@@ -15,7 +17,7 @@ interface SubscriptionGuardProps {
 /**
  * SubscriptionGuard Component
  * 
- * Checks if user has active subscription (trial or paid)
+ * Checks if user has active subscription (trial, paid, or school)
  * Blocks access if subscription expired
  * Redirects to Premium screen when access denied
  */
@@ -28,7 +30,10 @@ const SubscriptionGuard: React.FC<SubscriptionGuardProps> = ({
   const [isChecking, setIsChecking] = useState(true);
   const [hasAccess, setHasAccess] = useState(false);
   const [subscription, setSubscription] = useState<Subscription | null>(null);
+  const [schoolEnrollment, setSchoolEnrollment] = useState<SchoolStudent | null>(null);
   const [trialDaysRemaining, setTrialDaysRemaining] = useState(0);
+  const [schoolDaysRemaining, setSchoolDaysRemaining] = useState(0);
+  const [subscriptionType, setSubscriptionType] = useState<'individual' | 'school' | null>(null);
   const [showBanner, setShowBanner] = useState(true);
 
   useEffect(() => {
@@ -43,10 +48,24 @@ const SubscriptionGuard: React.FC<SubscriptionGuardProps> = ({
     }
 
     try {
+      // First, check for school subscription
+      const schoolResult = await schoolService.hasActiveSchoolSubscription(user.$id);
+      
+      if (schoolResult.hasAccess) {
+        setHasAccess(true);
+        setSchoolEnrollment(schoolResult.enrollment);
+        setSchoolDaysRemaining(schoolResult.daysRemaining);
+        setSubscriptionType('school');
+        setIsChecking(false);
+        return;
+      }
+
+      // If no school subscription, check individual subscription
       const result = await subscriptionService.checkAndUpdateSubscriptionAccess(user.$id);
       
       setHasAccess(result.hasAccess);
       setSubscription(result.subscription);
+      setSubscriptionType(result.hasAccess ? 'individual' : null);
 
       if (result.subscription?.status === 'trial') {
         const remaining = subscriptionService.getRemainingTrialDays(result.subscription);
@@ -120,6 +139,19 @@ const SubscriptionGuard: React.FC<SubscriptionGuardProps> = ({
             <Text style={styles.pillUpgrade}>Upgrade</Text>
           </View>
         </TouchableOpacity>
+      </>
+    );
+  }
+
+  // Show school badge for school subscribers
+  if (subscriptionType === 'school' && schoolEnrollment) {
+    return (
+      <>
+        {children}
+        <View style={styles.schoolBadge}>
+          <Ionicons name="school" size={12} color="#4ECDC4" />
+          <Text style={styles.schoolText}>School</Text>
+        </View>
       </>
     );
   }
@@ -259,6 +291,25 @@ const styles = StyleSheet.create({
     fontSize: 11,
     fontWeight: '700',
     color: '#FF6B35',
+    marginLeft: 5,
+    letterSpacing: 0.5,
+  },
+  schoolBadge: {
+    position: 'absolute',
+    top: 50,
+    right: 16,
+    backgroundColor: 'rgba(78, 205, 196, 0.15)',
+    borderRadius: 16,
+    paddingVertical: 6,
+    paddingHorizontal: 12,
+    flexDirection: 'row',
+    alignItems: 'center',
+    zIndex: 999,
+  },
+  schoolText: {
+    fontSize: 11,
+    fontWeight: '700',
+    color: '#4ECDC4',
     marginLeft: 5,
     letterSpacing: 0.5,
   },

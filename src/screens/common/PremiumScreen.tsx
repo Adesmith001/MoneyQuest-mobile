@@ -22,6 +22,7 @@ import { subscriptionService } from "../../services/subscriptionService";
 
 type RootStackParamList = {
   Premium: undefined;
+  SchoolCodeEntry: undefined;
   PaymentPending: {
     reference: string;
     planType: "monthly" | "annual";
@@ -219,6 +220,17 @@ const PremiumScreen: React.FC = () => {
             24-hours before the end of the current period.
           </Text>
         </View>
+
+        {/* School Code Option */}
+        <TouchableOpacity
+          style={styles.schoolCodeButton}
+          onPress={() => navigation.navigate("SchoolCodeEntry")}
+          activeOpacity={0.7}
+        >
+          <Ionicons name="school-outline" size={20} color="#FFF" />
+          <Text style={styles.schoolCodeText}>Have a school code?</Text>
+          <Ionicons name="chevron-forward" size={16} color="#FFF" />
+        </TouchableOpacity>
       </ScrollView>
     </SafeAreaView>
   );
@@ -341,6 +353,22 @@ const styles = StyleSheet.create({
   termsLink: {
     color: "#FFD93D",
     fontWeight: "600",
+  },
+  schoolCodeButton: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    marginTop: 16,
+    paddingVertical: 14,
+    paddingHorizontal: 20,
+    backgroundColor: "rgba(255, 255, 255, 0.15)",
+    borderRadius: 12,
+    gap: 8,
+  },
+  schoolCodeText: {
+    fontSize: 15,
+    fontWeight: "600",
+    color: "#FFF",
   },
 });
 

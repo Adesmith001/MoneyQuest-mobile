@@ -1,0 +1,17 @@
+{
+  "name": "verify-school-payment",
+  "version": "1.0.0",
+  "description": "Verify school payment with KoraPay and create enrollment code",
+  "main": "src/main.js",
+  "type": "module",
+  "scripts": {
+    "format": "prettier --write ."
+  },
+  "dependencies": {
+    "node-appwrite": "^13.0.0"
+  },
+  "devDependencies": {
+    "@types/node": "^20.11.5",
+    "prettier": "^3.0.0"
+  }
+}

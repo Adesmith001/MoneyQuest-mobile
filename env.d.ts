@@ -12,6 +12,12 @@ declare module '@env' {
   export const APPWRITE_STORAGE_BUCKET_ID: string;
   export const APPWRITE_AI_FUNCTION_ID: string;
   export const APPWRITE_LEADERBOARD_FUNCTION_ID: string;
+  export const APPWRITE_SUBSCRIPTIONS_COLLECTION_ID: string;
+  // School Subscription Collections
+  export const APPWRITE_SCHOOLS_COLLECTION_ID: string;
+  export const APPWRITE_SCHOOL_CODES_COLLECTION_ID: string;
+  export const APPWRITE_SCHOOL_STUDENTS_COLLECTION_ID: string;
+  export const APPWRITE_SCHOOL_PAYMENTS_COLLECTION_ID: string;
   export const GOOGLE_CLIENT_ID: string;
   export const FACEBOOK_APP_ID: string;
   export const TWITTER_CLIENT_ID: string;
@@ -26,5 +32,4 @@ declare module '@env' {
   export const KORAPAY_MERCHANT_ID: string;
   export const KORAPAY_WEBHOOK_SECRET: string;
   export const KORAPAY_API_URL: string;
-  export const APPWRITE_SUBSCRIPTIONS_COLLECTION_ID: string;
 }

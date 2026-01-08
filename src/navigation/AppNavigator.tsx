@@ -32,6 +32,7 @@ import MainTabNavigator from './MainTabNavigator';
 import LoadingScreen from '../screens/common/LoadingScreen'; // Import the new loading screen
 import PremiumScreen from '../screens/common/PremiumScreen';
 import PaymentPendingScreen from '../screens/common/PaymentPendingScreen';
+import SchoolCodeEntryScreen from '../screens/common/SchoolCodeEntryScreen';
 import QuestionScreen from '../screens/game/QuestionScreen';
 import LevelCompletionScreen from '../screens/game/LevelCompletionScreen';
 import SettingsScreen from '../screens/profile/SettingsScreen';
@@ -97,6 +98,7 @@ export type RootStackParamList = {
   
   // Subscription
   Premium: undefined;
+  SchoolCodeEntry: undefined;
   PaymentPending: {
     reference: string;
     planType: 'monthly' | 'annual';
@@ -285,6 +287,14 @@ const AppNavigator: React.FC = () => {
               <Stack.Screen 
                 name="Premium" 
                 component={PremiumScreen}
+                options={{
+                  headerShown: false,
+                  presentation: 'modal',
+                }}
+              />
+              <Stack.Screen 
+                name="SchoolCodeEntry" 
+                component={SchoolCodeEntryScreen}
                 options={{
                   headerShown: false,
                   presentation: 'modal',
