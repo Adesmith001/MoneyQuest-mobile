@@ -64,15 +64,17 @@ export default function RegisterPage() {
   };
 
   return (
-    <div className="min-h-screen bg-dark-300 flex">
+    <div className="h-screen bg-dark-300 flex overflow-hidden">
       {/* Left side - Form */}
       <div className="flex-1 flex items-center justify-center p-8">
         <div className="w-full max-w-md">
           {/* Logo */}
-          <div className="flex items-center gap-3 mb-8">
-            <div className="w-12 h-12 bg-primary-500 rounded-xl flex items-center justify-center">
-              <GraduationCap className="w-7 h-7 text-white" />
-            </div>
+          <div className="flex items-center gap-8 mb-8">
+              <img 
+              src="/logo.png" 
+              alt="MoneyQuest Logo" 
+              className="w-[10%] h-full object-contain"
+            />
             <div>
               <h1 className="text-xl font-bold text-white">MoneyQuest</h1>
               <p className="text-sm text-white/50">School Dashboard</p>
@@ -223,19 +225,12 @@ export default function RegisterPage() {
       </div>
 
       {/* Right side - Illustration */}
-      <div className="hidden lg:flex flex-1 bg-gradient-to-br from-accent-500 to-accent-700 items-center justify-center p-12">
-        <div className="text-center max-w-md">
-          <div className="w-32 h-32 bg-white/20 rounded-3xl mx-auto mb-8 flex items-center justify-center">
-            <GraduationCap className="w-16 h-16 text-white" />
-          </div>
-          <h2 className="text-3xl font-bold text-white mb-4">
-            Bulk Pricing Available
-          </h2>
-          <p className="text-white/80 text-lg">
-            Get up to 20% discount on bulk seat purchases. Perfect for schools
-            of all sizes.
-          </p>
-        </div>
+      <div className="hidden lg:flex flex-1 items-center justify-center overflow-hidden">
+        <img 
+          src="/register.jpg" 
+          alt="Registration" 
+          className="w-full h-full object-cover"
+        />
       </div>
     </div>
   );

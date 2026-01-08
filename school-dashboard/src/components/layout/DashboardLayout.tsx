@@ -8,7 +8,6 @@ import {
   Settings,
   LogOut,
   ShoppingCart,
-  GraduationCap,
 } from 'lucide-react';
 import { cn } from '../../lib/utils';
 
@@ -37,9 +36,11 @@ export default function DashboardLayout() {
         {/* Logo */}
         <div className="p-6 border-b border-white/10">
           <div className="flex items-center gap-3">
-            <div className="w-10 h-10 bg-primary-500 rounded-xl flex items-center justify-center">
-              <GraduationCap className="w-6 h-6 text-white" />
-            </div>
+              <img 
+              src="/logo.png" 
+              alt="MoneyQuest Logo" 
+              className="w-[30%] h-full object-contain"
+            />
             <div>
               <h1 className="text-lg font-bold text-white">MoneyQuest</h1>
               <p className="text-xs text-white/50">School Dashboard</p>

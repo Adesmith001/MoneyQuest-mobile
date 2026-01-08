@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { useAuthStore } from '../stores/authStore';
-import { GraduationCap, Mail, Lock } from 'lucide-react';
+import { Mail, Lock } from 'lucide-react';
 import Button from '../components/ui/Button';
 import Input from '../components/ui/Input';
 import toast from 'react-hot-toast';
@@ -26,15 +26,17 @@ export default function LoginPage() {
   };
 
   return (
-    <div className="min-h-screen bg-dark-300 flex">
+    <div className="h-screen bg-dark-300 flex overflow-hidden">
       {/* Left side - Form */}
       <div className="flex-1 flex items-center justify-center p-8">
         <div className="w-full max-w-md">
           {/* Logo */}
           <div className="flex items-center gap-3 mb-8">
-            <div className="w-12 h-12 bg-primary-500 rounded-xl flex items-center justify-center">
-              <GraduationCap className="w-7 h-7 text-white" />
-            </div>
+            <img 
+              src="/logo.png" 
+              alt="MoneyQuest Logo" 
+              className="w-12 h-12 rounded-xl object-contain"
+            />
             <div>
               <h1 className="text-xl font-bold text-white">MoneyQuest</h1>
               <p className="text-sm text-white/50">School Dashboard</p>
@@ -99,19 +101,12 @@ export default function LoginPage() {
       </div>
 
       {/* Right side - Illustration */}
-      <div className="hidden lg:flex flex-1 bg-gradient-to-br from-primary-500 to-primary-700 items-center justify-center p-12">
-        <div className="text-center max-w-md">
-          <div className="w-32 h-32 bg-white/20 rounded-3xl mx-auto mb-8 flex items-center justify-center">
-            <GraduationCap className="w-16 h-16 text-white" />
-          </div>
-          <h2 className="text-3xl font-bold text-white mb-4">
-            Empower Your Students
-          </h2>
-          <p className="text-white/80 text-lg">
-            Manage bulk subscriptions, generate enrollment codes, and track your
-            students' financial education journey all in one place.
-          </p>
-        </div>
+      <div className="hidden lg:flex flex-1 items-center justify-center overflow-hidden">
+        <img 
+          src="/login.jpg" 
+          alt="Login" 
+          className="w-full h-full object-cover"
+        />
       </div>
     </div>
   );
