@@ -27,8 +27,10 @@ export default function BuySeatsPage() {
   const paymentRef = useRef<string | null>(null);
   const isCreatingCode = useRef(false);
 
-  const pricing = calculatePrice(planType, seats);
   const plan = SCHOOL_PRICING[planType];
+  // Use fixed seats for fixed plans, otherwise use state
+  const effectiveSeats = plan.isFixed ? plan.fixedSeats! : seats;
+  const pricing = calculatePrice(planType, effectiveSeats);
 
   const handleSeatsChange = (value: string) => {
     const num = parseInt(value) || 0;
@@ -49,7 +51,7 @@ export default function BuySeatsPage() {
       paymentRef.current = reference;
 
       // Create pending payment record in database with codeName
-      await paymentsApi.createPending(school.$id, seats, planType, reference, codeName);
+      await paymentsApi.createPending(school.$id, effectiveSeats, planType, reference, codeName);
 
       // Initialize KoraPay checkout
       await initializeKoraPayCheckout({
@@ -58,7 +60,7 @@ export default function BuySeatsPage() {
         schoolEmail: school.email,
         schoolId: school.$id,
         reference,
-        seats,
+        seats: effectiveSeats,
         planType,
         codeName,
         onSuccess: async (data) => {
@@ -77,7 +79,7 @@ export default function BuySeatsPage() {
             const code = await codesApi.create(
               school.$id,
               codeName,
-              seats,
+              effectiveSeats,
               planType,
               reference
             );
@@ -170,7 +172,7 @@ export default function BuySeatsPage() {
       {/* Step 1: Select Plan */}
       {step === 1 && (
         <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-          {(['monthly', 'annual'] as SchoolPlanType[]).map((type) => {
+          {(['monthly', 'annual', 'school_monthly_100', 'school_annual_100'] as SchoolPlanType[]).map((type) => {
             const p = SCHOOL_PRICING[type];
             const selected = planType === type;
 
@@ -189,22 +191,31 @@ export default function BuySeatsPage() {
                     <h3 className="text-xl font-bold text-white">{p.name}</h3>
                     <p className="text-white/50">{p.duration} subscription</p>
                   </div>
-                  {type === 'annual' && (
+                  {(type === 'annual' || type === 'school_annual_100') && (
                     <span className="bg-accent-500/20 text-accent-500 text-xs font-medium px-2 py-1 rounded-full">
                       Best Value
                     </span>
                   )}
                 </div>
 
-                <p className="text-3xl font-bold text-white mb-1">
-                  {formatCurrency(p.pricePerSeat)}
-                  <span className="text-lg text-white/50 font-normal">/seat</span>
-                </p>
+                {p.isFixed ? (
+                  <div>
+                    <p className="text-3xl font-bold text-white mb-1">
+                      {formatCurrency(p.fixedPrice!)}
+                    </p>
+                    <p className="text-sm text-white/50">for {p.fixedSeats} seats (fixed)</p>
+                  </div>
+                ) : (
+                  <p className="text-3xl font-bold text-white mb-1">
+                    {formatCurrency(p.pricePerSeat)}
+                    <span className="text-lg text-white/50 font-normal">/seat</span>
+                  </p>
+                )}
 
                 <div className="mt-4 space-y-2">
                   <div className="flex items-center gap-2 text-sm text-white/70">
                     <Check className="w-4 h-4 text-accent-500" />
-                    No minimum seats required
+                    {p.isFixed ? `${p.fixedSeats} seats included` : 'Flexible seat quantity'}
                   </div>
                   <div className="flex items-center gap-2 text-sm text-white/70">
                     <Check className="w-4 h-4 text-accent-500" />
@@ -246,36 +257,54 @@ export default function BuySeatsPage() {
           />
 
           <div className="space-y-6">
-            <div>
-              <label className="block text-sm font-medium text-white/80 mb-2">
-                Number of Seats
-              </label>
-              <div className="flex items-center gap-4">
-                <button
-                  onClick={() => setSeats(Math.max(plan.minSeats, seats - 10))}
-                  className="w-12 h-12 bg-white/10 rounded-xl flex items-center justify-center text-white text-xl hover:bg-white/20"
-                >
-                  -
-                </button>
-                <Input
-                  type="number"
-                  value={seats}
-                  onChange={(e) => handleSeatsChange(e.target.value)}
-                  className="w-32 text-center text-lg"
-                  min={plan.minSeats}
-                  max={10000}
-                />
-                <button
-                  onClick={() => setSeats(Math.min(10000, seats + 10))}
-                  className="w-12 h-12 bg-white/10 rounded-xl flex items-center justify-center text-white text-xl hover:bg-white/20"
-                >
-                  +
-                </button>
+            {plan.isFixed ? (
+              <div>
+                <label className="block text-sm font-medium text-white mb-2">
+                  Number of Seats (Fixed)
+                </label>
+                <div className="bg-white/5 rounded-xl p-4 border border-white/10">
+                  <div className="flex items-center justify-center gap-4">
+                    <Users className="w-6 h-6 text-primary-500" />
+                    <p className="text-3xl font-bold text-white">{plan.fixedSeats}</p>
+                    <p className="text-sm text-white/50">seats included</p>
+                  </div>
+                </div>
+                <p className="text-sm text-white/50 mt-2">
+                  This plan comes with a fixed {plan.fixedSeats} seats
+                </p>
               </div>
-              <p className="text-sm text-white/50 mt-2">
-                Minimum: {plan.minSeats} seats
-              </p>
-            </div>
+            ) : (
+              <div>
+                <label className="block text-sm font-medium text-white/80 mb-2">
+                  Number of Seats
+                </label>
+                <div className="flex items-center gap-4">
+                  <button
+                    onClick={() => setSeats(Math.max(plan.minSeats, seats - 10))}
+                    className="w-12 h-12 bg-white/10 rounded-xl flex items-center justify-center text-white text-xl hover:bg-white/20"
+                  >
+                    -
+                  </button>
+                  <Input
+                    type="number"
+                    value={seats}
+                    onChange={(e) => handleSeatsChange(e.target.value)}
+                    className="w-32 text-center text-lg"
+                    min={plan.minSeats}
+                    max={10000}
+                  />
+                  <button
+                    onClick={() => setSeats(Math.min(10000, seats + 10))}
+                    className="w-12 h-12 bg-white/10 rounded-xl flex items-center justify-center text-white text-xl hover:bg-white/20"
+                  >
+                    +
+                  </button>
+                </div>
+                <p className="text-sm text-white/50 mt-2">
+                  Minimum: {plan.minSeats} seats
+                </p>
+              </div>
+            )}
 
             <Input
               label="Code Name"
@@ -295,7 +324,7 @@ export default function BuySeatsPage() {
                   </p>
                 </div>
                 <div className="text-right">
-                  <p className="text-sm text-white/50">{seats} seats × {formatCurrency(pricing.pricePerSeat)}</p>
+                  <p className="text-sm text-white/50">{effectiveSeats} seats × {formatCurrency(pricing.pricePerSeat)}</p>
                   <p className="text-sm text-white/70">{SCHOOL_PRICING[planType].duration}ly plan</p>
                 </div>
               </div>
@@ -328,7 +357,7 @@ export default function BuySeatsPage() {
                 <Users className="w-5 h-5 text-white/40" />
                 <span className="text-white/70">Seats</span>
               </div>
-              <span className="text-white font-medium">{seats} seats</span>
+              <span className="text-white font-medium">{effectiveSeats} seats</span>
             </div>
 
             <div className="flex justify-between py-3 border-b border-white/10">

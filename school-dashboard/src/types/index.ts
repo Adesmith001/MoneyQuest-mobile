@@ -4,7 +4,7 @@ export type SchoolStatus = 'active' | 'suspended' | 'pending';
 export type SchoolCodeStatus = 'active' | 'expired' | 'suspended' | 'depleted';
 export type SchoolStudentStatus = 'active' | 'expired' | 'revoked';
 export type SchoolPaymentStatus = 'pending' | 'success' | 'failed';
-export type SchoolPlanType = 'monthly' | 'annual';
+export type SchoolPlanType = 'monthly' | 'annual' | 'school_monthly_100' | 'school_annual_100';
 
 export interface School {
   $id: string;
@@ -58,6 +58,7 @@ export interface SchoolStudent {
   updatedAt: string;
   // Populated fields
   user?: {
+    $id: string;
     name: string;
     email: string;
     avatar?: string;

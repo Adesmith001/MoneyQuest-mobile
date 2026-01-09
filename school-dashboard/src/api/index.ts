@@ -154,7 +154,35 @@ export const studentsApi = {
         Query.limit(500),
       ]
     );
-    return response.documents as unknown as SchoolStudent[];
+    
+    // Populate user data for each student
+    const studentsWithUsers = await Promise.all(
+      response.documents.map(async (doc) => {
+        let user = undefined;
+        try {
+          const userDoc = await databases.getDocument(
+            config.appwrite.databaseId,
+            config.collections.users,
+            doc.userId
+          );
+          user = {
+            $id: userDoc.$id,
+            name: userDoc.name || 'Unknown',
+            email: userDoc.email || '',
+            avatar: userDoc.avatar,
+          };
+        } catch (error) {
+          console.error('Failed to fetch user for student:', doc.userId, error);
+        }
+        
+        return {
+          ...doc,
+          user,
+        } as unknown as SchoolStudent;
+      })
+    );
+    
+    return studentsWithUsers;
   },
 
   // Get students for a specific code
