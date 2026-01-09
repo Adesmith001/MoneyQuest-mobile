@@ -8,6 +8,7 @@ import {
   ScrollView,
   Dimensions,
   Image,
+  Linking,
 } from "react-native";
 import { useSelector, useDispatch } from "react-redux";
 import { useFocusEffect } from "@react-navigation/native";
@@ -237,6 +238,44 @@ const ProfileScreen: React.FC<Props> = ({ navigation }) => {
           }}
         />
 
+        {/* Contact Us Section */}
+        <View style={styles.contactSection}>
+          <Text style={styles.contactTitle}>Contact Us</Text>
+          <Text style={styles.contactSubtitle}>Have questions or feedback? Reach out to us!</Text>
+          
+          <View style={styles.contactOptions}>
+            <TouchableOpacity 
+              style={styles.contactButton}
+              onPress={() => Linking.openURL('mailto:moneyquest25@gmail.com')}
+            >
+              <View style={[styles.contactIconWrapper, { backgroundColor: '#EA4335' }]}>
+                <Ionicons name="mail" size={20} color="#FFFFFF" />
+              </View>
+              <Text style={styles.contactButtonText}>Email Us</Text>
+            </TouchableOpacity>
+
+            <TouchableOpacity 
+              style={styles.contactButton}
+              onPress={() => Linking.openURL('https://www.instagram.com/nurture_haven/')}
+            >
+              <View style={[styles.contactIconWrapper, { backgroundColor: '#E4405F' }]}>
+                <Ionicons name="logo-instagram" size={20} color="#FFFFFF" />
+              </View>
+              <Text style={styles.contactButtonText}>Instagram</Text>
+            </TouchableOpacity>
+
+            <TouchableOpacity 
+              style={styles.contactButton}
+              onPress={() => Linking.openURL('https://www.tiktok.com/@nurture_haven')}
+            >
+              <View style={[styles.contactIconWrapper, { backgroundColor: '#000000' }]}>
+                <Ionicons name="logo-tiktok" size={20} color="#FFFFFF" />
+              </View>
+              <Text style={styles.contactButtonText}>TikTok</Text>
+            </TouchableOpacity>
+          </View>
+        </View>
+
         {/* Badges & Achievement */}
         <View style={styles.achievementsSection}>
           <Text style={styles.sectionTitle}>Badges & Achievement</Text>
@@ -405,6 +444,49 @@ const styles = StyleSheet.create({
     backgroundColor: "#E9ECEF",
     borderRadius: 16,
     marginBottom: 12,
+  },
+  contactSection: {
+    marginHorizontal: 20,
+    paddingVertical: 20,
+    paddingHorizontal: 16,
+    marginBottom: 20,
+    backgroundColor: "#FFFFFF",
+    borderRadius: 16,
+    borderWidth: 2,
+    borderColor: "#E5E5E5",
+  },
+  contactTitle: {
+    fontSize: 18,
+    fontWeight: "bold",
+    color: "#333",
+    marginBottom: 8,
+    textAlign: "center",
+  },
+  contactSubtitle: {
+    fontSize: 14,
+    color: "#666",
+    textAlign: "center",
+    marginBottom: 20,
+  },
+  contactOptions: {
+    flexDirection: "row",
+    justifyContent: "space-around",
+  },
+  contactButton: {
+    alignItems: "center",
+  },
+  contactIconWrapper: {
+    width: 48,
+    height: 48,
+    borderRadius: 24,
+    justifyContent: "center",
+    alignItems: "center",
+    marginBottom: 8,
+  },
+  contactButtonText: {
+    fontSize: 12,
+    color: "#333",
+    fontWeight: "500",
   },
 });
 

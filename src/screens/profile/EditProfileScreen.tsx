@@ -11,6 +11,7 @@ import {
   TextInput,
   Image,
 } from "react-native";
+import { Ionicons } from '@expo/vector-icons';
 import { useDispatch, useSelector } from "react-redux";
 import { signOut, updateUser } from "../../store/slices/authSlice";
 import { RootState, AppDispatch } from "../../store";
@@ -270,6 +271,44 @@ const EditProfileScreen: React.FC<Props> = ({ navigation }) => {
             <Text style={styles.deleteText}>Delete my account</Text>
           </TouchableOpacity>
         </View>
+
+        {/* Contact Us Section */}
+        <View style={styles.contactSection}>
+          <Text style={styles.contactTitle}>Contact Us</Text>
+          <Text style={styles.contactSubtitle}>Have questions or feedback? Reach out to us!</Text>
+          
+          <View style={styles.contactOptions}>
+            <TouchableOpacity 
+              style={styles.contactButton}
+              onPress={() => Linking.openURL('mailto:moneyquest25@gmail.com')}
+            >
+              <View style={[styles.contactIconWrapper, { backgroundColor: '#EA4335' }]}>
+                <Ionicons name="mail" size={20} color="#FFFFFF" />
+              </View>
+              <Text style={styles.contactButtonText}>Email Us</Text>
+            </TouchableOpacity>
+
+            <TouchableOpacity 
+              style={styles.contactButton}
+              onPress={() => Linking.openURL('https://www.instagram.com/nurture_haven/')}
+            >
+              <View style={[styles.contactIconWrapper, { backgroundColor: '#E4405F' }]}>
+                <Ionicons name="logo-instagram" size={20} color="#FFFFFF" />
+              </View>
+              <Text style={styles.contactButtonText}>Instagram</Text>
+            </TouchableOpacity>
+
+            <TouchableOpacity 
+              style={styles.contactButton}
+              onPress={() => Linking.openURL('https://www.tiktok.com/@nurture_haven')}
+            >
+              <View style={[styles.contactIconWrapper, { backgroundColor: '#000000' }]}>
+                <Ionicons name="logo-tiktok" size={20} color="#FFFFFF" />
+              </View>
+              <Text style={styles.contactButtonText}>TikTok</Text>
+            </TouchableOpacity>
+          </View>
+        </View>
       </ScrollView>
     </SafeAreaView>
   );
@@ -414,6 +453,48 @@ const styles = StyleSheet.create({
   deleteText: {
     fontSize: 14,
     color: "#999",
+  },
+  contactSection: {
+    paddingHorizontal: 20,
+    paddingVertical: 24,
+    marginTop: 16,
+    marginBottom: 40,
+    backgroundColor: "#F9F9F9",
+    marginHorizontal: 20,
+    borderRadius: 16,
+  },
+  contactTitle: {
+    fontSize: 18,
+    fontWeight: "bold",
+    color: "#333",
+    marginBottom: 8,
+    textAlign: "center",
+  },
+  contactSubtitle: {
+    fontSize: 14,
+    color: "#666",
+    textAlign: "center",
+    marginBottom: 20,
+  },
+  contactOptions: {
+    flexDirection: "row",
+    justifyContent: "space-around",
+  },
+  contactButton: {
+    alignItems: "center",
+  },
+  contactIconWrapper: {
+    width: 48,
+    height: 48,
+    borderRadius: 24,
+    justifyContent: "center",
+    alignItems: "center",
+    marginBottom: 8,
+  },
+  contactButtonText: {
+    fontSize: 12,
+    color: "#333",
+    fontWeight: "500",
   },
 });
 

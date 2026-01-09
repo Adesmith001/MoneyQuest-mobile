@@ -211,7 +211,7 @@ const PremiumScreen: React.FC = () => {
         </TouchableOpacity>
 
         {/* Terms */}
-        <View style={styles.termsContainer}>
+        {/* <View style={styles.termsContainer}>
           <Text style={styles.termsText}>
             By placing this order, you agree to the{" "}
             <Text style={styles.termsLink}>Terms of Service</Text> and{" "}
@@ -219,7 +219,7 @@ const PremiumScreen: React.FC = () => {
             automatically renews unless auto-renew is turned off at least
             24-hours before the end of the current period.
           </Text>
-        </View>
+        </View> */}
 
         {/* School Code Option */}
         <TouchableOpacity

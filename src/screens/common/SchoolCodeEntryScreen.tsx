@@ -208,7 +208,6 @@ const SchoolCodeEntryScreen: React.FC = () => {
             <Text style={styles.benefitsTitle}>What you'll get:</Text>
             {[
               'Unlimited access to all lessons',
-              'Personalized learning path',
               'Progress tracking & analytics',
               'Gamified experience',
             ].map((benefit, index) => (

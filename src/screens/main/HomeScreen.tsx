@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from "react";
+import React, { useEffect, useState, useRef } from "react";
 import {
   View,
   Text,
@@ -28,6 +28,7 @@ import { updateUser } from "../../store/slices/authSlice";
 import cacheService from "../../services/cacheService";
 import { livesService } from "../../services/lives";
 import LearningPathSkeleton from "../../components/skeletons/LearningPathSkeleton";
+import { getDecorationsForSection, SectionDecoration } from "../../config/sectionDecorations";
 
 interface Props {
   navigation: any;
@@ -59,6 +60,10 @@ const HomeScreen: React.FC<Props> = ({ navigation }) => {
   const [sections, setSections] = useState<Section[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [completedLevels, setCompletedLevels] = useState<Set<string>>(new Set());
+  const [hasScrolledToCurrentSection, setHasScrolledToCurrentSection] = useState(false);
+  
+  // Ref for horizontal scroll to scroll to user's current section
+  const horizontalScrollRef = useRef<ScrollView>(null);
 
   // Fetch sections and levels from backend when screen is focused
   useFocusEffect(
@@ -242,6 +247,21 @@ const HomeScreen: React.FC<Props> = ({ navigation }) => {
           }
 
           setSections(sectionsData);
+          
+          // Scroll to user's current section after loading
+          if (!hasScrolledToCurrentSection && user?.currentSectionId && sectionsData.length > 0) {
+            const currentSectionIndex = sectionsData.findIndex(s => s.id === user.currentSectionId);
+            if (currentSectionIndex > 0) {
+              // Delay scroll to ensure layout is ready
+              setTimeout(() => {
+                horizontalScrollRef.current?.scrollTo({
+                  x: currentSectionIndex * screenWidth,
+                  animated: false, // Don't animate on initial load
+                });
+                setHasScrolledToCurrentSection(true);
+              }, 100);
+            }
+          }
         } catch (error) {
           console.error('Failed to fetch learning path:', error);
           Alert.alert(
@@ -464,6 +484,9 @@ const HomeScreen: React.FC<Props> = ({ navigation }) => {
   };
 
   const renderSection = (section: Section, sectionIndex: number) => {
+    // Get decorations for this section based on its title
+    const sectionDecorations = getDecorationsForSection(section.title, sectionIndex);
+    
     return (
       <View key={section.id} style={styles.pageContainer}>
         {/* Cloud decorations */}
@@ -482,6 +505,29 @@ const HomeScreen: React.FC<Props> = ({ navigation }) => {
           <Text style={[styles.cloud, { top: 500, right: 50, fontSize: 35 }]}>
             ☁️
           </Text>
+        </View>
+
+        {/* Section-specific decorative elements */}
+        <View style={styles.decorationsContainer}>
+          {sectionDecorations.decorations.map((decoration, idx) => (
+            <Text
+              key={`decoration-${idx}`}
+              style={[
+                styles.sectionDecoration,
+                {
+                  top: decoration.position.top,
+                  bottom: decoration.position.bottom,
+                  left: decoration.position.left,
+                  right: decoration.position.right,
+                  fontSize: decoration.size || 40,
+                  opacity: decoration.opacity || 0.9,
+                  transform: [{ rotate: `${decoration.rotation || 0}deg` }],
+                },
+              ]}
+            >
+              {decoration.emoji}
+            </Text>
+          ))}
         </View>
 
         {/* Fixed Section Header */}
@@ -571,6 +617,7 @@ const HomeScreen: React.FC<Props> = ({ navigation }) => {
   return (
     <SafeAreaView style={styles.container}>
       <ScrollView
+        ref={horizontalScrollRef}
         horizontal
         pagingEnabled
         showsHorizontalScrollIndicator={false}
@@ -613,6 +660,16 @@ const styles = StyleSheet.create({
     width: "100%",
     height: "100%",
     zIndex: 0,
+  },
+  decorationsContainer: {
+    position: "absolute",
+    width: "100%",
+    height: "100%",
+    // zIndex: 1,
+    pointerEvents: "none",
+  },
+  sectionDecoration: {
+    position: "absolute",
   },
   cloud: {
     position: "absolute",

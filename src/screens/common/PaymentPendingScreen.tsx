@@ -5,6 +5,7 @@ import {
   StyleSheet,
   ActivityIndicator,
   TouchableOpacity,
+  Linking,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useNavigation, useRoute, RouteProp } from '@react-navigation/native';
@@ -146,6 +147,42 @@ const PaymentPendingScreen: React.FC = () => {
   return (
     <SafeAreaView style={styles.container}>
       <View style={styles.content}>{renderContent()}</View>
+      
+      {/* Contact Us Section */}
+      <View style={styles.contactSection}>
+        <Text style={styles.contactTitle}>Need Help?</Text>
+        <View style={styles.contactOptions}>
+          <TouchableOpacity 
+            style={styles.contactButton}
+            onPress={() => Linking.openURL('mailto:moneyquest25@gmail.com')}
+          >
+            <View style={[styles.contactIconWrapper, { backgroundColor: '#EA4335' }]}>
+              <Ionicons name="mail" size={18} color="#FFFFFF" />
+            </View>
+            <Text style={styles.contactButtonText}>Email</Text>
+          </TouchableOpacity>
+
+          <TouchableOpacity 
+            style={styles.contactButton}
+            onPress={() => Linking.openURL('https://www.instagram.com/nurture_haven/')}
+          >
+            <View style={[styles.contactIconWrapper, { backgroundColor: '#E4405F' }]}>
+              <Ionicons name="logo-instagram" size={18} color="#FFFFFF" />
+            </View>
+            <Text style={styles.contactButtonText}>Instagram</Text>
+          </TouchableOpacity>
+
+          <TouchableOpacity 
+            style={styles.contactButton}
+            onPress={() => Linking.openURL('https://www.tiktok.com/@nurture_haven')}
+          >
+            <View style={[styles.contactIconWrapper, { backgroundColor: '#000000' }]}>
+              <Ionicons name="logo-tiktok" size={18} color="#FFFFFF" />
+            </View>
+            <Text style={styles.contactButtonText}>TikTok</Text>
+          </TouchableOpacity>
+        </View>
+      </View>
     </SafeAreaView>
   );
 };
@@ -225,6 +262,41 @@ const styles = StyleSheet.create({
   },
   buttonIcon: {
     marginLeft: 8,
+  },
+  contactSection: {
+    paddingHorizontal: 20,
+    paddingVertical: 20,
+    paddingBottom: 30,
+    borderTopWidth: 1,
+    borderTopColor: 'rgba(255, 255, 255, 0.1)',
+  },
+  contactTitle: {
+    fontSize: 14,
+    fontWeight: '600',
+    color: 'rgba(255, 255, 255, 0.6)',
+    textAlign: 'center',
+    marginBottom: 16,
+  },
+  contactOptions: {
+    flexDirection: 'row',
+    justifyContent: 'center',
+    gap: 24,
+  },
+  contactButton: {
+    alignItems: 'center',
+  },
+  contactIconWrapper: {
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginBottom: 6,
+  },
+  contactButtonText: {
+    fontSize: 11,
+    color: 'rgba(255, 255, 255, 0.6)',
+    fontWeight: '500',
   },
 });
 

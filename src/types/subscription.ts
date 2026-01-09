@@ -81,7 +81,6 @@ export const SUBSCRIPTION_PLANS: Record<PlanType, SubscriptionPlan> = {
     duration: 'Month',
     features: [
       'Unlimited access to all lessons',
-      'Personalized learning path',
       'Progress tracking',
       'Gamified experience',
       'Leaderboard access',
