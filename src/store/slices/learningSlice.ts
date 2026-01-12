@@ -83,14 +83,20 @@ export const {
 } = learningSlice.actions;
 
 // Selectors with cache validation
+// These selectors are used by cachedBackendApi to check if data exists
+// The CACHE_DURATION check ensures stale data is refreshed
+
 export const selectSections = (state: { learning: LearningState }) => {
   const { data, timestamp } = state.learning.sections;
-  if (!timestamp) return null;
+  if (!timestamp || !data || data.length === 0) return null;
   
   const age = Date.now() - timestamp;
   const isValid = age < CACHE_DURATION;
   
-  console.log(`📦 Sections cache age: ${Math.floor(age / (24 * 60 * 60 * 1000))} days, valid: ${isValid}`);
+  // Only log cache status occasionally to reduce noise
+  if (process.env.NODE_ENV === 'development') {
+    console.log(`📦 Sections cache: ${data.length} items, ${Math.floor(age / (24 * 60 * 60 * 1000))} days old, valid: ${isValid}`);
+  }
   return isValid ? data : null;
 };
 
@@ -99,24 +105,28 @@ export const selectSectionsLoading = (state: { learning: LearningState }) =>
 
 export const selectLevels = (sectionId: string) => (state: { learning: LearningState }) => {
   const cached = state.learning.levels[sectionId];
-  if (!cached) return null;
+  if (!cached || !cached.data || cached.data.length === 0) return null;
   
   const age = Date.now() - cached.timestamp;
   const isValid = age < CACHE_DURATION;
   
-  console.log(`📦 Levels cache for ${sectionId}: ${Math.floor(age / (24 * 60 * 60 * 1000))} days old, valid: ${isValid}`);
   return isValid ? cached.data : null;
 };
 
 export const selectQuestions = (levelId: string) => (state: { learning: LearningState }) => {
   const cached = state.learning.questions[levelId];
-  if (!cached) return null;
+  if (!cached || !cached.data || cached.data.length === 0) return null;
   
   const age = Date.now() - cached.timestamp;
   const isValid = age < CACHE_DURATION;
   
-  console.log(`📦 Questions cache for ${levelId}: ${Math.floor(age / (24 * 60 * 60 * 1000))} days old, valid: ${isValid}`);
   return isValid ? cached.data : null;
+};
+
+// Selector to check if cache exists (without validation)
+// Useful for checking if we need to show loading state
+export const selectHasCachedData = (state: { learning: LearningState }) => {
+  return state.learning.sections.data.length > 0;
 };
 
 export default learningSlice.reducer;

@@ -28,7 +28,7 @@ const SubscriptionGuard: React.FC<SubscriptionGuardProps> = ({
   const navigation = useNavigation();
   const { user } = useSelector((state: RootState) => state.auth);
   const [isChecking, setIsChecking] = useState(true);
-  const [hasAccess, setHasAccess] = useState(false);
+  const [hasAccess, setHasAccess] = useState(true); // Default to true for better UX - show content while checking
   const [subscription, setSubscription] = useState<Subscription | null>(null);
   const [schoolEnrollment, setSchoolEnrollment] = useState<SchoolStudent | null>(null);
   const [trialDaysRemaining, setTrialDaysRemaining] = useState(0);
@@ -90,16 +90,10 @@ const SubscriptionGuard: React.FC<SubscriptionGuardProps> = ({
     navigation.navigate('Premium' as never);
   };
 
-  if (isChecking) {
-    return (
-      <View style={styles.loadingContainer}>
-        <ActivityIndicator size="large" color="#4ECDC4" />
-        <Text style={styles.loadingText}>Checking subscription...</Text>
-      </View>
-    );
-  }
+  // No longer show loading screen - content is shown immediately while checking in background
+  // If check fails and no access, redirect to Premium screen (handled in checkSubscription)
 
-  if (!hasAccess) {
+  if (!hasAccess && !isChecking) {
     return (
       <View style={styles.blockedContainer}>
         <View style={styles.lockIconWrapper}>

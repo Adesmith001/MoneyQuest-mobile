@@ -2,6 +2,7 @@ import {
   account,
   databases,
   storage,
+  functions,
   DB_ID,
   COLLECTIONS,
   STORAGE_BUCKET,
@@ -628,6 +629,81 @@ class AuthService {
         throw new Error("Password reset is not properly configured. Please contact support.");
       }
       throw new Error(error.message || "Failed to send recovery email. Please try again.");
+    }
+  }
+
+  // Send OTP for password recovery (new OTP-based flow)
+  async sendPasswordOTP(email: string): Promise<{ success: boolean; message: string }> {
+    try {
+      const result = await functions.createExecution(
+        'sendPasswordOTP', // Function ID - you'll set this when deploying
+        JSON.stringify({ email }),
+        false, // async
+        '/', // path
+        'POST' // method
+      );
+
+      const response = JSON.parse(result.responseBody);
+      
+      if (!response.success) {
+        throw new Error(response.error || 'Failed to send OTP');
+      }
+
+      return response;
+    } catch (error: any) {
+      console.error("Send password OTP error:", error);
+      if (error.code === 429) {
+        throw new Error("Too many requests. Please wait before trying again.");
+      }
+      throw new Error(error.message || "Failed to send OTP. Please try again.");
+    }
+  }
+
+  // Verify OTP and get reset token
+  async verifyPasswordOTP(email: string, otp: string): Promise<{ success: boolean; resetToken: string; userId: string }> {
+    try {
+      const result = await functions.createExecution(
+        'verifyPasswordOTP', // Function ID
+        JSON.stringify({ email, otp }),
+        false,
+        '/',
+        'POST'
+      );
+
+      const response = JSON.parse(result.responseBody);
+      
+      if (!response.success) {
+        throw new Error(response.error || 'Invalid OTP');
+      }
+
+      return response;
+    } catch (error: any) {
+      console.error("Verify password OTP error:", error);
+      throw new Error(error.message || "Failed to verify OTP. Please try again.");
+    }
+  }
+
+  // Reset password with token (after OTP verification)
+  async resetPasswordWithToken(userId: string, resetToken: string, newPassword: string): Promise<{ success: boolean; message: string }> {
+    try {
+      const result = await functions.createExecution(
+        'resetPasswordWithToken', // Function ID
+        JSON.stringify({ userId, resetToken, newPassword }),
+        false,
+        '/',
+        'POST'
+      );
+
+      const response = JSON.parse(result.responseBody);
+      
+      if (!response.success) {
+        throw new Error(response.error || 'Failed to reset password');
+      }
+
+      return response;
+    } catch (error: any) {
+      console.error("Reset password with token error:", error);
+      throw new Error(error.message || "Failed to reset password. Please try again.");
     }
   }
 

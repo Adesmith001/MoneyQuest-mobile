@@ -32,13 +32,15 @@ class LearningService {
   }
 
   /**
-   * Get a specific section by ID (from documents endpoint)
+   * Get a specific section by ID (from cached sections)
+   * Uses cached data instead of hitting the API directly
    * @param sectionId - UUID of the section
    */
   async getSectionById(sectionId: string): Promise<BackendSection | null> {
     try {
-      const documents = await backendApi.getDocuments();
-      const section = documents.find(doc => doc.document_id === sectionId);
+      // Use cached sections instead of hitting the API directly
+      const sections = await cachedBackendApi.getSections();
+      const section = sections.find(doc => doc.section_id === sectionId || doc.document_id === sectionId);
       return section || null;
     } catch (error) {
       console.error(`Error fetching section ${sectionId}:`, error);
@@ -105,34 +107,6 @@ class LearningService {
   // ============================================
   // QUESTION METHODS
   // ============================================
-
-  /**
-   * Generate AI-powered questions for a level
-   * @param levelId - UUID of the level
-   * @param numQuestions - Number of questions to generate (default: 10, max: 20)
-   * @param difficulty - Difficulty level: "easy", "medium", "hard", "mixed"
-   * @returns Generated questions with metadata
-   */
-  async generateQuestionsForLevel(
-    levelId: string,
-    numQuestions: number = 10,
-    difficulty: 'easy' | 'medium' | 'hard' | 'mixed' = 'mixed'
-  ): Promise<BackendQuestionResponse> {
-    try {
-      const response = await backendApi.generateQuestions(
-        levelId,
-        numQuestions,
-        difficulty
-      );
-      console.log(
-        `Generated ${response.total_generated} questions for level ${levelId}`
-      );
-      return response;
-    } catch (error) {
-      console.error(`Error generating questions for level ${levelId}:`, error);
-      throw new Error('Failed to generate questions');
-    }
-  }
 
   /**
    * Get previously generated questions for a level

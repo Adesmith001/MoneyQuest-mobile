@@ -1,7 +1,12 @@
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { BackendSection, BackendLevel } from '../types';
 
+// ⚠️ INCREMENT THIS VERSION whenever you want to invalidate ALL caches
+// This forces fresh data fetch when users update the app
+const CACHE_VERSION = 2;
+
 const CACHE_KEYS = {
+  CACHE_VERSION: '@moneyquest_cache_version',
   COMPLETED_LEVELS: '@moneyquest_completed_levels',
   SECTIONS: '@moneyquest_sections',
   SECTIONS_TIMESTAMP: '@moneyquest_sections_timestamp',
@@ -11,10 +16,80 @@ const CACHE_KEYS = {
   QUESTIONS_TIMESTAMP_PREFIX: '@moneyquest_questions_timestamp_',
 };
 
-// Cache duration: 30 days in milliseconds
-const CACHE_DURATION = 30 * 24 * 60 * 60 * 1000;
+// Cache duration: 7 days in milliseconds
+const CACHE_DURATION = 7 * 24 * 60 * 60 * 1000;
 
 class CacheService {
+  private initialized = false;
+
+  /**
+   * Initialize cache service and check version
+   * Call this on app startup before any cache operations
+   * If cache version is outdated, all caches will be cleared
+   */
+  async initialize(): Promise<void> {
+    if (this.initialized) return;
+
+    try {
+      const storedVersion = await AsyncStorage.getItem(CACHE_KEYS.CACHE_VERSION);
+      const currentVersion = storedVersion ? parseInt(storedVersion, 10) : 0;
+
+      if (currentVersion < CACHE_VERSION) {
+        console.log(`🔄 Cache version mismatch (stored: ${currentVersion}, required: ${CACHE_VERSION})`);
+        console.log('🗑️ Clearing all old caches...');
+        await this.clearAllMoneyQuestCaches();
+        await AsyncStorage.setItem(CACHE_KEYS.CACHE_VERSION, CACHE_VERSION.toString());
+        console.log(`✅ Cache cleared and version updated to ${CACHE_VERSION}`);
+      } else {
+        console.log(`✅ Cache version ${CACHE_VERSION} is current`);
+      }
+
+      this.initialized = true;
+    } catch (error) {
+      console.error('Failed to initialize cache service:', error);
+      // Still mark as initialized to prevent blocking the app
+      this.initialized = true;
+    }
+  }
+
+  /**
+   * Check if cache has been initialized
+   */
+  isInitialized(): boolean {
+    return this.initialized;
+  }
+
+  /**
+   * Clear ALL MoneyQuest cached data (used when cache version changes)
+   */
+  private async clearAllMoneyQuestCaches(): Promise<void> {
+    try {
+      const allKeys = await AsyncStorage.getAllKeys();
+      
+      // Filter only MoneyQuest cache keys (but NOT the version key yet)
+      const cacheKeys = allKeys.filter(
+        key => key.startsWith('@moneyquest_') && key !== CACHE_KEYS.CACHE_VERSION
+      );
+      
+      if (cacheKeys.length > 0) {
+        await AsyncStorage.multiRemove(cacheKeys);
+        console.log(`🗑️ Cleared ${cacheKeys.length} cache entries`);
+      }
+    } catch (error) {
+      console.error('Failed to clear all caches:', error);
+    }
+  }
+
+  /**
+   * Force reset all caches and update version (for manual refresh)
+   */
+  async forceResetAllCaches(): Promise<void> {
+    await this.clearAllMoneyQuestCaches();
+    await AsyncStorage.setItem(CACHE_KEYS.CACHE_VERSION, CACHE_VERSION.toString());
+    this.initialized = false;
+    console.log('🔄 All caches force reset');
+  }
+
   /**
    * Get all completed level IDs from cache
    * @returns Array of completed level IDs
@@ -105,7 +180,7 @@ class CacheService {
           console.log(`✅ Using cached sections (${daysOld} days old)`);
           return JSON.parse(cached);
         } else {
-          console.log('❌ Sections cache expired (>30 days)');
+          console.log('❌ Sections cache expired (>7 days)');
         }
       }
       return null;
@@ -165,7 +240,7 @@ class CacheService {
           console.log(`✅ Using cached levels for ${sectionId} (${daysOld} days old)`);
           return JSON.parse(cached);
         } else {
-          console.log(`❌ Levels cache for ${sectionId} expired (>30 days)`);
+          console.log(`❌ Levels cache for ${sectionId} expired (>7 days)`);
         }
       }
       return null;
@@ -225,7 +300,7 @@ class CacheService {
           console.log(`✅ Using cached questions for ${levelId} (${daysOld} days old)`);
           return JSON.parse(cached);
         } else {
-          console.log(`❌ Questions cache for ${levelId} expired (>30 days)`);
+          console.log(`❌ Questions cache for ${levelId} expired (>7 days)`);
         }
       }
       return null;

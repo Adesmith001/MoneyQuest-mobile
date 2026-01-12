@@ -153,37 +153,11 @@ class BackendApiService {
   }
 
   /**
-   * Generate AI-powered questions for a level
-   * @param levelId - UUID of the level
-   * @param numQuestions - Number of questions to generate (default: 5, max: 20)
-   * @param difficulty - Difficulty level: "easy", "medium", "hard", "mixed"
-   * @param questionType - Type of questions: "mcq", "scenario", "matching", "fill_in_gap", "mixed"
-   * @param randomize - Whether to randomize the questions (default: true)
-   */
-  async generateQuestions(
-    levelId: string,
-    numQuestions: number = 10,
-    difficulty: 'easy' | 'medium' | 'hard' | 'mixed' = 'mixed',
-    questionType: 'mcq' | 'scenario' | 'matching' | 'fill_in_gap' | 'mixed' = 'mixed',
-    randomize: boolean = true
-  ): Promise<BackendQuestionResponse> {
-    return await this.fetchApi<BackendQuestionResponse>('/generate-questions', {
-      method: 'POST',
-      body: JSON.stringify({
-        level_id: levelId,
-        num_questions: numQuestions,
-        difficulty: difficulty,
-        question_type: questionType,
-        randomize: randomize,
-      }),
-    });
-  }
-
-  /**
    * Get previously generated questions for a level
+   * Fetches from all question type endpoints and combines results
    * @param levelId - UUID of the level
-   * @param limit - Maximum number of questions to return
-   * @param questionType - Filter by question type
+   * @param limit - Maximum number of questions to return per type
+   * @param questionType - Filter by question type ('mixed' fetches all types)
    * @param randomize - Whether to randomize the returned questions
    */
   async getLevelQuestions(
@@ -194,10 +168,167 @@ class BackendApiService {
   ): Promise<BackendQuestionResponse> {
     const params = new URLSearchParams();
     if (limit) params.append('limit', limit.toString());
-    if (questionType) params.append('question_type', questionType);
     if (randomize !== undefined) params.append('randomize', randomize.toString());
     
     const queryString = params.toString();
+    
+    // If questionType is 'mixed' or undefined, fetch from all endpoints
+    if (!questionType || questionType === 'mixed') {
+      console.log(`🔄 Fetching all question types for level ${levelId}`);
+      
+      const allQuestions: any[] = [];
+      let levelInfo = { level_id: levelId, level_title: '', section_title: '' };
+      
+      // Fetch MCQ/Quiz questions
+      try {
+        const mcqEndpoint = queryString 
+          ? `/levels/${levelId}/questions?${queryString}`
+          : `/levels/${levelId}/questions`;
+        const mcqResponse = await this.fetchApi<any>(mcqEndpoint);
+        if (mcqResponse.questions && mcqResponse.questions.length > 0) {
+          // Normalize MCQ questions
+          const mcqQuestions = mcqResponse.questions.map((q: any) => ({
+            ...q,
+            question_type: 'mcq',
+            options: q.options || {
+              A: q.option_a || '',
+              B: q.option_b || '',
+              C: q.option_c || '',
+              D: q.option_d || '',
+            },
+            explanations: q.explanations || {
+              A: q.explanation_a || '',
+              B: q.explanation_b || '',
+              C: q.explanation_c || '',
+              D: q.explanation_d || '',
+            },
+          }));
+          allQuestions.push(...mcqQuestions);
+          console.log(`✅ Fetched ${mcqQuestions.length} MCQ questions`);
+        }
+      } catch (e) {
+        console.log('ℹ️ No MCQ questions found for this level');
+      }
+      
+      // Fetch Scenario questions
+      try {
+        const scenarioEndpoint = queryString 
+          ? `/levels/${levelId}/scenario-questions?${queryString}`
+          : `/levels/${levelId}/scenario-questions`;
+        const scenarioResponse = await this.fetchApi<any>(scenarioEndpoint);
+        if (scenarioResponse.questions && scenarioResponse.questions.length > 0) {
+          // Normalize scenario questions
+          const scenarioQuestions = scenarioResponse.questions.map((q: any) => ({
+            ...q,
+            question_type: 'scenario',
+            scenario_context: q.scenario || q.scenario_context || '',
+            options: q.options || {
+              A: q.option_a || '',
+              B: q.option_b || '',
+              C: q.option_c || '',
+              D: q.option_d || '',
+            },
+            explanations: q.explanations || {
+              A: q.explanation_a || '',
+              B: q.explanation_b || '',
+              C: q.explanation_c || '',
+              D: q.explanation_d || '',
+            },
+          }));
+          allQuestions.push(...scenarioQuestions);
+          console.log(`✅ Fetched ${scenarioQuestions.length} Scenario questions`);
+        }
+      } catch (e) {
+        console.log('ℹ️ No Scenario questions found for this level');
+      }
+      
+      // Fetch Matching questions and group them into sets of 5 pairs
+      try {
+        const matchingEndpoint = queryString 
+          ? `/levels/${levelId}/matching-questions?${queryString}`
+          : `/levels/${levelId}/matching-questions`;
+        const matchingResponse = await this.fetchApi<any>(matchingEndpoint);
+        if (matchingResponse.questions && matchingResponse.questions.length > 0) {
+          const pairs = matchingResponse.questions;
+          const PAIRS_PER_QUESTION = 5;
+          
+          // Fisher-Yates shuffle for proper randomization
+          const shuffleArray = <T>(array: T[]): T[] => {
+            const shuffled = [...array];
+            for (let i = shuffled.length - 1; i > 0; i--) {
+              const j = Math.floor(Math.random() * (i + 1));
+              [shuffled[i], shuffled[j]] = [shuffled[j], shuffled[i]];
+            }
+            return shuffled;
+          };
+          
+          // Group pairs into sets of 5
+          const groupedMatchingQuestions: any[] = [];
+          for (let i = 0; i < pairs.length; i += PAIRS_PER_QUESTION) {
+            const groupPairs = pairs.slice(i, i + PAIRS_PER_QUESTION);
+            
+            // Only create a question if we have at least 2 pairs
+            if (groupPairs.length >= 2) {
+              const leftItems: { id: string; text: string }[] = [];
+              const rightItems: { id: string; text: string }[] = [];
+              const correctMatches: { [key: string]: string } = {};
+              const explanations: string[] = [];
+              
+              groupPairs.forEach((pair: any, index: number) => {
+                const leftId = `left_${index + 1}`;
+                const rightId = `right_${index + 1}`;
+                
+                leftItems.push({ id: leftId, text: pair.column_a || '' });
+                rightItems.push({ id: rightId, text: pair.column_b || '' });
+                correctMatches[leftId] = rightId;
+                explanations.push(`${pair.column_a} matches with ${pair.column_b}`);
+              });
+              
+              // Shuffle BOTH left and right items for maximum challenge
+              // The correct_matches mapping uses IDs, so shuffling display order doesn't affect answers
+              const shuffledLeftItems = shuffleArray(leftItems);
+              const shuffledRightItems = shuffleArray(rightItems);
+              
+              groupedMatchingQuestions.push({
+                question_type: 'matching',
+                question: `Match the ${groupPairs.length} items below`,
+                left_items: shuffledLeftItems,
+                right_items: shuffledRightItems,
+                correct_matches: correctMatches,
+                explanation: explanations.join('\n'),
+                difficulty: groupPairs[0]?.difficulty || 'medium',
+              });
+            }
+          }
+          
+          allQuestions.push(...groupedMatchingQuestions);
+          console.log(`✅ Grouped ${pairs.length} matching pairs into ${groupedMatchingQuestions.length} matching questions`);
+        }
+      } catch (e) {
+        console.log('ℹ️ No Matching questions found for this level');
+      }
+      
+      // Shuffle all questions together if randomize is true
+      if (randomize && allQuestions.length > 0) {
+        for (let i = allQuestions.length - 1; i > 0; i--) {
+          const j = Math.floor(Math.random() * (i + 1));
+          [allQuestions[i], allQuestions[j]] = [allQuestions[j], allQuestions[i]];
+        }
+      }
+      
+      console.log(`📦 Total questions fetched: ${allQuestions.length} (MCQ + Scenario + Matching)`);
+      
+      return {
+        level_id: levelId,
+        level_title: levelInfo.level_title,
+        section_title: levelInfo.section_title,
+        questions: allQuestions,
+        total_generated: allQuestions.length,
+        sources_used: [],
+      };
+    }
+    
+    // For specific question types, use the original single endpoint
     const endpoint = queryString 
       ? `/levels/${levelId}/questions?${queryString}`
       : `/levels/${levelId}/questions`;

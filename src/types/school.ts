@@ -162,7 +162,7 @@ export function calculateSchoolPrice(
   return {
     totalPrice,
     pricePerSeat,
-    discountPercent: tier.discountPercent,
+    discountPercent: 0,
   };
 }
 

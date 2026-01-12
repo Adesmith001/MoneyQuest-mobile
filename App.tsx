@@ -1,14 +1,17 @@
 import React, { useEffect, useState } from 'react';
 import { StatusBar } from 'expo-status-bar';
 import { Provider } from 'react-redux';
-import { store } from './src/store';
+import { PersistGate } from 'redux-persist/integration/react';
+import { store, persistor } from './src/store';
 import AppNavigator from './src/navigation/AppNavigator';
 import NotificationService from './src/services/notifications';
 import soundService from './src/services/soundService';
+import cachedBackendApi from './src/services/cachedBackendApi';
 import * as Linking from 'expo-linking';
 import { Alert, Platform, Text, ErrorUtils } from 'react-native';
 import * as NavigationBar from 'expo-navigation-bar';
 import * as Font from 'expo-font';
+import LoadingScreen from './src/components/LoadingScreen';
 
 // Global error handler for React Native (prevents crashes)
 if (ErrorUtils) {
@@ -32,6 +35,16 @@ export default function App() {
 
   useEffect(() => {
     const initializeApp = async () => {
+      // Initialize cache system FIRST (checks version and clears old data if needed)
+      // This ensures users get fresh data when the app is updated
+      try {
+        await cachedBackendApi.initializeCache();
+        console.log('✅ Cache system initialized');
+      } catch (error) {
+        console.error('❌ Cache initialization error:', error);
+        // Continue anyway - cache will be initialized on first use
+      }
+
       // Load custom fonts (critical - block rendering until done)
       try {
         await Font.loadAsync({
@@ -151,8 +164,10 @@ export default function App() {
 
   return (
     <Provider store={store}>
-      <AppNavigator />
-      <StatusBar style="dark" translucent backgroundColor="transparent" />
+      <PersistGate loading={<LoadingScreen />} persistor={persistor}>
+        <AppNavigator />
+        <StatusBar style="dark" translucent backgroundColor="transparent" />
+      </PersistGate>
     </Provider>
   );
 }

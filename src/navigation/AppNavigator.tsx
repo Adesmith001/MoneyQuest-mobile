@@ -35,7 +35,6 @@ import PaymentPendingScreen from '../screens/common/PaymentPendingScreen';
 import SchoolCodeEntryScreen from '../screens/common/SchoolCodeEntryScreen';
 import QuestionScreen from '../screens/game/QuestionScreen';
 import LevelCompletionScreen from '../screens/game/LevelCompletionScreen';
-import SettingsScreen from '../screens/profile/SettingsScreen';
 import EditProfileScreen from '../screens/profile/EditProfileScreen';
 import ChangeAvatarScreen from '../screens/profile/ChangeAvatarScreen'; // Import the new screen
 
@@ -142,7 +141,8 @@ const linking = {
 const AppNavigator: React.FC = () => {
   const { isAuthenticated, isLoading, showWelcomeScreen, user } = useSelector((state: RootState) => state.auth);
   const dispatch = useDispatch<AppDispatch>();
-  const [showOnboarding, setShowOnboarding] = useState<boolean>(true);
+  // Skip onboarding screens - users go directly to login/home
+  const [showOnboarding, setShowOnboarding] = useState<boolean>(false);
 
   const handleOnboardingComplete = () => {
     setShowOnboarding(false);
@@ -316,14 +316,6 @@ const AppNavigator: React.FC = () => {
                 }}
               />
               <Stack.Screen name="LevelCompletion" component={LevelCompletionScreen} />
-              <Stack.Screen 
-                name="Settings" 
-                component={SettingsScreen}
-                options={{
-                headerShown: true,
-                title: 'Settings',
-                }}
-              />
               <Stack.Screen 
                 name="EditProfile" 
                 component={EditProfileScreen}

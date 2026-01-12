@@ -58,6 +58,75 @@ interface Props {
   };
 }
 
+/**
+ * Normalize a question to ensure it has all required properties
+ * This handles cases where API returns questions in different formats
+ */
+const normalizeQuestion = (q: any): AnyQuestion | null => {
+  if (!q) return null;
+  
+  const questionType = q.question_type || 'mcq';
+  
+  // Handle matching questions
+  if (questionType === 'matching') {
+    return {
+      question_type: 'matching',
+      question: q.question || '',
+      left_items: q.left_items || [],
+      right_items: q.right_items || [],
+      correct_matches: q.correct_matches || {},
+      explanation: q.explanation || '',
+      difficulty: q.difficulty || 'medium',
+    } as MatchingQuestion;
+  }
+  
+  // Handle fill in gap questions
+  if (questionType === 'fill_in_gap') {
+    return {
+      question_type: 'fill_in_gap',
+      question: q.question || '',
+      blanks: q.blanks || [],
+      explanation: q.explanation || '',
+      difficulty: q.difficulty || 'medium',
+    } as FillInGapQuestion;
+  }
+  
+  // Handle MCQ and Scenario questions
+  // Ensure options object exists with all properties
+  const options = {
+    A: q.options?.A || q.option_a || '',
+    B: q.options?.B || q.option_b || '',
+    C: q.options?.C || q.option_c || '',
+    D: q.options?.D || q.option_d || '',
+  };
+  
+  const explanations = {
+    A: q.explanations?.A || q.explanation_a || '',
+    B: q.explanations?.B || q.explanation_b || '',
+    C: q.explanations?.C || q.explanation_c || '',
+    D: q.explanations?.D || q.explanation_d || '',
+  };
+  
+  const baseQuestion = {
+    question: q.question || q.question_text || '',
+    options,
+    correct_answer: q.correct_answer || 'A',
+    explanations,
+    difficulty: q.difficulty || 'medium',
+    question_type: questionType as 'mcq' | 'scenario',
+  };
+  
+  if (questionType === 'scenario') {
+    return {
+      ...baseQuestion,
+      question_type: 'scenario',
+      scenario_context: q.scenario_context || q.scenario || '',
+    } as ScenarioQuestion;
+  }
+  
+  return baseQuestion as GeneratedQuestion;
+};
+
 const QuestionScreen: React.FC<Props> = ({ navigation, route }) => {
   const { levelId, sectionId, levelTitle, sectionTitle } = route.params;
   const dispatch = useDispatch();
@@ -85,6 +154,7 @@ const QuestionScreen: React.FC<Props> = ({ navigation, route }) => {
   const [isIncorrectModalVisible, setIncorrectModalVisible] = useState(false);
 
   const [correctAnswersCount, setCorrectAnswersCount] = useState(0);
+  const [totalAttempts, setTotalAttempts] = useState(0); // Track all attempts (correct + incorrect)
   const [xpGained, setXpGained] = useState(0);
   const [startTime, setStartTime] = useState<number>(Date.now());
   // 🔇 AUDIO FEATURE - COMMENTED OUT FOR COST REDUCTION
@@ -254,7 +324,14 @@ const QuestionScreen: React.FC<Props> = ({ navigation, route }) => {
             10,
             "mixed"
           );
-          setQuestions(levelQuestions);
+          
+          // Normalize all questions to ensure proper structure
+          const normalizedQuestions = levelQuestions
+            .map(q => normalizeQuestion(q))
+            .filter((q): q is AnyQuestion => q !== null);
+          
+          console.log(`✅ Loaded ${normalizedQuestions.length} normalized questions for level ${levelId}`);
+          setQuestions(normalizedQuestions);
         }
 
         // Check if user has saved progress for this level
@@ -523,8 +600,9 @@ const QuestionScreen: React.FC<Props> = ({ navigation, route }) => {
       userAnswer = selectedAnswer;
 
       if (!isCorrect) {
-        // Add the incorrect answer option
-        const selectedOption = mcqQ.options[selectedAnswer as "A" | "B" | "C" | "D"];
+        // Add the incorrect answer option (with safety check)
+        const options = mcqQ.options || { A: '', B: '', C: '', D: '' };
+        const selectedOption = options[selectedAnswer as "A" | "B" | "C" | "D"] || '';
         incorrectAnswers.push(`Selected: ${selectedAnswer}. ${selectedOption}`);
         console.log("Incorrect MCQ Answer:", incorrectAnswers);
       }
@@ -546,6 +624,9 @@ const QuestionScreen: React.FC<Props> = ({ navigation, route }) => {
         isCorrect,
         5 // Time spent in seconds (you can track this properly)
       );
+
+      // Always increment total attempts for accuracy calculation
+      setTotalAttempts(totalAttempts + 1);
 
       if (isCorrect) {
         soundService.playSound("correct"); // Play correct sound
@@ -656,9 +737,12 @@ const QuestionScreen: React.FC<Props> = ({ navigation, route }) => {
       if (!user) return;
 
       const timeSpentMinutes = Math.round((Date.now() - startTime) / 60000);
-      const accuracy = Math.round(
-        (correctAnswersCount / questions.length) * 100
-      );
+      
+      // Calculate accuracy based on total attempts (correct answers / total attempts)
+      // This penalizes wrong answers: if you needed 15 attempts for 10 questions, accuracy = 67%
+      const accuracy = totalAttempts > 0 
+        ? Math.round((correctAnswersCount / totalAttempts) * 100)
+        : 0;
 
       try {
         // Submit level completion to backend
@@ -964,11 +1048,12 @@ const QuestionScreen: React.FC<Props> = ({ navigation, route }) => {
       return "Some of your answers were incorrect";
     } else {
       const mcqQ = currentQuestion as GeneratedQuestion | ScenarioQuestion;
+      const options = mcqQ.options || { A: '', B: '', C: '', D: '' };
       const optionsArray = [
-        { key: "A", value: mcqQ.options.A },
-        { key: "B", value: mcqQ.options.B },
-        { key: "C", value: mcqQ.options.C },
-        { key: "D", value: mcqQ.options.D },
+        { key: "A", value: options.A || '' },
+        { key: "B", value: options.B || '' },
+        { key: "C", value: options.C || '' },
+        { key: "D", value: options.D || '' },
       ];
       return selectedAnswer
         ? optionsArray.find((o) => o.key === selectedAnswer)?.value ||
@@ -1029,12 +1114,15 @@ const QuestionScreen: React.FC<Props> = ({ navigation, route }) => {
     } else {
       // Standard MCQ
       const mcqQ = currentQuestion as GeneratedQuestion;
+      
+      // Safety check: ensure options exist
+      const options = mcqQ.options || { A: '', B: '', C: '', D: '' };
       const optionsArray = [
-        { key: "A", value: mcqQ.options.A },
-        { key: "B", value: mcqQ.options.B },
-        { key: "C", value: mcqQ.options.C },
-        { key: "D", value: mcqQ.options.D },
-      ];
+        { key: "A", value: options.A || '' },
+        { key: "B", value: options.B || '' },
+        { key: "C", value: options.C || '' },
+        { key: "D", value: options.D || '' },
+      ].filter(opt => opt.value !== ''); // Filter out empty options
 
       return (
         <>

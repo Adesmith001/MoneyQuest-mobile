@@ -62,6 +62,9 @@ const HomeScreen: React.FC<Props> = ({ navigation }) => {
   const [completedLevels, setCompletedLevels] = useState<Set<string>>(new Set());
   const [hasScrolledToCurrentSection, setHasScrolledToCurrentSection] = useState(false);
   
+  // Track if initial data has been loaded to avoid redundant API calls
+  const [hasInitiallyLoaded, setHasInitiallyLoaded] = useState(false);
+  
   // Ref for horizontal scroll to scroll to user's current section
   const horizontalScrollRef = useRef<ScrollView>(null);
 
@@ -70,9 +73,14 @@ const HomeScreen: React.FC<Props> = ({ navigation }) => {
     React.useCallback(() => {
       async function fetchLearningPath() {
         try {
-          setIsLoading(true);
+          // Only show loading indicator on first load or if we have no sections
+          // Subsequent focus events should use cached data silently
+          const isFirstLoad = !hasInitiallyLoaded || sections.length === 0;
+          if (isFirstLoad) {
+            setIsLoading(true);
+          }
           
-          // 🩺 STEP 0: Refresh user lives from Appwrite
+          // 🩺 STEP 0: Refresh user lives from Appwrite (always do this)
           if (user?.$id) {
             try {
               const { lives, lastLifeRegenTime } = await livesService.refreshLives(
@@ -247,6 +255,9 @@ const HomeScreen: React.FC<Props> = ({ navigation }) => {
           }
 
           setSections(sectionsData);
+          
+          // Mark that we've successfully loaded data
+          setHasInitiallyLoaded(true);
           
           // Scroll to user's current section after loading
           if (!hasScrolledToCurrentSection && user?.currentSectionId && sectionsData.length > 0) {

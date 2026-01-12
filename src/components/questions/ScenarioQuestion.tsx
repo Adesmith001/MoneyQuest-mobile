@@ -21,12 +21,14 @@ const ScenarioQuestion: React.FC<Props> = ({
   onPlayAudio,
   isPlayingAudio = false,
 }) => {
+  // Safety check: ensure options exist
+  const options = question.options || { A: '', B: '', C: '', D: '' };
   const optionsArray = [
-    { key: 'A', value: question.options.A },
-    { key: 'B', value: question.options.B },
-    { key: 'C', value: question.options.C },
-    { key: 'D', value: question.options.D },
-  ];
+    { key: 'A', value: options.A || '' },
+    { key: 'B', value: options.B || '' },
+    { key: 'C', value: options.C || '' },
+    { key: 'D', value: options.D || '' },
+  ].filter(opt => opt.value !== ''); // Filter out empty options
 
   return (
     <View style={styles.container}>
