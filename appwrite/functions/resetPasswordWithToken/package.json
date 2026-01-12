@@ -1,8 +1,0 @@
-{
-  "name": "reset-password-with-token",
-  "version": "1.0.0",
-  "main": "src/index.js",
-  "dependencies": {
-    "node-appwrite": "^12.0.0"
-  }
-}

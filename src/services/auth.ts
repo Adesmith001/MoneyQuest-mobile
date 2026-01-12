@@ -2,7 +2,6 @@ import {
   account,
   databases,
   storage,
-  functions,
   DB_ID,
   COLLECTIONS,
   STORAGE_BUCKET,
@@ -615,9 +614,12 @@ class AuthService {
   }
 
   // Send password recovery email
+  // The user will reset their password on a web page and then login back in the app
   async sendPasswordRecovery(email: string): Promise<void> {
     try {
-      const recoveryUrl = `moneyquest://reset-password`;
+      // This URL should be a web page that handles password reset
+      // You can use your school-dashboard or create a simple reset page
+      const recoveryUrl = `https://moneyquest-reset.vercel.app/reset-password`;
       await account.createRecovery(email, recoveryUrl);
     } catch (error: any) {
       console.error("Send password recovery error:", error);
@@ -632,82 +634,7 @@ class AuthService {
     }
   }
 
-  // Send OTP for password recovery (new OTP-based flow)
-  async sendPasswordOTP(email: string): Promise<{ success: boolean; message: string }> {
-    try {
-      const result = await functions.createExecution(
-        'sendPasswordOTP', // Function ID - you'll set this when deploying
-        JSON.stringify({ email }),
-        false, // async
-        '/', // path
-        'POST' // method
-      );
-
-      const response = JSON.parse(result.responseBody);
-      
-      if (!response.success) {
-        throw new Error(response.error || 'Failed to send OTP');
-      }
-
-      return response;
-    } catch (error: any) {
-      console.error("Send password OTP error:", error);
-      if (error.code === 429) {
-        throw new Error("Too many requests. Please wait before trying again.");
-      }
-      throw new Error(error.message || "Failed to send OTP. Please try again.");
-    }
-  }
-
-  // Verify OTP and get reset token
-  async verifyPasswordOTP(email: string, otp: string): Promise<{ success: boolean; resetToken: string; userId: string }> {
-    try {
-      const result = await functions.createExecution(
-        'verifyPasswordOTP', // Function ID
-        JSON.stringify({ email, otp }),
-        false,
-        '/',
-        'POST'
-      );
-
-      const response = JSON.parse(result.responseBody);
-      
-      if (!response.success) {
-        throw new Error(response.error || 'Invalid OTP');
-      }
-
-      return response;
-    } catch (error: any) {
-      console.error("Verify password OTP error:", error);
-      throw new Error(error.message || "Failed to verify OTP. Please try again.");
-    }
-  }
-
-  // Reset password with token (after OTP verification)
-  async resetPasswordWithToken(userId: string, resetToken: string, newPassword: string): Promise<{ success: boolean; message: string }> {
-    try {
-      const result = await functions.createExecution(
-        'resetPasswordWithToken', // Function ID
-        JSON.stringify({ userId, resetToken, newPassword }),
-        false,
-        '/',
-        'POST'
-      );
-
-      const response = JSON.parse(result.responseBody);
-      
-      if (!response.success) {
-        throw new Error(response.error || 'Failed to reset password');
-      }
-
-      return response;
-    } catch (error: any) {
-      console.error("Reset password with token error:", error);
-      throw new Error(error.message || "Failed to reset password. Please try again.");
-    }
-  }
-
-  // Complete password recovery
+  // Complete password recovery (called from web page)
   async completePasswordRecovery(
     userId: string,
     secret: string,

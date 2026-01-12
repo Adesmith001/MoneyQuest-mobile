@@ -1,0 +1,328 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Reset Password - MoneyQuest</title>
+    <script src="https://cdn.jsdelivr.net/npm/appwrite@14.0.0"></script>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, sans-serif;
+            background: linear-gradient(135deg, #1a1a2e 0%, #16213e 100%);
+            min-height: 100vh;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            padding: 20px;
+        }
+
+        .container {
+            background: white;
+            border-radius: 20px;
+            padding: 40px;
+            max-width: 420px;
+            width: 100%;
+            box-shadow: 0 20px 60px rgba(0, 0, 0, 0.3);
+        }
+
+        .logo {
+            text-align: center;
+            margin-bottom: 30px;
+        }
+
+        .logo h1 {
+            color: #4CAF50;
+            font-size: 28px;
+            font-weight: 700;
+        }
+
+        .logo span {
+            color: #333;
+        }
+
+        h2 {
+            color: #333;
+            text-align: center;
+            margin-bottom: 10px;
+            font-size: 24px;
+        }
+
+        .subtitle {
+            color: #666;
+            text-align: center;
+            margin-bottom: 30px;
+            font-size: 14px;
+        }
+
+        .form-group {
+            margin-bottom: 20px;
+        }
+
+        label {
+            display: block;
+            color: #333;
+            font-weight: 500;
+            margin-bottom: 8px;
+            font-size: 14px;
+        }
+
+        input {
+            width: 100%;
+            padding: 14px 16px;
+            border: 2px solid #e0e0e0;
+            border-radius: 12px;
+            font-size: 16px;
+            transition: border-color 0.3s, box-shadow 0.3s;
+        }
+
+        input:focus {
+            outline: none;
+            border-color: #4CAF50;
+            box-shadow: 0 0 0 3px rgba(76, 175, 80, 0.1);
+        }
+
+        .password-wrapper {
+            position: relative;
+        }
+
+        .toggle-password {
+            position: absolute;
+            right: 14px;
+            top: 50%;
+            transform: translateY(-50%);
+            background: none;
+            border: none;
+            color: #666;
+            cursor: pointer;
+            font-size: 14px;
+        }
+
+        button[type="submit"] {
+            width: 100%;
+            padding: 16px;
+            background: #4CAF50;
+            color: white;
+            border: none;
+            border-radius: 12px;
+            font-size: 16px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: background 0.3s, transform 0.2s;
+        }
+
+        button[type="submit"]:hover {
+            background: #43A047;
+        }
+
+        button[type="submit"]:active {
+            transform: scale(0.98);
+        }
+
+        button[type="submit"]:disabled {
+            background: #ccc;
+            cursor: not-allowed;
+        }
+
+        .error {
+            background: #ffebee;
+            color: #c62828;
+            padding: 12px;
+            border-radius: 8px;
+            margin-bottom: 20px;
+            font-size: 14px;
+            display: none;
+        }
+
+        .success {
+            text-align: center;
+            display: none;
+        }
+
+        .success-icon {
+            font-size: 64px;
+            margin-bottom: 20px;
+        }
+
+        .success h2 {
+            color: #4CAF50;
+            margin-bottom: 15px;
+        }
+
+        .success p {
+            color: #666;
+            line-height: 1.6;
+        }
+
+        .back-link {
+            display: block;
+            text-align: center;
+            margin-top: 20px;
+            color: #4CAF50;
+            text-decoration: none;
+            font-weight: 500;
+        }
+
+        .requirements {
+            font-size: 12px;
+            color: #888;
+            margin-top: 6px;
+        }
+
+        .invalid-token {
+            text-align: center;
+            display: none;
+        }
+
+        .invalid-token .error-icon {
+            font-size: 64px;
+            margin-bottom: 20px;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="logo">
+            <h1>Money<span>Quest</span></h1>
+        </div>
+
+        <!-- Invalid Token State -->
+        <div class="invalid-token" id="invalidToken">
+            <div class="error-icon">❌</div>
+            <h2>Invalid Reset Link</h2>
+            <p class="subtitle">This password reset link is invalid or has expired. Please request a new one from the app.</p>
+        </div>
+
+        <!-- Reset Form -->
+        <div id="resetForm">
+            <h2>Reset Password</h2>
+            <p class="subtitle">Enter your new password below</p>
+
+            <div class="error" id="errorMessage"></div>
+
+            <form id="passwordForm">
+                <div class="form-group">
+                    <label for="password">New Password</label>
+                    <div class="password-wrapper">
+                        <input type="password" id="password" placeholder="Enter new password" required minlength="8">
+                        <button type="button" class="toggle-password" onclick="togglePassword('password')">Show</button>
+                    </div>
+                    <p class="requirements">Must be at least 8 characters</p>
+                </div>
+
+                <div class="form-group">
+                    <label for="confirmPassword">Confirm Password</label>
+                    <div class="password-wrapper">
+                        <input type="password" id="confirmPassword" placeholder="Confirm new password" required>
+                        <button type="button" class="toggle-password" onclick="togglePassword('confirmPassword')">Show</button>
+                    </div>
+                </div>
+
+                <button type="submit" id="submitBtn">Reset Password</button>
+            </form>
+        </div>
+
+        <!-- Success State -->
+        <div class="success" id="successMessage">
+            <div class="success-icon">✅</div>
+            <h2>Password Reset!</h2>
+            <p>Your password has been successfully reset. You can now go back to the MoneyQuest app and login with your new password.</p>
+        </div>
+    </div>
+
+    <script>
+        // Initialize Appwrite
+        const client = new Appwrite.Client();
+        client
+            .setEndpoint('https://fra.cloud.appwrite.io/v1') 
+            .setProject('68cc8915002d8ab3a787'); 
+
+        const account = new Appwrite.Account(client);
+
+        // Get URL parameters
+        const urlParams = new URLSearchParams(window.location.search);
+        const userId = urlParams.get('userId');
+        const secret = urlParams.get('secret');
+
+        // Check if we have valid parameters
+        if (!userId || !secret) {
+            document.getElementById('resetForm').style.display = 'none';
+            document.getElementById('invalidToken').style.display = 'block';
+        }
+
+        // Toggle password visibility
+        function togglePassword(inputId) {
+            const input = document.getElementById(inputId);
+            const button = input.nextElementSibling;
+            if (input.type === 'password') {
+                input.type = 'text';
+                button.textContent = 'Hide';
+            } else {
+                input.type = 'password';
+                button.textContent = 'Show';
+            }
+        }
+
+        // Handle form submission
+        document.getElementById('passwordForm').addEventListener('submit', async (e) => {
+            e.preventDefault();
+
+            const password = document.getElementById('password').value;
+            const confirmPassword = document.getElementById('confirmPassword').value;
+            const submitBtn = document.getElementById('submitBtn');
+            const errorDiv = document.getElementById('errorMessage');
+
+            // Reset error
+            errorDiv.style.display = 'none';
+
+            // Validate passwords match
+            if (password !== confirmPassword) {
+                errorDiv.textContent = 'Passwords do not match';
+                errorDiv.style.display = 'block';
+                return;
+            }
+
+            // Validate password length
+            if (password.length < 8) {
+                errorDiv.textContent = 'Password must be at least 8 characters';
+                errorDiv.style.display = 'block';
+                return;
+            }
+
+            // Disable button
+            submitBtn.disabled = true;
+            submitBtn.textContent = 'Resetting...';
+
+            try {
+                // Complete the recovery
+                await account.updateRecovery(userId, secret, password);
+
+                // Show success message
+                document.getElementById('resetForm').style.display = 'none';
+                document.getElementById('successMessage').style.display = 'block';
+
+            } catch (error) {
+                console.error('Reset error:', error);
+                
+                let message = 'Failed to reset password. Please try again.';
+                if (error.code === 401) {
+                    message = 'This reset link has expired. Please request a new one from the app.';
+                } else if (error.code === 400) {
+                    message = 'Invalid password format. Please try a different password.';
+                }
+
+                errorDiv.textContent = message;
+                errorDiv.style.display = 'block';
+                
+                submitBtn.disabled = false;
+                submitBtn.textContent = 'Reset Password';
+            }
+        });
+    </script>
+</body>
+</html>
