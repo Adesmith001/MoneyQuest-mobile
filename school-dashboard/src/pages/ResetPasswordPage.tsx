@@ -5,7 +5,7 @@ import { Account, Client } from 'appwrite';
 const client = new Client();
 client
   .setEndpoint('https://fra.cloud.appwrite.io/v1')
-  .setProject('68cc8915002d8ab3a787');
+  .setProject('68cc6ab300330cae9c56');
 
 const account = new Account(client);
 
