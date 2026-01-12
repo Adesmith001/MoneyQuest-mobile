@@ -50,7 +50,7 @@ export default function ResetPasswordPage() {
     setIsSubmitting(true);
 
     try {
-      await account.updateRecovery(userId!, secret!, password);
+      await account.updateRecovery(userId!, secret!, password, password);
       setState('success');
     } catch (err: any) {
       console.error('Reset error:', err);
