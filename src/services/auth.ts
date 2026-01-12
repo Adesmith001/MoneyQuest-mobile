@@ -617,9 +617,8 @@ class AuthService {
   // The user will reset their password on a web page and then login back in the app
   async sendPasswordRecovery(email: string): Promise<void> {
     try {
-      // This URL should be a web page that handles password reset
-      // You can use your school-dashboard or create a simple reset page
-      const recoveryUrl = `https://moneyquest-reset.vercel.app/reset-password`;
+      // Using the school dashboard domain since it's already registered in Appwrite
+      const recoveryUrl = `https://moneyquestschooldashboard.vercel.app/reset-password`;
       await account.createRecovery(email, recoveryUrl);
     } catch (error: any) {
       console.error("Send password recovery error:", error);

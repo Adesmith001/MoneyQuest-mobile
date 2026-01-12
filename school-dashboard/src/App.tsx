@@ -10,6 +10,7 @@ import StudentsPage from './pages/StudentsPage';
 import PaymentsPage from './pages/PaymentsPage';
 import SettingsPage from './pages/SettingsPage';
 import BuySeatsPage from './pages/BuySeatsPage';
+import ResetPasswordPage from './pages/ResetPasswordPage';
 
 // Layout
 import DashboardLayout from './components/layout/DashboardLayout';
@@ -73,6 +74,9 @@ function App() {
             </PublicRoute>
           }
         />
+
+        {/* Password Reset - Public, standalone page */}
+        <Route path="/reset-password" element={<ResetPasswordPage />} />
 
         {/* Protected Routes */}
         <Route
