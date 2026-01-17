@@ -16,18 +16,25 @@ const ProgressBar: React.FC<ProgressBarProps> = ({
   onClose,
 }) => {
   const { user } = useSelector((state: RootState) => state.auth);
+  const gameHealth = useSelector((state: RootState) => state.game.health);
   const [displayLives, setDisplayLives] = useState(5);
 
-  // Update lives display from user data (Appwrite)
+  // Update lives display from Redux state (responds to immediate deductions)
   useEffect(() => {
     if (user) {
+      // Calculate current lives considering regeneration
       const { lives } = livesService.calculateCurrentLives(
         user.lives !== undefined && user.lives !== null ? user.lives : 5,
         user.lastLifeRegenTime || new Date().toISOString()
       );
-      setDisplayLives(lives);
+      
+      // Use the lower of calculated lives or gameHealth (for immediate UI updates)
+      const currentLives = gameHealth !== undefined ? Math.min(lives, gameHealth) : lives;
+      setDisplayLives(Math.max(0, Math.min(5, currentLives)));
+      
+      console.log(`❤️ ProgressBar - Lives display updated: ${currentLives}`);
     }
-  }, [user?.lives, user?.lastLifeRegenTime]);
+  }, [user?.lives, user?.lastLifeRegenTime, gameHealth]);
 
   return (
     <View style={styles.container}>

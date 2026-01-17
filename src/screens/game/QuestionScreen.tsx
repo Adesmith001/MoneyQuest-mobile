@@ -167,6 +167,9 @@ const QuestionScreen: React.FC<Props> = ({ navigation, route }) => {
     incorrect: string[];
   }>({ correct: [], incorrect: [] });
 
+  // Track if this level was already completed (for retakes - no life deduction)
+  const [isRetake, setIsRetake] = useState(false);
+
   // Refresh lives from Appwrite when screen is focused
   useFocusEffect(
     React.useCallback(() => {
@@ -305,18 +308,32 @@ const QuestionScreen: React.FC<Props> = ({ navigation, route }) => {
           console.log(`✅ Loaded ${allQuestions.length} recap questions from ${sourceSection.section_title}`);
           setQuestions(allQuestions);
         } else {
-          // Regular level - existing logic
-          // Get level description (includes level_summary for article view)
-          const levelDescription = await backendApi.getLevelDescription(levelId);
+          // Regular level - Check cache for level data first
+          let cachedLevelData = await cacheService.getLevelData(levelId);
           
-          // Get full level details
-          const levelDetails = await backendApi.getLevelDetails(levelId);
-          
-          // Merge description data into levelDetails
-          setLevelData({
-            ...levelDetails,
-            level_summary: levelDescription.level_summary || levelDescription.description,
-          });
+          if (cachedLevelData) {
+            console.log(`✅ Using cached level data (article) for ${levelId}`);
+            setLevelData(cachedLevelData);
+          } else {
+            // Fetch from API if not cached
+            // Get level description (includes level_summary for article view)
+            const levelDescription = await backendApi.getLevelDescription(levelId);
+            
+            // Get full level details
+            const levelDetails = await backendApi.getLevelDetails(levelId);
+            
+            // Merge description data into levelDetails
+            const mergedLevelData = {
+              ...levelDetails,
+              level_summary: levelDescription.level_summary || levelDescription.description,
+            };
+            
+            setLevelData(mergedLevelData);
+            
+            // Cache the level data for future use
+            await cacheService.saveLevelData(levelId, mergedLevelData);
+            console.log(`💾 Cached level data (article) for ${levelId}`);
+          }
 
           // Get questions for this level with caching
           const levelQuestions = await cachedBackendApi.getQuestions(
@@ -337,6 +354,24 @@ const QuestionScreen: React.FC<Props> = ({ navigation, route }) => {
         // Check if user has saved progress for this level
         if (user?.$id) {
           try {
+            // First check if this level was already completed (retake mode)
+            const completedDocs = await databases.listDocuments(
+              DB_ID,
+              COLLECTIONS.USER_PROGRESS,
+              [
+                Query.equal("userId", user.$id),
+                Query.equal("level", levelId),
+                Query.equal("isCompleted", true),
+              ]
+            );
+
+            if (completedDocs.documents.length > 0) {
+              // This is a retake - user won't lose lives or gain XP
+              setIsRetake(true);
+              console.log("🔄 This is a retake of a completed level - no life deduction");
+            }
+
+            // Then check for in-progress saves
             const progressDocs = await databases.listDocuments(
               DB_ID,
               COLLECTIONS.USER_PROGRESS,
@@ -431,6 +466,12 @@ const QuestionScreen: React.FC<Props> = ({ navigation, route }) => {
   const handleStartQuiz = () => {
     setStartTime(Date.now());
     setViewMode("quiz");
+  };
+
+  // Handle going back to article view from quiz
+  const handleBackToArticle = () => {
+    // Article data is already cached in levelData state, just switch view mode
+    setViewMode("article");
   };
 
   const handleAnswerSelect = (answerKey: string) => {
@@ -611,33 +652,18 @@ const QuestionScreen: React.FC<Props> = ({ navigation, route }) => {
     console.log("Is Correct:", isCorrect);
     console.log("All Incorrect Answers:", incorrectAnswers);
 
-    try {
-      // Record answer and update lives/XP
-      const result = await questionService.recordAnswer(
-        user.$id,
-        levelId,
-        userAnswer,
-        currentQuestion.question_type === "mcq" ||
-          currentQuestion.question_type === "scenario"
-          ? (currentQuestion as GeneratedQuestion).correct_answer
-          : "correct",
-        isCorrect,
-        5 // Time spent in seconds (you can track this properly)
-      );
+    // Always increment total attempts for accuracy calculation
+    setTotalAttempts(totalAttempts + 1);
 
-      // Always increment total attempts for accuracy calculation
-      setTotalAttempts(totalAttempts + 1);
+    // IMMEDIATE life deduction for incorrect answers - don't wait for API
+    // BUT skip life deduction if this is a retake of an already completed level
+    if (!isCorrect && !isRetake) {
+      soundService.playSound("incorrect"); // Play incorrect sound immediately
 
-      if (isCorrect) {
-        soundService.playSound("correct"); // Play correct sound
-        dispatch(addXP(result.xpEarned));
-        setXpGained(xpGained + result.xpEarned);
-        setCorrectAnswersCount(correctAnswersCount + 1);
-        setCorrectModalVisible(true);
-      } else {
-        soundService.playSound("incorrect"); // Play incorrect sound
-
-        // Deduct life using livesService and update Appwrite
+      // Deduct life IMMEDIATELY using livesService and update Appwrite
+      console.log(`❤️ Before deduction - User lives: ${user.lives}, lastLifeRegenTime: ${user.lastLifeRegenTime}`);
+      
+      try {
         const { lives, lastLifeRegenTime, canContinue } =
           await livesService.deductLife(
             user.$id,
@@ -645,7 +671,9 @@ const QuestionScreen: React.FC<Props> = ({ navigation, route }) => {
             user.lastLifeRegenTime || new Date().toISOString()
           );
 
-        // Update Redux with new lives
+        console.log(`💔 After deduction - Lives: ${lives}, canContinue: ${canContinue}`);
+
+        // Update Redux with new lives immediately
         dispatch(setHealth(lives));
         dispatch(updateUser({ lives, lastLifeRegenTime }));
 
@@ -673,7 +701,42 @@ const QuestionScreen: React.FC<Props> = ({ navigation, route }) => {
           );
           return;
         }
+      } catch (lifeError) {
+        console.error("Failed to deduct life:", lifeError);
+        // Continue anyway - don't block the user
+      }
+    } else if (!isCorrect && isRetake) {
+      // Retake mode - just play sound, no life deduction
+      soundService.playSound("incorrect");
+      console.log("🔄 Retake mode - incorrect answer but no life deducted");
+    }
 
+    try {
+      // Record answer and update XP (life already deducted above if not retake)
+      // On retakes, we still record the answer but XP won't be given again
+      const result = await questionService.recordAnswer(
+        user.$id,
+        levelId,
+        userAnswer,
+        currentQuestion.question_type === "mcq" ||
+          currentQuestion.question_type === "scenario"
+          ? (currentQuestion as GeneratedQuestion).correct_answer
+          : "correct",
+        isCorrect,
+        5 // Time spent in seconds (you can track this properly)
+      );
+
+      if (isCorrect) {
+        soundService.playSound("correct"); // Play correct sound
+        // Only give XP on first completion, not retakes
+        if (!isRetake) {
+          dispatch(addXP(result.xpEarned));
+          setXpGained(xpGained + result.xpEarned);
+        }
+        setCorrectAnswersCount(correctAnswersCount + 1);
+        setCorrectModalVisible(true);
+      } else {
+        // Life already deducted above, just show the modal
         setIncorrectModalVisible(true);
       }
 
@@ -688,8 +751,10 @@ const QuestionScreen: React.FC<Props> = ({ navigation, route }) => {
       }
     } catch (error) {
       console.error("Error recording answer:", error);
-      // Don't show alert - the app can continue working
-      // The recordAnswer function now returns safe defaults on error
+      // If incorrect, still show the modal (life was already deducted)
+      if (!isCorrect) {
+        setIncorrectModalVisible(true);
+      }
     }
   };
 
@@ -1187,17 +1252,17 @@ const QuestionScreen: React.FC<Props> = ({ navigation, route }) => {
               <Text style={styles.sectionTitleText}>{sectionTitle}</Text>
               <Text style={styles.levelTitleText}>{levelTitle}</Text>
             </View>
-            {/* <TouchableOpacity
-              style={styles.levelInfoAudioButton}
-              onPress={handlePlayLevelInfo}
-              disabled={isPlayingLevelInfo}
+            <TouchableOpacity
+              style={styles.backToArticleButton}
+              onPress={handleBackToArticle}
             >
               <Ionicons
-                name={isPlayingLevelInfo ? "pause-circle" : "volume-high"}
-                size={24}
+                name="book-outline"
+                size={20}
                 color={COLORS.card}
               />
-            </TouchableOpacity> */}
+              <Text style={styles.backToArticleText}>Go To Article</Text>
+            </TouchableOpacity>
           </View>
         </View>
 
@@ -1303,6 +1368,20 @@ const styles = StyleSheet.create({
   levelInfoAudioButton: {
     padding: SPACING.xs,
     marginLeft: SPACING.sm,
+  },
+  backToArticleButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: 'rgba(255, 255, 255, 0.2)',
+    paddingHorizontal: SPACING.sm,
+    paddingVertical: SPACING.xs,
+    borderRadius: 8,
+    gap: 4,
+  },
+  backToArticleText: {
+    fontSize: FONT_SIZES.sm,
+    fontWeight: '600',
+    color: COLORS.card,
   },
   sectionTitleText: {
     fontSize: FONT_SIZES.md,

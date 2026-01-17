@@ -180,14 +180,15 @@ const HomeScreen: React.FC<Props> = ({ navigation }) => {
                 // Check if this level is completed using the latestCompletedLevels
                 const isCompleted = latestCompletedLevels.has(level.level_id);
                 
-                // Pass the firstValidSectionId to correctly identify the first level
+                // Pass the firstValidSectionId and sectionsData to correctly identify section position
                 const progress = calculateLevelProgress(
                   levelSectionId,
                   level.level_id,
                   levelIndex,
                   levels,
                   firstValidSectionId,
-                  latestCompletedLevels // Pass the latest completed levels
+                  latestCompletedLevels, // Pass the latest completed levels
+                  sectionsData // Pass the sections being built for accurate index lookup
                 );
 
                 return {
@@ -295,7 +296,8 @@ const HomeScreen: React.FC<Props> = ({ navigation }) => {
     levelIndex: number,
     sectionLevels: any[],
     firstSectionId?: string,
-    completedLevelsSet?: Set<string>
+    completedLevelsSet?: Set<string>,
+    builtSectionsData?: Section[] // Pass the sections data being built
   ) => {
     const currentSectionId = user?.currentSectionId;
     const currentLevelId = user?.currentLevelId;
@@ -305,55 +307,68 @@ const HomeScreen: React.FC<Props> = ({ navigation }) => {
 
     // Check if this level is completed
     const isCompleted = levelsToCheck.has(levelId);
+    
+    // CRITICAL: A completed level is ALWAYS unlocked - no exceptions!
+    // This ensures completed levels always show checkmarks, never locks
+    if (isCompleted) {
+      const isCurrent = sectionId === currentSectionId && levelId === currentLevelId;
+      return { isUnlocked: true, isCompleted: true, isCurrent };
+    }
 
-    // If no progress, only unlock first level of first section
+    // If no progress exists, only unlock first level of first section
     if (!currentSectionId || !currentLevelId) {
-      // Use the passed firstSectionId if available (during initial load), otherwise fallback to state
       const targetFirstSectionId = firstSectionId || sections[0]?.id;
       const isFirstLevel = levelIndex === 0 && sectionId === targetFirstSectionId;
 
       return {
-        isUnlocked: isFirstLevel || isCompleted,
-        isCompleted,
+        isUnlocked: isFirstLevel,
+        isCompleted: false,
         isCurrent: isFirstLevel,
       };
     }
 
     const isCurrent = sectionId === currentSectionId && levelId === currentLevelId;
 
-    // Check if previous level is completed to unlock this level
-    let isUnlocked = isCurrent || isCompleted;
+    // Start with: unlock if this is the current level
+    let isUnlocked = isCurrent;
     
     if (levelIndex > 0) {
-      // For levels after the first level in a section, check if previous level is completed
+      // For levels after the first in a section, unlock if previous level is completed
       const previousLevel = sectionLevels[levelIndex - 1];
       isUnlocked = isUnlocked || levelsToCheck.has(previousLevel.level_id);
     } else if (levelIndex === 0) {
       // First level of section
-      // Find which section this is in the sections array
-      const currentSectionIndex = sections.findIndex(s => s.id === sectionId);
+      const sectionsToCheck = builtSectionsData || sections;
+      const currentSectionIndex = sectionsToCheck.findIndex(s => s.id === sectionId);
       
       if (currentSectionIndex === 0) {
-        // First section, first level is always unlocked
+        // First section's first level is always unlocked
         isUnlocked = true;
       } else if (currentSectionIndex > 0) {
-        // For subsequent sections, check if ALL levels in previous section are completed
-        const previousSection = sections[currentSectionIndex - 1];
-        const previousSectionCompleted = previousSection?.levels?.every(
-          level => levelsToCheck.has(level.levelId)
-        ) ?? false;
-        
-        // Only unlock if previous section is fully completed OR this level is already completed
-        isUnlocked = previousSectionCompleted || isCompleted;
+        // For subsequent sections, check if last level of previous section is completed
+        const previousSection = sectionsToCheck[currentSectionIndex - 1];
+        if (previousSection?.levels?.length > 0) {
+          const lastLevelOfPrevSection = previousSection.levels[previousSection.levels.length - 1];
+          isUnlocked = isUnlocked || levelsToCheck.has(lastLevelOfPrevSection.levelId);
+        }
       } else {
-        // Section not found in array yet (during initial load)
-        // Check using firstSectionId parameter
-        const isFirstSection = sectionId === firstSectionId;
-        isUnlocked = isFirstSection || isCompleted;
+        // Section not in array yet - this is the section currently being built
+        // Check if this is right after an already-built section
+        if (builtSectionsData && builtSectionsData.length > 0) {
+          const previousSection = builtSectionsData[builtSectionsData.length - 1];
+          if (previousSection?.levels?.length > 0) {
+            const lastLevelOfPrevSection = previousSection.levels[previousSection.levels.length - 1];
+            isUnlocked = isUnlocked || levelsToCheck.has(lastLevelOfPrevSection.levelId);
+          }
+        } else {
+          // No previous sections built, check if this is the first section
+          const isFirstSection = sectionId === firstSectionId;
+          isUnlocked = isUnlocked || isFirstSection;
+        }
       }
     }
 
-    return { isUnlocked, isCompleted, isCurrent };
+    return { isUnlocked, isCompleted: false, isCurrent };
   };
 
   const renderLevelNode = (
@@ -444,20 +459,20 @@ const HomeScreen: React.FC<Props> = ({ navigation }) => {
             <TouchableOpacity
               style={[
                 styles.levelNode,
-                node.isCurrent && styles.currentLevelNode,
                 node.isCompleted && styles.completedLevelNode,
-                !node.isUnlocked && !node.isCurrent && styles.lockedNode,
+                node.isCurrent && !node.isCompleted && styles.currentLevelNode,
+                !node.isUnlocked && !node.isCurrent && !node.isCompleted && styles.lockedNode,
               ]}
               onPress={handleNodePress}
-              disabled={!node.isUnlocked && !node.isCurrent}
+              disabled={!node.isUnlocked && !node.isCurrent && !node.isCompleted}
             >
-              {node.isCurrent ? (
+              {node.isCompleted ? (
+                <Text style={styles.completedNodeIcon}>✓</Text>
+              ) : node.isCurrent ? (
                 <Image
                   source={require("../../../assets/starIcon.png")}
                   style={styles.starIcon}
                 />
-              ) : node.isCompleted ? (
-                <Text style={styles.completedNodeIcon}>✓</Text>
               ) : node.isUnlocked ? (
                 <Image
                   source={require("../../../assets/starIcon.png")}

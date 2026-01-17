@@ -432,21 +432,12 @@ class QuestionService {
       const newMonthlyXP = (user.monthlyXP || 0) + xpEarned;
       const newTotalXP = (user.totalXP || 0) + xpEarned;
 
+      // NOTE: Lives deduction is handled in QuestionScreen.tsx after this function returns
+      // Do NOT deduct lives here to avoid double deduction
       let livesRemaining = user.lives !== undefined && user.lives !== null ? user.lives : 5;
-      let canContinue = true;
+      let canContinue = livesRemaining > 0;
 
-      // Deduct a life if answer is incorrect
-      if (!isCorrect) {
-        const livesResult = await livesService.deductLife(
-          userId,
-          user.lives !== undefined && user.lives !== null ? user.lives : 5,
-          user.lastLifeRegenTime || new Date().toISOString()
-        );
-        livesRemaining = livesResult.lives;
-        canContinue = livesResult.canContinue;
-      }
-
-      // Update user document
+      // Update user document (without touching lives - that's handled separately in QuestionScreen)
       try {
         await databases.updateDocument(DB_ID, COLLECTIONS.USERS, userId, {
           totalQuestionsAnswered: newTotalQuestions,
@@ -454,7 +445,6 @@ class QuestionService {
           xp: newXP,
           monthlyXP: newMonthlyXP,
           totalXP: newTotalXP,
-          lives: livesRemaining,
           updatedAt: new Date().toISOString(),
         });
       } catch (error) {

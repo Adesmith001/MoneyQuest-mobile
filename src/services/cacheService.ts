@@ -14,6 +14,8 @@ const CACHE_KEYS = {
   LEVELS_TIMESTAMP_PREFIX: '@moneyquest_levels_timestamp_',
   QUESTIONS_PREFIX: '@moneyquest_questions_',
   QUESTIONS_TIMESTAMP_PREFIX: '@moneyquest_questions_timestamp_',
+  LEVEL_DATA_PREFIX: '@moneyquest_level_data_',
+  LEVEL_DATA_TIMESTAMP_PREFIX: '@moneyquest_level_data_timestamp_',
 };
 
 // Cache duration: 7 days in milliseconds
@@ -340,8 +342,68 @@ class CacheService {
     }
   }
 
+  // ===== LEVEL DATA (ARTICLE) CACHE =====
+
   /**
-   * Clear all learning content caches (sections, levels, questions)
+   * Get level data (article/description) from cache
+   */
+  async getLevelData(levelId: string): Promise<any | null> {
+    try {
+      const [cached, timestampStr] = await Promise.all([
+        AsyncStorage.getItem(CACHE_KEYS.LEVEL_DATA_PREFIX + levelId),
+        AsyncStorage.getItem(CACHE_KEYS.LEVEL_DATA_TIMESTAMP_PREFIX + levelId),
+      ]);
+
+      if (cached && timestampStr) {
+        const timestamp = parseInt(timestampStr, 10);
+        if (this.isCacheValid(timestamp)) {
+          const age = Date.now() - timestamp;
+          const daysOld = Math.floor(age / (24 * 60 * 60 * 1000));
+          console.log(`✅ Using cached level data for ${levelId} (${daysOld} days old)`);
+          return JSON.parse(cached);
+        } else {
+          console.log(`❌ Level data cache for ${levelId} expired (>7 days)`);
+        }
+      }
+      return null;
+    } catch (error) {
+      console.error('Failed to get level data from cache:', error);
+      return null;
+    }
+  }
+
+  /**
+   * Save level data (article/description) to cache
+   */
+  async saveLevelData(levelId: string, levelData: any): Promise<void> {
+    try {
+      await Promise.all([
+        AsyncStorage.setItem(CACHE_KEYS.LEVEL_DATA_PREFIX + levelId, JSON.stringify(levelData)),
+        AsyncStorage.setItem(CACHE_KEYS.LEVEL_DATA_TIMESTAMP_PREFIX + levelId, Date.now().toString()),
+      ]);
+      console.log(`💾 Level data for ${levelId} saved to cache`);
+    } catch (error) {
+      console.error('Failed to save level data to cache:', error);
+    }
+  }
+
+  /**
+   * Invalidate level data cache for a specific level
+   */
+  async invalidateLevelData(levelId: string): Promise<void> {
+    try {
+      await Promise.all([
+        AsyncStorage.removeItem(CACHE_KEYS.LEVEL_DATA_PREFIX + levelId),
+        AsyncStorage.removeItem(CACHE_KEYS.LEVEL_DATA_TIMESTAMP_PREFIX + levelId),
+      ]);
+      console.log(`🗑️ Level data cache for ${levelId} invalidated`);
+    } catch (error) {
+      console.error('Failed to invalidate level data cache:', error);
+    }
+  }
+
+  /**
+   * Clear all learning content caches (sections, levels, questions, level data)
    */
   async clearLearningCache(): Promise<void> {
     try {
@@ -350,7 +412,8 @@ class CacheService {
         key =>
           key.startsWith(CACHE_KEYS.SECTIONS) ||
           key.startsWith(CACHE_KEYS.LEVELS_PREFIX) ||
-          key.startsWith(CACHE_KEYS.QUESTIONS_PREFIX)
+          key.startsWith(CACHE_KEYS.QUESTIONS_PREFIX) ||
+          key.startsWith(CACHE_KEYS.LEVEL_DATA_PREFIX)
       );
       
       if (learningKeys.length > 0) {

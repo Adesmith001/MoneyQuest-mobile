@@ -9,7 +9,6 @@ import DailyStreakScreen from "../screens/main/DailyStreakScreen";
 import LeaderboardScreen from "../screens/main/LeaderboardScreen";
 import ProfileStackNavigator from "./ProfileStackNavigator";
 import ProfileTabIcon from "./ProfileTabIcon";
-import NotificationTestScreen from '../screens/common/NotificationTestScreen';
 import SubscriptionGuard from "../components/SubscriptionGuard";
 
 const Tab = createBottomTabNavigator();
@@ -78,11 +77,6 @@ const MainTabNavigator: React.FC = () => {
           tabBarIcon: ({ focused }) => <ProfileTabIcon focused={focused} />,
         }}
       />
-      {/* <Tab.Screen 
-        name="NotificationTest" 
-        component={NotificationTestScreen}
-        options={{ title: '🔔 Notification Tests' }}
-      /> */}
     </Tab.Navigator>
     </SubscriptionGuard>
   );

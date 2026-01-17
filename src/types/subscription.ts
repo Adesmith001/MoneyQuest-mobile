@@ -77,13 +77,12 @@ export const SUBSCRIPTION_PLANS: Record<PlanType, SubscriptionPlan> = {
   monthly: {
     id: 'monthly',
     name: 'Monthly',
-    price: 3000,
+    price: 5000,
     duration: 'Month',
     features: [
       'Unlimited access to all lessons',
       'Progress tracking',
       'Gamified experience',
-      'Leaderboard access',
     ],
     trialDays: 30,
     currency: 'NGN',
@@ -92,11 +91,10 @@ export const SUBSCRIPTION_PLANS: Record<PlanType, SubscriptionPlan> = {
   annual: {
     id: 'annual',
     name: 'Annual',
-    price: 35000,
+    price: 60000,
     duration: 'Year',
     features: [
       'Everything in Monthly',
-      'Save ₦1,000 per year',
       'Priority support',
       'Early access to new features',
       'Exclusive content',
