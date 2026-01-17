@@ -61,10 +61,10 @@ const HomeScreen: React.FC<Props> = ({ navigation }) => {
   const [isLoading, setIsLoading] = useState(true);
   const [completedLevels, setCompletedLevels] = useState<Set<string>>(new Set());
   const [hasScrolledToCurrentSection, setHasScrolledToCurrentSection] = useState(false);
-  
+
   // Track if initial data has been loaded to avoid redundant API calls
   const [hasInitiallyLoaded, setHasInitiallyLoaded] = useState(false);
-  
+
   // Ref for horizontal scroll to scroll to user's current section
   const horizontalScrollRef = useRef<ScrollView>(null);
 
@@ -79,7 +79,7 @@ const HomeScreen: React.FC<Props> = ({ navigation }) => {
           if (isFirstLoad) {
             setIsLoading(true);
           }
-          
+
           // 🩺 STEP 0: Refresh user lives from Appwrite (always do this)
           if (user?.$id) {
             try {
@@ -88,7 +88,7 @@ const HomeScreen: React.FC<Props> = ({ navigation }) => {
                 user.lives !== undefined && user.lives !== null ? user.lives : 5,
                 user.lastLifeRegenTime || new Date().toISOString()
               );
-              
+
               // Update Redux store if lives changed
               if (lives !== user.lives || lastLifeRegenTime !== user.lastLifeRegenTime) {
                 dispatch(updateUser({ lives, lastLifeRegenTime }));
@@ -98,7 +98,7 @@ const HomeScreen: React.FC<Props> = ({ navigation }) => {
               console.error('Failed to refresh lives on HomeScreen:', error);
             }
           }
-          
+
           let latestCompletedLevels = new Set<string>();
 
           // 🚀 STEP 1: Load cached completed levels FIRST (instant!)
@@ -108,7 +108,9 @@ const HomeScreen: React.FC<Props> = ({ navigation }) => {
             latestCompletedLevels = new Set(cachedCompletedLevels);
           }
 
-          // 🌐 STEP 2: Fetch fresh data from Appwrite immediately
+          // 🌐 STEP 2: Fetch fresh data from Appwrite and MERGE with cache
+          // CRITICAL: Merge instead of replace to prevent race conditions where
+          // Appwrite might not yet have the just-completed level synced
           if (user?.$id) {
             try {
               const progressDocs = await databases.listDocuments(
@@ -116,10 +118,17 @@ const HomeScreen: React.FC<Props> = ({ navigation }) => {
                 COLLECTIONS.USER_PROGRESS,
                 [Query.equal('userId', user.$id), Query.equal('isCompleted', true)]
               );
-              latestCompletedLevels = new Set(progressDocs.documents.map(doc => doc.level));
-              console.log('🌐 Fetched from Appwrite:', Array.from(latestCompletedLevels));
+              const appwriteCompletedLevels = progressDocs.documents.map(doc => doc.level);
+              console.log('🌐 Fetched from Appwrite:', appwriteCompletedLevels);
 
-              // 💾 Save to cache for next time
+              // MERGE Appwrite data with cache data - don't replace!
+              // This ensures recently completed levels from cache aren't lost
+              appwriteCompletedLevels.forEach(levelId => {
+                latestCompletedLevels.add(levelId);
+              });
+              console.log('📊 Merged completed levels:', Array.from(latestCompletedLevels));
+
+              // 💾 Save merged data to cache for next time
               await cacheService.saveCompletedLevels(Array.from(latestCompletedLevels));
 
               // If user has completed levels but no currentLevelId, update it
@@ -159,7 +168,7 @@ const HomeScreen: React.FC<Props> = ({ navigation }) => {
           // Process regular sections and insert recap sections after every 9th section
           for (let i = 0; i < backendSections.length; i++) {
             const section = backendSections[i];
-            
+
             try {
               // Skip sections without a valid section_id
               if (!section.section_id) {
@@ -178,8 +187,9 @@ const HomeScreen: React.FC<Props> = ({ navigation }) => {
                 const levelSectionId = level.section_id || section.section_id!;
 
                 // Check if this level is completed using the latestCompletedLevels
+                // This is the source of truth for completion status
                 const isCompleted = latestCompletedLevels.has(level.level_id);
-                
+
                 // Pass the firstValidSectionId and sectionsData to correctly identify section position
                 const progress = calculateLevelProgress(
                   levelSectionId,
@@ -191,6 +201,8 @@ const HomeScreen: React.FC<Props> = ({ navigation }) => {
                   sectionsData // Pass the sections being built for accurate index lookup
                 );
 
+                // CRITICAL FIX: Ensure completed levels are ALWAYS marked as unlocked and completed
+                // This overrides any progress calculation to guarantee completed levels show checkmarks
                 return {
                   id: level.level_id,
                   sectionTitle: section.title,
@@ -198,6 +210,9 @@ const HomeScreen: React.FC<Props> = ({ navigation }) => {
                   sectionId: levelSectionId,
                   levelId: level.level_id,
                   ...progress,
+                  // Explicitly set these AFTER spreading progress to ensure completed levels are never locked
+                  isCompleted: isCompleted,
+                  isUnlocked: isCompleted || progress.isUnlocked, // Completed levels are always unlocked
                 };
               });
 
@@ -217,14 +232,14 @@ const HomeScreen: React.FC<Props> = ({ navigation }) => {
                   // This aligns with backend which expects recap sections at 10, 20, 30
                   const recapSectionNumber = Math.floor(currentSectionCount / 9) * 10;
                   console.log(`Fetching recap section ${recapSectionNumber} after ${currentSectionCount} regular sections...`);
-                  
+
                   const recapData = await backendApi.getRecapSection(recapSectionNumber, 10, true);
-                  
+
                   // Create level nodes for recap section
                   // Each source section becomes a "level" in the recap
                   const recapLevelNodes: LevelNode[] = recapData.source_sections.map((sourceSection, idx) => {
                     const recapLevelId = `recap_${recapSectionNumber}_source_${sourceSection.section_number}`;
-                    
+
                     return {
                       id: recapLevelId,
                       sectionTitle: recapData.recap_section_title,
@@ -256,10 +271,10 @@ const HomeScreen: React.FC<Props> = ({ navigation }) => {
           }
 
           setSections(sectionsData);
-          
+
           // Mark that we've successfully loaded data
           setHasInitiallyLoaded(true);
-          
+
           // Scroll to user's current section after loading
           if (!hasScrolledToCurrentSection && user?.currentSectionId && sectionsData.length > 0) {
             const currentSectionIndex = sectionsData.findIndex(s => s.id === user.currentSectionId);
@@ -307,7 +322,7 @@ const HomeScreen: React.FC<Props> = ({ navigation }) => {
 
     // Check if this level is completed
     const isCompleted = levelsToCheck.has(levelId);
-    
+
     // CRITICAL: A completed level is ALWAYS unlocked - no exceptions!
     // This ensures completed levels always show checkmarks, never locks
     if (isCompleted) {
@@ -331,7 +346,7 @@ const HomeScreen: React.FC<Props> = ({ navigation }) => {
 
     // Start with: unlock if this is the current level
     let isUnlocked = isCurrent;
-    
+
     if (levelIndex > 0) {
       // For levels after the first in a section, unlock if previous level is completed
       const previousLevel = sectionLevels[levelIndex - 1];
@@ -340,7 +355,7 @@ const HomeScreen: React.FC<Props> = ({ navigation }) => {
       // First level of section
       const sectionsToCheck = builtSectionsData || sections;
       const currentSectionIndex = sectionsToCheck.findIndex(s => s.id === sectionId);
-      
+
       if (currentSectionIndex === 0) {
         // First section's first level is always unlocked
         isUnlocked = true;
@@ -512,7 +527,7 @@ const HomeScreen: React.FC<Props> = ({ navigation }) => {
   const renderSection = (section: Section, sectionIndex: number) => {
     // Get decorations for this section based on its title
     const sectionDecorations = getDecorationsForSection(section.title, sectionIndex);
-    
+
     return (
       <View key={section.id} style={styles.pageContainer}>
         {/* Cloud decorations */}
@@ -623,7 +638,7 @@ const HomeScreen: React.FC<Props> = ({ navigation }) => {
             It looks like no sections or levels have been created yet.{'\n\n'}
             Please contact the developer to set up the learning content.
           </Text>
-          <TouchableOpacity 
+          <TouchableOpacity
             style={styles.emptyStateButton}
             onPress={() => {
               Alert.alert(
@@ -874,7 +889,7 @@ const styles = StyleSheet.create({
     width: "100%",
     height: "100%",
   },
-  
+
   // ✅ Add empty state styles
   emptyStateContainer: {
     flex: 1,
