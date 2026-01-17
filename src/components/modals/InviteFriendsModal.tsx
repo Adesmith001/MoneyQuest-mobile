@@ -10,11 +10,33 @@ import {
   Alert,
   Share,
   Dimensions,
+  Platform,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import * as Clipboard from 'expo-clipboard';
 
 const { width: screenWidth, height: screenHeight } = Dimensions.get('window');
+
+// Detect if device is a tablet (screen width > 600dp is commonly used)
+const isTablet = screenWidth >= 600;
+
+// Responsive scaling helper
+const scale = (size: number) => {
+  const baseWidth = 375; // iPhone 11 Pro width as base
+  const scaleFactor = screenWidth / baseWidth;
+  // For tablets, cap the scaling to prevent elements from becoming too large
+  const maxScale = isTablet ? 1.5 : 2;
+  return Math.min(size * scaleFactor, size * maxScale);
+};
+
+// Responsive font scaling
+const fontScale = (size: number) => {
+  const baseWidth = 375;
+  const scaleFactor = screenWidth / baseWidth;
+  // More conservative scaling for fonts
+  const maxScale = isTablet ? 1.3 : 1.5;
+  return Math.min(size * scaleFactor, size * maxScale);
+};
 
 interface Props {
   visible: boolean;
@@ -46,7 +68,7 @@ const InviteFriendsModal: React.FC<Props> = ({
 
   return (
     <Modal
-      animationType="fade" // Fade animation is more suitable for a centered modal
+      animationType="fade"
       transparent={true}
       visible={visible}
       onRequestClose={onClose}
@@ -54,9 +76,8 @@ const InviteFriendsModal: React.FC<Props> = ({
       <TouchableOpacity
         style={styles.overlay}
         activeOpacity={1}
-        onPressOut={onClose} // This allows closing the modal by tapping the background
+        onPressOut={onClose}
       >
-        {/* Use a regular View and prevent the modal itself from being touchable */}
         <View onStartShouldSetResponder={() => true}>
           <View style={styles.modalContainer}>
             <View style={styles.modalContent}>
@@ -65,6 +86,7 @@ const InviteFriendsModal: React.FC<Props> = ({
                 <Image
                   source={require('../../../assets/fox.png')}
                   style={styles.foxImage}
+                  resizeMode="contain"
                 />
                 <View style={styles.speechBubble}>
                   <Text style={styles.speechBubbleText}>Invite your friends</Text>
@@ -76,7 +98,7 @@ const InviteFriendsModal: React.FC<Props> = ({
                 <Text style={styles.linkText} numberOfLines={1}>
                   {inviteLink}
                 </Text>
-                <TouchableOpacity onPress={handleCopyLink}>
+                <TouchableOpacity onPress={handleCopyLink} style={styles.copyButton}>
                   <Text style={styles.copyButtonText}>Copy Link</Text>
                 </TouchableOpacity>
               </View>
@@ -85,16 +107,16 @@ const InviteFriendsModal: React.FC<Props> = ({
               <Text style={styles.shareTitle}>Share On</Text>
               <View style={styles.shareIconsContainer}>
                 <TouchableOpacity style={[styles.iconWrapper, { backgroundColor: '#1877F2' }]} onPress={handleShare}>
-                  <Ionicons name="logo-facebook" size={32} color="white" />
+                  <Ionicons name="logo-facebook" size={scale(28)} color="white" />
                 </TouchableOpacity>
                 <TouchableOpacity style={[styles.iconWrapper, { backgroundColor: '#E4405F' }]} onPress={handleShare}>
-                  <Ionicons name="logo-instagram" size={32} color="white" />
+                  <Ionicons name="logo-instagram" size={scale(28)} color="white" />
                 </TouchableOpacity>
                 <TouchableOpacity style={[styles.iconWrapper, { backgroundColor: '#25D366' }]} onPress={handleShare}>
-                  <Ionicons name="logo-whatsapp" size={32} color="white" />
+                  <Ionicons name="logo-whatsapp" size={scale(28)} color="white" />
                 </TouchableOpacity>
                 <TouchableOpacity style={[styles.iconWrapper, { backgroundColor: '#007AFF' }]} onPress={handleShare}>
-                  <Ionicons name="chatbubble" size={30} color="white" />
+                  <Ionicons name="chatbubble" size={scale(26)} color="white" />
                 </TouchableOpacity>
               </View>
             </View>
@@ -111,13 +133,13 @@ const styles = StyleSheet.create({
     backgroundColor: 'rgba(0, 0, 0, 0.6)',
     justifyContent: 'center',
     alignItems: 'center',
-    paddingHorizontal: 20,
+    paddingHorizontal: isTablet ? 60 : 20,
   },
   modalContainer: {
-    width: '100%',
-    maxWidth: 400, // Max width for larger screens
+    width: isTablet ? Math.min(screenWidth * 0.6, 500) : screenWidth - 40,
+    maxWidth: 500,
     backgroundColor: 'white',
-    borderRadius: 24,
+    borderRadius: scale(24),
     shadowColor: '#000',
     shadowOffset: { width: 0, height: 5 },
     shadowOpacity: 0.15,
@@ -125,83 +147,91 @@ const styles = StyleSheet.create({
     elevation: 10,
   },
   modalContent: {
-    padding: Math.max(screenWidth * 0.05, 16), // Responsive padding (5% of screen width, min 16)
+    padding: scale(24),
     alignItems: 'center',
   },
   headerContainer: {
     alignItems: 'center',
     position: 'relative',
-    marginBottom: Math.max(screenHeight * 0.03, 24), // Responsive margin
-    height: Math.max(screenHeight * 0.18, 140), // Responsive height
+    marginBottom: scale(24),
+    height: isTablet ? scale(160) : scale(140),
     width: '100%',
     justifyContent: 'center',
   },
   foxImage: {
-    width: Math.max(screenWidth * 0.28, 100), // Responsive width (28% of screen, min 100)
-    height: Math.max(screenHeight * 0.20, 140), // Responsive height
+    width: isTablet ? scale(120) : scale(100),
+    height: isTablet ? scale(150) : scale(130),
   },
   speechBubble: {
     position: 'absolute',
-    top: Math.max(screenHeight * 0.045, 0), // Position near fox's mouth (responsive)
-    right: Math.max(-screenWidth * 0.28, 2), // Position to the right of fox
+    top: isTablet ? scale(10) : scale(5),
+    right: isTablet ? '5%' : '2%',
     backgroundColor: '#FF6B35',
-    borderRadius: 16,
-    paddingHorizontal: Math.max(screenWidth * 0.04, 16),
-    paddingVertical: Math.max(screenHeight * 0.012, 10),
+    borderRadius: scale(16),
+    paddingHorizontal: scale(18),
+    paddingVertical: scale(12),
     shadowColor: '#000',
     shadowOffset: { width: 0, height: 2 },
     shadowOpacity: 0.1,
     shadowRadius: 4,
     elevation: 3,
-    maxWidth: screenWidth * 0.8, // Max width to prevent overflow on small screens
+    maxWidth: '60%',
   },
   speechBubbleText: {
     color: 'white',
     fontWeight: 'bold',
-    fontSize: Math.max(screenWidth * 0.04, 14), // Responsive font size
+    fontSize: fontScale(15),
+    textAlign: 'center',
   },
   linkContainer: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
-    borderWidth: 1,
+    borderWidth: 1.5,
     borderColor: '#FF6B35',
-    borderRadius: 12,
-    paddingHorizontal: Math.max(screenWidth * 0.04, 14),
-    paddingVertical: Math.max(screenHeight * 0.015, 12),
+    borderRadius: scale(12),
+    paddingHorizontal: scale(16),
+    paddingVertical: scale(14),
     width: '100%',
-    marginBottom: Math.max(screenHeight * 0.025, 20),
+    marginBottom: scale(24),
   },
   linkText: {
     flex: 1,
     color: '#333',
-    fontSize: Math.max(screenWidth * 0.035, 13), // Responsive font size
+    fontSize: fontScale(14),
+  },
+  copyButton: {
+    marginLeft: scale(12),
+    paddingVertical: scale(4),
+    paddingHorizontal: scale(8),
   },
   copyButtonText: {
     color: '#FF6B35',
     fontWeight: 'bold',
-    fontSize: Math.max(screenWidth * 0.035, 13),
-    marginLeft: 10,
+    fontSize: fontScale(14),
   },
   shareTitle: {
-    fontSize: Math.max(screenWidth * 0.045, 16), // Responsive font size
+    fontSize: fontScale(17),
     fontWeight: 'bold',
     color: '#333',
-    marginBottom: Math.max(screenHeight * 0.018, 14),
+    marginBottom: scale(16),
     alignSelf: 'flex-start',
   },
   shareIconsContainer: {
     flexDirection: 'row',
-    justifyContent: 'space-between',
+    justifyContent: 'space-around',
     width: '100%',
-    paddingHorizontal: Math.max(screenWidth * 0.02, 8),
+    paddingHorizontal: scale(8),
   },
   iconWrapper: {
-    width: Math.max(screenWidth * 0.14, 50), // Responsive size (14% of screen width, min 50)
-    height: Math.max(screenWidth * 0.14, 50),
-    borderRadius: Math.max(screenWidth * 0.07, 25),
+    width: scale(56),
+    height: scale(56),
+    borderRadius: scale(28),
     justifyContent: 'center',
     alignItems: 'center',
+    // Add touch feedback area for tablets
+    minWidth: 50,
+    minHeight: 50,
   },
 });
 

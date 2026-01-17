@@ -171,6 +171,7 @@ const QuestionScreen: React.FC<Props> = ({ navigation, route }) => {
   const [isRetake, setIsRetake] = useState(false);
 
   // Refresh lives from Appwrite when screen is focused
+  // Also sync progress when screen loses focus (user navigates away)
   useFocusEffect(
     React.useCallback(() => {
       const refreshUserLives = async () => {
@@ -194,7 +195,31 @@ const QuestionScreen: React.FC<Props> = ({ navigation, route }) => {
       };
 
       refreshUserLives();
-    }, [user?.$id, dispatch])
+
+      // Return cleanup function - runs when screen loses focus
+      return () => {
+        // Sync progress to Appwrite when leaving the screen
+        if (user?.$id && viewMode === "quiz" && currentQuestionIndex > 0) {
+          console.log("☁️ Screen unfocused - syncing progress to Appwrite...");
+          
+          // Fire and forget - don't await
+          databases.updateDocument(
+            DB_ID,
+            COLLECTIONS.USERS,
+            user.$id,
+            {
+              currentLevelId: levelId,
+              currentSectionId: sectionId,
+              updatedAt: new Date().toISOString(),
+            }
+          ).then(() => {
+            console.log("☁️ Background sync completed on screen exit");
+          }).catch((error) => {
+            console.error("☁️ Background sync failed on screen exit:", error);
+          });
+        }
+      };
+    }, [user?.$id, dispatch, viewMode, currentQuestionIndex, levelId, sectionId])
   );
 
   // Load level data and questions from backend
@@ -463,9 +488,38 @@ const QuestionScreen: React.FC<Props> = ({ navigation, route }) => {
     saveProgress();
   }, [currentQuestionIndex, correctAnswersCount, xpGained, viewMode]);
 
+  /**
+   * Background sync function to ensure user progress is saved to Appwrite
+   * This allows users to continue on another device
+   */
+  const syncUserProgressToAppwrite = async () => {
+    if (!user?.$id) return;
+
+    try {
+      // Update the user document with current progress
+      await databases.updateDocument(
+        DB_ID,
+        COLLECTIONS.USERS,
+        user.$id,
+        {
+          currentLevelId: levelId,
+          currentSectionId: sectionId,
+          updatedAt: new Date().toISOString(),
+        }
+      );
+      console.log("☁️ Background sync: User progress saved to Appwrite");
+    } catch (error) {
+      console.error("☁️ Background sync failed:", error);
+      // Don't throw - this is a background operation
+    }
+  };
+
   const handleStartQuiz = () => {
     setStartTime(Date.now());
     setViewMode("quiz");
+    
+    // Background sync when user starts the quiz
+    syncUserProgressToAppwrite();
   };
 
   // Handle going back to article view from quiz
