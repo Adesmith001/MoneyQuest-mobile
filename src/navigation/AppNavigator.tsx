@@ -37,6 +37,7 @@ import QuestionScreen from '../screens/game/QuestionScreen';
 import LevelCompletionScreen from '../screens/game/LevelCompletionScreen';
 import EditProfileScreen from '../screens/profile/EditProfileScreen';
 import ChangeAvatarScreen from '../screens/profile/ChangeAvatarScreen'; // Import the new screen
+import SplashScreen from '../screens/onboarding/SplashScreen';
 
 export type RootStackParamList = {
   // Onboarding
@@ -80,7 +81,7 @@ export type RootStackParamList = {
   WelcomeSuccess: {
     userName: string;
   };
-  
+
   // Auth Stack
   Welcome: undefined;
   Login: undefined;
@@ -90,11 +91,11 @@ export type RootStackParamList = {
     secret?: string;
   };
   ProfileSetup: undefined;
-  
+
   // Main App
   MainApp: undefined;
   MainTabs: undefined;
-  
+
   // Subscription
   Premium: undefined;
   SchoolCodeEntry: undefined;
@@ -102,7 +103,7 @@ export type RootStackParamList = {
     reference: string;
     planType: 'monthly' | 'annual';
   };
-  
+
   // Game Screens
   Question: {
     level: number;
@@ -113,7 +114,7 @@ export type RootStackParamList = {
     xpGained: number;
     accuracy: number;
   };
-  
+
   // Other Screens
   Settings: undefined;
   EditProfile: undefined;
@@ -143,9 +144,15 @@ const AppNavigator: React.FC = () => {
   const dispatch = useDispatch<AppDispatch>();
   // Skip onboarding screens - users go directly to login/home
   const [showOnboarding, setShowOnboarding] = useState<boolean>(false);
+  // Always show splash screen first when app opens
+  const [showSplash, setShowSplash] = useState<boolean>(true);
 
   const handleOnboardingComplete = () => {
     setShowOnboarding(false);
+  };
+
+  const handleSplashComplete = () => {
+    setShowSplash(false);
   };
 
   // Handle OAuth callbacks
@@ -158,14 +165,14 @@ const AppNavigator: React.FC = () => {
         // Handle OAuth callback
         if (url.includes('oauth/success') || url.includes('oauth/failure')) {
           const result = await googleAuthService.handleOAuthCallback(url);
-          
+
           if (result.success && result.user) {
             // Check if user needs onboarding
             const needsOnboarding = !result.user.avatar || result.user.age === 0;
-            
+
             // Update user in Redux store
             dispatch(updateUser(result.user));
-            
+
             if (needsOnboarding) {
               Alert.alert('Welcome!', 'Let\'s complete your profile to get started.');
               // User will be redirected to onboarding by AppNavigator logic
@@ -199,6 +206,15 @@ const AppNavigator: React.FC = () => {
     };
   }, [dispatch]);
 
+  // ALWAYS show splash screen first when app opens
+  if (showSplash) {
+    return (
+      <SafeAreaProvider>
+        <SplashScreen onComplete={handleSplashComplete} />
+      </SafeAreaProvider>
+    );
+  }
+
   // Show loading screen while auth state is being determined or during login/signup
   if (isLoading) {
     return (
@@ -214,8 +230,8 @@ const AppNavigator: React.FC = () => {
       <SafeAreaProvider>
         <NavigationContainer linking={linking}>
           <Stack.Navigator screenOptions={{ headerShown: false }}>
-            <Stack.Screen 
-              name="WelcomeSuccess" 
+            <Stack.Screen
+              name="WelcomeSuccess"
               component={WelcomeSuccessScreen}
               initialParams={{ userName: user.name?.split(' ')[0] || user.name }}
             />
@@ -242,7 +258,7 @@ const AppNavigator: React.FC = () => {
 
   // Check if OAuth user needs onboarding
   const oauthUserNeedsOnboarding = isAuthenticated && user && (
-    user.avatar === 'needs_onboarding' || 
+    user.avatar === 'needs_onboarding' ||
     user.learningLimit === 'needs_onboarding' ||
     user.mainGoal === 'needs_onboarding'
   );
@@ -284,50 +300,50 @@ const AppNavigator: React.FC = () => {
             <>
               <Stack.Screen name="MainApp" component={MainTabNavigator} />
               <Stack.Screen name="MainTabs" component={MainTabNavigator} />
-              <Stack.Screen 
-                name="Premium" 
+              <Stack.Screen
+                name="Premium"
                 component={PremiumScreen}
                 options={{
                   headerShown: false,
                   presentation: 'modal',
                 }}
               />
-              <Stack.Screen 
-                name="SchoolCodeEntry" 
+              <Stack.Screen
+                name="SchoolCodeEntry"
                 component={SchoolCodeEntryScreen}
                 options={{
                   headerShown: false,
                   presentation: 'modal',
                 }}
               />
-              <Stack.Screen 
-                name="PaymentPending" 
+              <Stack.Screen
+                name="PaymentPending"
                 component={PaymentPendingScreen}
                 options={{
                   headerShown: false,
                   gestureEnabled: false,
                 }}
               />
-              <Stack.Screen 
-                name="Question" 
+              <Stack.Screen
+                name="Question"
                 component={QuestionScreen as any}
                 options={{
-                gestureEnabled: false, // Prevent swipe to go back during questions
+                  gestureEnabled: false, // Prevent swipe to go back during questions
                 }}
               />
               <Stack.Screen name="LevelCompletion" component={LevelCompletionScreen} />
-              <Stack.Screen 
-                name="EditProfile" 
+              <Stack.Screen
+                name="EditProfile"
                 component={EditProfileScreen}
                 options={{
-                headerShown: false,
+                  headerShown: false,
                 }}
               />
-              <Stack.Screen 
-                name="ChangeAvatar" 
+              <Stack.Screen
+                name="ChangeAvatar"
                 component={ChangeAvatarScreen}
                 options={{
-                headerShown: false,
+                  headerShown: false,
                 }}
               />
             </>
