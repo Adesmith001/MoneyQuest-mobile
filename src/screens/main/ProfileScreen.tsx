@@ -123,25 +123,15 @@ const ProfileScreen: React.FC<Props> = ({ navigation }) => {
     );
   }
 
-  const userData = {
-    name: user?.name,
-    username: user?.username,
-    avatar: user?.avatar,
-    level: user?.level,
-    xp: user?.xp,
-    monthlyXP: user?.monthlyXP || 0,
-    currentStreak: currentStreak,
-    totalStreak: totalStreak,
-    daysThisMonth: daysThisMonth,
-    lives: user?.lives !== undefined && user?.lives !== null ? user.lives : 5,
-    maxLives: livesService.getMaxLives(),
-  };
-
   const handleEditProfile = () => {
     navigation.navigate("EditProfile");
   };
 
   const inviteLink = `https://invite.moneyquest.com/${user?.$id}`;
+
+  // Get lives directly from Appwrite user object
+  const currentLivesValue = user.lives !== undefined && user.lives !== null ? user.lives : 5;
+  const maxLives = livesService.getMaxLives();
 
   return (
     <SafeAreaView style={styles.container}>
@@ -150,13 +140,13 @@ const ProfileScreen: React.FC<Props> = ({ navigation }) => {
         <View style={styles.profileHeader}>
           <View style={styles.avatarContainer}>
             <Image
-              source={getAvatarById(userData.avatar)}
+              source={getAvatarById(user.avatar)}
               style={styles.avatarImage}
             />
           </View>
           <View style={styles.userInfo}>
-            <Text style={styles.userName}>{userData.name}</Text>
-            <Text style={styles.userHandle}>@{userData.username}</Text>
+            <Text style={styles.userName}>{user.name}</Text>
+            <Text style={styles.userHandle}>@{user.username}</Text>
           </View>
           <TouchableOpacity
             style={styles.editButton}
@@ -191,7 +181,7 @@ const ProfileScreen: React.FC<Props> = ({ navigation }) => {
                   </View>
                   <View style={styles.statBottomRow}>
                     <Text style={styles.statValue}>
-                      {formatXP(userData.monthlyXP)}
+                      {formatXP(user.monthlyXP || 0)}
                     </Text>
                     <Text style={styles.statLabel}>Monthly XP</Text>
                     <Text style={styles.statSubLabel}>
@@ -212,10 +202,10 @@ const ProfileScreen: React.FC<Props> = ({ navigation }) => {
                 </View>
                 <View style={styles.statBottomRow}>
                   <Text style={styles.statValue}>
-                    {userData.lives}/{userData.maxLives}
+                    {currentLivesValue}/{maxLives}
                   </Text>
                   <Text style={styles.statLabel}>Lives</Text>
-                  {userData.lives < userData.maxLives && (
+                  {currentLivesValue < maxLives && (
                     <Text style={styles.statSubLabel}>
                       Next in {lifeRegenTime}
                     </Text>

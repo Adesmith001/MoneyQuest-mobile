@@ -1,6 +1,6 @@
 import { databases, DB_ID, COLLECTIONS } from './appwrite';
 import { User } from '../types';
-import { NotificationService } from './notifications';
+import notificationService from './notifications';
 
 const MAX_LIVES = 5;
 const LIFE_REGEN_TIME_MS = 2 * 60 * 60 * 1000; // 2 hours in milliseconds
@@ -215,7 +215,7 @@ class LivesService {
       if (lives === MAX_LIVES && currentLives < MAX_LIVES) {
         console.log('🎉 Lives are full! User can resume learning.');
         // Optionally notify immediately that lives are full
-        await NotificationService.sendImmediateNotification(
+        await notificationService.sendImmediateNotification(
           '💚 Lives Restored!',
           'Your lives are full! Time to continue your financial learning journey.',
           'lives-notifications'
@@ -225,7 +225,7 @@ class LivesService {
       // 🔔 Schedule notification for next life if not at max
       if (lives < MAX_LIVES) {
         const timeUntilNextLife = this.getTimeUntilNextLife(lives, lastLifeRegenTime);
-        await NotificationService.scheduleLifeFullNotification(timeUntilNextLife);
+        await notificationService.scheduleLifeFullNotification(timeUntilNextLife);
       }
     }
 

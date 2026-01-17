@@ -127,6 +127,16 @@ const normalizeQuestion = (q: any): AnyQuestion | null => {
   return baseQuestion as GeneratedQuestion;
 };
 
+/**
+ * Truncate text to fit within a certain length
+ * Adds ellipsis if text is too long
+ */
+const truncateText = (text: string, maxLength: number = 40): string => {
+  if (!text) return '';
+  if (text.length <= maxLength) return text;
+  return text.substring(0, maxLength - 3) + '...';
+};
+
 const QuestionScreen: React.FC<Props> = ({ navigation, route }) => {
   const { levelId, sectionId, levelTitle, sectionTitle } = route.params;
   const dispatch = useDispatch();
@@ -1068,7 +1078,9 @@ const QuestionScreen: React.FC<Props> = ({ navigation, route }) => {
           <TouchableOpacity onPress={() => navigation.goBack()}>
             <Text style={styles.closeButton}>✕</Text>
           </TouchableOpacity>
-          <Text style={styles.headerTitle}>{levelTitle}</Text>
+          <Text style={styles.headerTitle} numberOfLines={2} ellipsizeMode="tail">
+            {levelTitle}
+          </Text>
         </View>
 
         <ScrollView contentContainerStyle={styles.articleContainer}>
@@ -1390,6 +1402,8 @@ const styles = StyleSheet.create({
     color: COLORS.text,
     marginLeft: SPACING.sm,
     paddingTop: 10,
+    flex: 1,
+    flexShrink: 1,
   },
   closeButton: {
     fontSize: 22,
