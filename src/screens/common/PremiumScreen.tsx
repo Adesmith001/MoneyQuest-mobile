@@ -170,7 +170,12 @@ const PremiumScreen: React.FC = () => {
         {/* Close Button */}
         <TouchableOpacity
           style={styles.closeButton}
-          onPress={() => navigation.goBack()}
+          onPress={() => {
+            navigation.reset({
+              index: 0,
+              routes: [{ name: "MainTabs" }],
+            });
+          }}
         >
           <Ionicons name="close" size={28} color="#FFF" />
         </TouchableOpacity>
@@ -209,17 +214,6 @@ const PremiumScreen: React.FC = () => {
             <Text style={styles.ctaButtonText}>Start 30-day free trial</Text>
           )}
         </TouchableOpacity>
-
-        {/* Terms */}
-        {/* <View style={styles.termsContainer}>
-          <Text style={styles.termsText}>
-            By placing this order, you agree to the{" "}
-            <Text style={styles.termsLink}>Terms of Service</Text> and{" "}
-            <Text style={styles.termsLink}>Privacy Policy</Text>. Subscription
-            automatically renews unless auto-renew is turned off at least
-            24-hours before the end of the current period.
-          </Text>
-        </View> */}
 
         {/* School Code Option */}
         <TouchableOpacity

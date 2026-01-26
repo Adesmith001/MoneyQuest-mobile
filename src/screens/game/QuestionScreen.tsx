@@ -45,6 +45,7 @@ import ScenarioQuestionComponent from "../../components/questions/ScenarioQuesti
 import MatchingQuestionComponent from "../../components/questions/MatchingQuestion";
 import FillInGapQuestionComponent from "../../components/questions/FillInGapQuestion";
 import cacheService from "../../services/cacheService";
+import { renderMarkdownContent } from "../../utils/markdownParser";
 
 interface Props {
   navigation: any;
@@ -176,6 +177,9 @@ const QuestionScreen: React.FC<Props> = ({ navigation, route }) => {
     correct: string[];
     incorrect: string[];
   }>({ correct: [], incorrect: [] });
+
+  // Track which question indices were answered incorrectly first (for reduced XP on retry)
+  const [questionsAnsweredIncorrectly, setQuestionsAnsweredIncorrectly] = useState<Set<number>>(new Set());
 
   // Track if this level was already completed (for retakes - no life deduction)
   const [isRetake, setIsRetake] = useState(false);
@@ -373,17 +377,34 @@ const QuestionScreen: React.FC<Props> = ({ navigation, route }) => {
           // Get questions for this level with caching
           const levelQuestions = await cachedBackendApi.getQuestions(
             levelId,
-            10,
+            50, // Fetch more to ensure we have enough of each type
             "mixed"
           );
           
           // Normalize all questions to ensure proper structure
-          const normalizedQuestions = levelQuestions
+          const allNormalizedQuestions = levelQuestions
             .map(q => normalizeQuestion(q))
             .filter((q): q is AnyQuestion => q !== null);
           
-          console.log(`✅ Loaded ${normalizedQuestions.length} normalized questions for level ${levelId}`);
-          setQuestions(normalizedQuestions);
+          // Filter and limit questions by type: 3 scenario, 5 MCQ, 2 fill_in_gap, 2 matching (max 12 total)
+          const scenarioQuestions = allNormalizedQuestions.filter(q => q.question_type === 'scenario').slice(0, 3);
+          const mcqQuestions = allNormalizedQuestions.filter(q => q.question_type === 'mcq').slice(0, 5);
+          const fillInGapQuestions = allNormalizedQuestions.filter(q => q.question_type === 'fill_in_gap').slice(0, 2);
+          const matchingQuestions = allNormalizedQuestions.filter(q => q.question_type === 'matching').slice(0, 2);
+          
+          // Combine all questions in a mixed order for variety
+          const limitedQuestions = [
+            ...scenarioQuestions,
+            ...mcqQuestions,
+            ...fillInGapQuestions,
+            ...matchingQuestions,
+          ];
+          
+          // Shuffle the questions for better variety
+          const shuffledQuestions = limitedQuestions.sort(() => Math.random() - 0.5);
+          
+          console.log(`✅ Loaded ${shuffledQuestions.length} questions for level ${levelId} (${scenarioQuestions.length} scenario, ${mcqQuestions.length} MCQ, ${fillInGapQuestions.length} fill_in_gap, ${matchingQuestions.length} matching)`);
+          setQuestions(shuffledQuestions);
         }
 
         // Check if user has saved progress for this level
@@ -719,6 +740,11 @@ const QuestionScreen: React.FC<Props> = ({ navigation, route }) => {
     // Always increment total attempts for accuracy calculation
     setTotalAttempts(totalAttempts + 1);
 
+    // Track incorrect answers for reduced XP on retry
+    if (!isCorrect) {
+      setQuestionsAnsweredIncorrectly(prev => new Set(prev).add(currentQuestionIndex));
+    }
+
     // IMMEDIATE life deduction for incorrect answers - don't wait for API
     // BUT skip life deduction if this is a retake of an already completed level
     if (!isCorrect && !isRetake) {
@@ -794,8 +820,14 @@ const QuestionScreen: React.FC<Props> = ({ navigation, route }) => {
         soundService.playSound("correct"); // Play correct sound
         // Only give XP on first completion, not retakes
         if (!isRetake) {
-          dispatch(addXP(result.xpEarned));
-          setXpGained(xpGained + result.xpEarned);
+          // Check if this question was previously answered incorrectly
+          const wasAnsweredIncorrectly = questionsAnsweredIncorrectly.has(currentQuestionIndex);
+          const xpForThisQuestion = wasAnsweredIncorrectly ? 5 : 10; // 5 XP for retry, 10 XP for first correct
+          
+          dispatch(addXP(xpForThisQuestion));
+          setXpGained(xpGained + xpForThisQuestion);
+          
+          console.log(`✨ XP awarded: ${xpForThisQuestion} (${wasAnsweredIncorrectly ? 'retry' : 'first try'})`);
         }
         setCorrectAnswersCount(correctAnswersCount + 1);
         setCorrectModalVisible(true);
@@ -1099,13 +1131,14 @@ const QuestionScreen: React.FC<Props> = ({ navigation, route }) => {
             </Text>
           </TouchableOpacity> */}
 
-          {/* Display content or description */}
-          <Text style={styles.articleContent}>
-            {levelData.level_summary ||
+          {/* Display content or description with markdown table support */}
+          {renderMarkdownContent(
+            levelData.level_summary ||
               levelData.level?.description ||
               levelData.description ||
-              "No content available for this level."}
-          </Text>
+              "No content available for this level.",
+            styles.articleContent
+          )}
         </ScrollView>
 
         <View style={styles.footer}>
@@ -1332,6 +1365,13 @@ const QuestionScreen: React.FC<Props> = ({ navigation, route }) => {
           </View>
         </View>
 
+        {/* Question Counter */}
+        <View style={styles.questionCounterContainer}>
+          <Text style={styles.questionCounterText}>
+            Question {currentQuestionIndex + 1}/{questions.length}
+          </Text>
+        </View>
+
         {renderQuestion()}
       </ScrollView>
 
@@ -1450,6 +1490,16 @@ const styles = StyleSheet.create({
     fontSize: FONT_SIZES.sm,
     fontWeight: '600',
     color: COLORS.card,
+  },
+  questionCounterContainer: {
+    alignItems: 'center',
+    marginBottom: SPACING.md,
+    paddingVertical: SPACING.xs,
+  },
+  questionCounterText: {
+    fontSize: FONT_SIZES.lg,
+    fontWeight: 'bold',
+    color: COLORS.primary,
   },
   sectionTitleText: {
     fontSize: FONT_SIZES.md,
