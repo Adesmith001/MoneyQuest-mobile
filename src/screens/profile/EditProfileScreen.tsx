@@ -171,7 +171,12 @@ const EditProfileScreen: React.FC<Props> = ({ navigation }) => {
         <View style={{ width: 28 }} />
       </View>
 
-      <ScrollView style={styles.content} showsVerticalScrollIndicator={false}>
+      <ScrollView 
+        style={styles.content} 
+        contentContainerStyle={styles.scrollContent}
+        showsVerticalScrollIndicator={false}
+        bounces={false}
+      >
         {/* Avatar Section */}
         <View style={styles.avatarContainer}>
           <TouchableOpacity
@@ -318,6 +323,7 @@ const styles = StyleSheet.create({
   container: {
     flex: 1,
     backgroundColor: "#FFFFFF",
+    overflow: "hidden",
   },
   header: {
     flexDirection: "row",
@@ -327,6 +333,7 @@ const styles = StyleSheet.create({
     paddingVertical: 16,
     backgroundColor: "#FFFFFF",
     paddingTop: Platform.OS === 'android' ? 40 : 16,
+    zIndex: 10,
   },
   backButton: {
     padding: 8,
@@ -342,6 +349,9 @@ const styles = StyleSheet.create({
   },
   content: {
     flex: 1,
+  },
+  scrollContent: {
+    paddingBottom: 100,
   },
   avatarContainer: {
     alignItems: "center",
@@ -404,12 +414,17 @@ const styles = StyleSheet.create({
   settingsContainer: {
     paddingHorizontal: 20,
     marginBottom: 32,
+    backgroundColor: "#FFFFFF",
+    zIndex: 5,
+    position: "relative",
   },
   settingRow: {
     flexDirection: "row",
     alignItems: "center",
     justifyContent: "space-between",
     paddingVertical: 20,
+    backgroundColor: "#FFFFFF",
+    zIndex: 5,
   },
   settingLabel: {
     fontSize: 16,
@@ -420,6 +435,9 @@ const styles = StyleSheet.create({
     paddingBottom: 40,
     alignItems: "center",
     fontWeight: "700",
+    backgroundColor: "#FFFFFF",
+    zIndex: 5,
+    position: "relative",
   },
   saveButton: {
     backgroundColor: "#FF4500", // Orange color

@@ -596,18 +596,15 @@ const HomeScreen: React.FC<Props> = ({ navigation }) => {
           showsVerticalScrollIndicator={false}
         >
           <View style={styles.levelsContainer}>
-            {section.levels
-              .slice()
-              .reverse()
-              .map((node, reverseIndex) => {
-                const originalIndex = section.levels.length - 1 - reverseIndex;
-                return renderLevelNode(
-                  node,
-                  originalIndex,
-                  originalIndex === 0, // First level is now at bottom
-                  sectionIndex
-                );
-              })}
+            {section.levels.map((node, index) => {
+              const isLast = index === section.levels.length - 1;
+              return renderLevelNode(
+                node,
+                index,
+                isLast,
+                sectionIndex
+              );
+            })}
           </View>
         </ScrollView>
       </View>
