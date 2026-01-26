@@ -500,7 +500,6 @@ const HomeScreen: React.FC<Props> = ({ navigation }) => {
                 />
               )}
             </TouchableOpacity>
-            {/* Removed level title display - users can see it when they click */}
           </View>
         </View>
 
