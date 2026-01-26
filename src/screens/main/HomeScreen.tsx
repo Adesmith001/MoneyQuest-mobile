@@ -29,6 +29,8 @@ import cacheService from "../../services/cacheService";
 import { livesService } from "../../services/lives";
 import LearningPathSkeleton from "../../components/skeletons/LearningPathSkeleton";
 import { getDecorationsForSection, SectionDecoration } from "../../config/sectionDecorations";
+import ProgressiveImage from "../../components/ProgressiveImage";
+import deviceCapabilities from "../../utils/DeviceCapabilities";
 
 interface Props {
   navigation: any;
@@ -484,19 +486,25 @@ const HomeScreen: React.FC<Props> = ({ navigation }) => {
               {node.isCompleted ? (
                 <Text style={styles.completedNodeIcon}>✓</Text>
               ) : node.isCurrent ? (
-                <Image
+                <ProgressiveImage
                   source={require("../../../assets/starIcon.png")}
                   style={styles.starIcon}
+                  resizeMode="contain"
+                  showLoader={false}
                 />
               ) : node.isUnlocked ? (
-                <Image
+                <ProgressiveImage
                   source={require("../../../assets/starIcon.png")}
                   style={styles.starIcon}
+                  resizeMode="contain"
+                  showLoader={false}
                 />
               ) : (
-                <Image
+                <ProgressiveImage
                   source={require("../../../assets/lockIcon.png")}
                   style={styles.starIcon}
+                  resizeMode="contain"
+                  showLoader={false}
                 />
               )}
             </TouchableOpacity>
@@ -515,6 +523,7 @@ const HomeScreen: React.FC<Props> = ({ navigation }) => {
               <Image
                 source={getAvatarById(user?.avatar)}
                 style={styles.avatarImage}
+                resizeMode="contain"
               />
             </View>
           </View>
@@ -527,29 +536,30 @@ const HomeScreen: React.FC<Props> = ({ navigation }) => {
     // Get decorations for this section based on its title
     const sectionDecorations = getDecorationsForSection(section.title, sectionIndex);
 
+    // 📱 Optimize decorations for low-end devices
+    const capabilities = deviceCapabilities.getCapabilities();
+    const decorationReduction = capabilities?.performanceTier === 'low' ? 0.3 :
+      capabilities?.performanceTier === 'medium' ? 0.7 : 1.0;
+
+    // Reduce number of clouds and decorations on low-end devices
+    const cloudCount = Math.ceil(6 * decorationReduction); // Base: 6 clouds
+    const decorationCount = Math.ceil(sectionDecorations.decorations.length * decorationReduction);
+
     return (
       <View key={section.id} style={styles.pageContainer}>
-        {/* Cloud decorations */}
+        {/* Cloud decorations - reduced on low-end devices */}
         <View style={styles.cloudsContainer}>
-          <Text style={[styles.cloud, { top: 20, left: 30 }]}>☁️</Text>
-          <Text style={[styles.cloud, { top: 60, right: 40 }]}>☁️</Text>
-          <Text style={[styles.cloud, { top: 100, left: screenWidth * 0.6 }]}>
-            ☁️
-          </Text>
-          <Text style={[styles.cloud, { top: 200, right: 20, fontSize: 40 }]}>
-            ☁️
-          </Text>
-          <Text style={[styles.cloud, { top: 350, left: 20, fontSize: 45 }]}>
-            ☁️
-          </Text>
-          <Text style={[styles.cloud, { top: 500, right: 50, fontSize: 35 }]}>
-            ☁️
-          </Text>
+          {cloudCount >= 1 && <Text style={[styles.cloud, { top: 20, left: 30 }]}>☁️</Text>}
+          {cloudCount >= 2 && <Text style={[styles.cloud, { top: 60, right: 40 }]}>☁️</Text>}
+          {cloudCount >= 3 && <Text style={[styles.cloud, { top: 100, left: screenWidth * 0.6 }]}>☁️</Text>}
+          {cloudCount >= 4 && <Text style={[styles.cloud, { top: 200, right: 20, fontSize: 40 }]}>☁️</Text>}
+          {cloudCount >= 5 && <Text style={[styles.cloud, { top: 350, left: 20, fontSize: 45 }]}>☁️</Text>}
+          {cloudCount >= 6 && <Text style={[styles.cloud, { top: 500, right: 50, fontSize: 35 }]}>☁️</Text>}
         </View>
 
-        {/* Section-specific decorative elements */}
+        {/* Section-specific decorative elements - reduced on low-end devices */}
         <View style={styles.decorationsContainer}>
-          {sectionDecorations.decorations.map((decoration, idx) => (
+          {sectionDecorations.decorations.slice(0, decorationCount).map((decoration, idx) => (
             <Text
               key={`decoration-${idx}`}
               style={[
@@ -582,9 +592,11 @@ const HomeScreen: React.FC<Props> = ({ navigation }) => {
               </Text>
             </View>
             <View style={styles.bookIcon}>
-              <Image
+              <ProgressiveImage
                 source={require("../../../assets/bookIcon.png")}
                 style={styles.bookIconImage}
+                resizeMode="contain"
+                showLoader={false}
               />
             </View>
           </View>
@@ -624,10 +636,12 @@ const HomeScreen: React.FC<Props> = ({ navigation }) => {
     return (
       <SafeAreaView style={styles.container}>
         <View style={styles.emptyStateContainer}>
-          <Image
+          <ProgressiveImage
             source={require('../../../assets/fox.png')}
             style={styles.emptyStateFox}
             resizeMode="contain"
+            showLoader={true}
+            loaderSize="large"
           />
           <Text style={styles.emptyStateTitle}>No Learning Content Available</Text>
           <Text style={styles.emptyStateMessage}>

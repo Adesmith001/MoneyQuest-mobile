@@ -12,6 +12,8 @@ import { Alert, Platform, Text, ErrorUtils } from 'react-native';
 import * as NavigationBar from 'expo-navigation-bar';
 import * as Font from 'expo-font';
 import LoadingScreen from './src/components/LoadingScreen';
+import deviceCapabilities from './src/utils/DeviceCapabilities';
+import imageCache from './src/services/ImageCache';
 
 // Global error handler for React Native (prevents crashes)
 if (ErrorUtils) {
@@ -35,17 +37,32 @@ export default function App() {
 
   useEffect(() => {
     const initializeApp = async () => {
-      // Initialize cache system FIRST (checks version and clears old data if needed)
-      // This ensures users get fresh data when the app is updated
+      // ⚡ CRITICAL: Initialize services in priority order
+      // Priority 1: Cache system (data backbone)
       try {
         await cachedBackendApi.initializeCache();
         console.log('✅ Cache system initialized');
       } catch (error) {
         console.error('❌ Cache initialization error:', error);
-        // Continue anyway - cache will be initialized on first use
       }
 
-      // Load custom fonts (critical - block rendering until done)
+      // Priority 2: Device capabilities (affects rendering)
+      try {
+        await deviceCapabilities.initialize();
+        console.log('✅ Device capabilities detected');
+      } catch (error) {
+        console.error('❌ Device capabilities error:', error);
+      }
+
+      // Priority 3: Image cache (improves perceived performance)
+      try {
+        await imageCache.initialize();
+        console.log('✅ Image cache initialized');
+      } catch (error) {
+        console.error('❌ Image cache error:', error);
+      }
+
+      // Priority 4: Fonts (critical for UI rendering)
       try {
         await Font.loadAsync({
           'Arial-Rounded-MT-Bold': require('./assets/fonts/ArialRoundedMTBold.ttf'),
@@ -60,47 +77,41 @@ export default function App() {
         Text.defaultProps.style = defaultFontFamily;
       } catch (error) {
         console.error('❌ Font loading error:', error);
-        // Continue without custom fonts to prevent crash
       } finally {
-        // Always allow app to render, even if fonts fail
         setFontsLoaded(true);
       }
 
-      // Configure navigation bar for Android (non-critical)
-      if (Platform.OS === 'android') {
-        try {
-          await NavigationBar.setVisibilityAsync('hidden');
-          await NavigationBar.setBehaviorAsync('inset-swipe');
-          await NavigationBar.setBackgroundColorAsync('#00000000');
-        } catch (error) {
-          console.error('❌ NavigationBar setup error:', error);
+      // ⏱️ NON-CRITICAL: Move to background after UI is interactive
+      // This allows the app to render faster
+      setTimeout(() => {
+        // Configure navigation bar for Android (non-critical)
+        if (Platform.OS === 'android') {
+          NavigationBar.setVisibilityAsync('hidden')
+            .then(() => NavigationBar.setBehaviorAsync('inset-swipe'))
+            .then(() => NavigationBar.setBackgroundColorAsync('#00000000'))
+            .catch(error => console.error('❌ NavigationBar setup error:', error));
         }
-      }
 
-      // Initialize notifications (non-critical)
-      try {
-        await NotificationService.initialize();
-        const hasPermission = await NotificationService.requestPermissions();
-        if (hasPermission) {
-          await NotificationService.scheduleDailyReminder();
-          await NotificationService.scheduleEngagementNotifications();
-          console.log('✅ Notifications initialized and scheduled');
-        } else {
-          console.log('⚠️ Notification permissions not granted');
-        }
-      } catch (error) {
-        console.error('❌ Notification initialization error:', error);
-        // Continue without notifications
-      }
+        // Initialize notifications (non-critical, background)
+        NotificationService.initialize()
+          .then(() => NotificationService.requestPermissions())
+          .then(hasPermission => {
+            if (hasPermission) {
+              return Promise.all([
+                NotificationService.scheduleDailyReminder(),
+                NotificationService.scheduleEngagementNotifications(),
+              ]);
+            }
+            return null;
+          })
+          .then(() => console.log('✅ Notifications initialized in background'))
+          .catch(error => console.error('❌ Notification initialization error:', error));
 
-      // Initialize sound service (non-critical)
-      try {
-        await soundService.initialize();
-        console.log('✅ Sound service initialized');
-      } catch (error) {
-        console.error('❌ Sound service initialization error:', error);
-        // Continue without sound effects
-      }
+        // Initialize sound service (non-critical, background)
+        soundService.initialize()
+          .then(() => console.log('✅ Sound service initialized in background'))
+          .catch(error => console.error('❌ Sound service initialization error:', error));
+      }, 500); // Delay 500ms to let UI render first
 
       // Mark app as ready
       setAppReady(true);
@@ -127,7 +138,7 @@ export default function App() {
     const handleDeepLink = async (event: { url: string }) => {
       try {
         console.log('Deep link received:', event.url);
-        
+
         if (event.url.includes('oauth-callback/success')) {
           console.log('OAuth success callback received');
           // The session should already be created by Appwrite

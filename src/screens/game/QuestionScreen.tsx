@@ -65,9 +65,9 @@ interface Props {
  */
 const normalizeQuestion = (q: any): AnyQuestion | null => {
   if (!q) return null;
-  
+
   const questionType = q.question_type || 'mcq';
-  
+
   // Handle matching questions
   if (questionType === 'matching') {
     return {
@@ -80,7 +80,7 @@ const normalizeQuestion = (q: any): AnyQuestion | null => {
       difficulty: q.difficulty || 'medium',
     } as MatchingQuestion;
   }
-  
+
   // Handle fill in gap questions
   if (questionType === 'fill_in_gap') {
     return {
@@ -91,7 +91,7 @@ const normalizeQuestion = (q: any): AnyQuestion | null => {
       difficulty: q.difficulty || 'medium',
     } as FillInGapQuestion;
   }
-  
+
   // Handle MCQ and Scenario questions
   // Ensure options object exists with all properties
   const options = {
@@ -100,14 +100,14 @@ const normalizeQuestion = (q: any): AnyQuestion | null => {
     C: q.options?.C || q.option_c || '',
     D: q.options?.D || q.option_d || '',
   };
-  
+
   const explanations = {
     A: q.explanations?.A || q.explanation_a || '',
     B: q.explanations?.B || q.explanation_b || '',
     C: q.explanations?.C || q.explanation_c || '',
     D: q.explanations?.D || q.explanation_d || '',
   };
-  
+
   const baseQuestion = {
     question: q.question || q.question_text || '',
     options,
@@ -116,7 +116,7 @@ const normalizeQuestion = (q: any): AnyQuestion | null => {
     difficulty: q.difficulty || 'medium',
     question_type: questionType as 'mcq' | 'scenario',
   };
-  
+
   if (questionType === 'scenario') {
     return {
       ...baseQuestion,
@@ -124,7 +124,7 @@ const normalizeQuestion = (q: any): AnyQuestion | null => {
       scenario_context: q.scenario_context || q.scenario || '',
     } as ScenarioQuestion;
   }
-  
+
   return baseQuestion as GeneratedQuestion;
 };
 
@@ -163,6 +163,7 @@ const QuestionScreen: React.FC<Props> = ({ navigation, route }) => {
 
   const [isCorrectModalVisible, setCorrectModalVisible] = useState(false);
   const [isIncorrectModalVisible, setIncorrectModalVisible] = useState(false);
+  const [isSubmittingLevel, setIsSubmittingLevel] = useState(false); // Loading state for level submission
 
   const [correctAnswersCount, setCorrectAnswersCount] = useState(0);
   const [totalAttempts, setTotalAttempts] = useState(0); // Track all attempts (correct + incorrect)
@@ -190,18 +191,18 @@ const QuestionScreen: React.FC<Props> = ({ navigation, route }) => {
     React.useCallback(() => {
       const refreshUserLives = async () => {
         if (!user?.$id) return;
-        
+
         try {
           const { lives, lastLifeRegenTime } = await livesService.refreshLives(
             user.$id,
             user.lives !== undefined && user.lives !== null ? user.lives : 5,
             user.lastLifeRegenTime || new Date().toISOString()
           );
-          
+
           // Update Redux store with new lives
           dispatch(setHealth(lives));
           dispatch(updateUser({ lives, lastLifeRegenTime }));
-          
+
           console.log(`✅ Lives refreshed from Appwrite: ${lives}/5`);
         } catch (error) {
           console.error('Failed to refresh lives:', error);
@@ -215,7 +216,7 @@ const QuestionScreen: React.FC<Props> = ({ navigation, route }) => {
         // Sync progress to Appwrite when leaving the screen
         if (user?.$id && viewMode === "quiz" && currentQuestionIndex > 0) {
           console.log("☁️ Screen unfocused - syncing progress to Appwrite...");
-          
+
           // Fire and forget - don't await
           databases.updateDocument(
             DB_ID,
@@ -244,29 +245,29 @@ const QuestionScreen: React.FC<Props> = ({ navigation, route }) => {
 
         // Check if this is a recap level (format: recap_10_source_1)
         const isRecapLevel = levelId.startsWith('recap_');
-        
+
         if (isRecapLevel) {
           // Extract recap section number from levelId (e.g., "recap_10_source_1" -> 10)
           const recapMatch = levelId.match(/^recap_(\d+)_source_(\d+)$/);
           if (!recapMatch) {
             throw new Error('Invalid recap level ID format');
           }
-          
+
           const recapSectionNumber = parseInt(recapMatch[1], 10);
           const sourceSectionNumber = parseInt(recapMatch[2], 10);
-          
+
           // Fetch the recap section data
           const recapData = await backendApi.getRecapSection(recapSectionNumber, 10, true);
-          
+
           // Find the specific source section we're reviewing
           const sourceSection = recapData.source_sections.find(
             s => s.section_number === sourceSectionNumber
           );
-          
+
           if (!sourceSection) {
             throw new Error(`Source section ${sourceSectionNumber} not found in recap data`);
           }
-          
+
           // Set level data for recap
           setLevelData({
             level: {
@@ -282,10 +283,10 @@ const QuestionScreen: React.FC<Props> = ({ navigation, route }) => {
             },
             level_summary: `This recap level reviews material from ${sourceSection.section_title}. You'll answer ${sourceSection.question_count} questions covering all the key concepts.`,
           });
-          
+
           // Aggregate all questions from this source section
           const allQuestions: AnyQuestion[] = [];
-          
+
           // Add quiz questions
           sourceSection.questions_by_type.quiz.forEach(q => {
             allQuestions.push({
@@ -307,7 +308,7 @@ const QuestionScreen: React.FC<Props> = ({ navigation, route }) => {
               question_type: 'mcq',
             });
           });
-          
+
           // Add scenario questions
           sourceSection.questions_by_type.scenario.forEach(q => {
             allQuestions.push({
@@ -330,7 +331,7 @@ const QuestionScreen: React.FC<Props> = ({ navigation, route }) => {
               scenario_context: q.scenario || '',
             });
           });
-          
+
           // Add matching questions
           sourceSection.questions_by_type.matching.forEach(q => {
             allQuestions.push({
@@ -343,13 +344,13 @@ const QuestionScreen: React.FC<Props> = ({ navigation, route }) => {
               difficulty: 'medium',
             });
           });
-          
+
           console.log(`✅ Loaded ${allQuestions.length} recap questions from ${sourceSection.section_title}`);
           setQuestions(allQuestions);
         } else {
           // Regular level - Check cache for level data first
           let cachedLevelData = await cacheService.getLevelData(levelId);
-          
+
           if (cachedLevelData) {
             console.log(`✅ Using cached level data (article) for ${levelId}`);
             setLevelData(cachedLevelData);
@@ -357,18 +358,18 @@ const QuestionScreen: React.FC<Props> = ({ navigation, route }) => {
             // Fetch from API if not cached
             // Get level description (includes level_summary for article view)
             const levelDescription = await backendApi.getLevelDescription(levelId);
-            
+
             // Get full level details
             const levelDetails = await backendApi.getLevelDetails(levelId);
-            
+
             // Merge description data into levelDetails
             const mergedLevelData = {
               ...levelDetails,
               level_summary: levelDescription.level_summary || levelDescription.description,
             };
-            
+
             setLevelData(mergedLevelData);
-            
+
             // Cache the level data for future use
             await cacheService.saveLevelData(levelId, mergedLevelData);
             console.log(`💾 Cached level data (article) for ${levelId}`);
@@ -380,18 +381,18 @@ const QuestionScreen: React.FC<Props> = ({ navigation, route }) => {
             50, // Fetch more to ensure we have enough of each type
             "mixed"
           );
-          
+
           // Normalize all questions to ensure proper structure
           const allNormalizedQuestions = levelQuestions
             .map(q => normalizeQuestion(q))
             .filter((q): q is AnyQuestion => q !== null);
-          
+
           // Filter and limit questions by type: 3 scenario, 5 MCQ, 2 fill_in_gap, 2 matching (max 12 total)
           const scenarioQuestions = allNormalizedQuestions.filter(q => q.question_type === 'scenario').slice(0, 3);
           const mcqQuestions = allNormalizedQuestions.filter(q => q.question_type === 'mcq').slice(0, 5);
           const fillInGapQuestions = allNormalizedQuestions.filter(q => q.question_type === 'fill_in_gap').slice(0, 2);
           const matchingQuestions = allNormalizedQuestions.filter(q => q.question_type === 'matching').slice(0, 2);
-          
+
           // Combine all questions in a mixed order for variety
           const limitedQuestions = [
             ...scenarioQuestions,
@@ -399,10 +400,10 @@ const QuestionScreen: React.FC<Props> = ({ navigation, route }) => {
             ...fillInGapQuestions,
             ...matchingQuestions,
           ];
-          
+
           // Shuffle the questions for better variety
           const shuffledQuestions = limitedQuestions.sort(() => Math.random() - 0.5);
-          
+
           console.log(`✅ Loaded ${shuffledQuestions.length} questions for level ${levelId} (${scenarioQuestions.length} scenario, ${mcqQuestions.length} MCQ, ${fillInGapQuestions.length} fill_in_gap, ${matchingQuestions.length} matching)`);
           setQuestions(shuffledQuestions);
         }
@@ -548,7 +549,7 @@ const QuestionScreen: React.FC<Props> = ({ navigation, route }) => {
   const handleStartQuiz = () => {
     setStartTime(Date.now());
     setViewMode("quiz");
-    
+
     // Background sync when user starts the quiz
     syncUserProgressToAppwrite();
   };
@@ -752,7 +753,7 @@ const QuestionScreen: React.FC<Props> = ({ navigation, route }) => {
 
       // Deduct life IMMEDIATELY using livesService and update Appwrite
       console.log(`❤️ Before deduction - User lives: ${user.lives}, lastLifeRegenTime: ${user.lastLifeRegenTime}`);
-      
+
       try {
         const { lives, lastLifeRegenTime, canContinue } =
           await livesService.deductLife(
@@ -823,10 +824,10 @@ const QuestionScreen: React.FC<Props> = ({ navigation, route }) => {
           // Check if this question was previously answered incorrectly
           const wasAnsweredIncorrectly = questionsAnsweredIncorrectly.has(currentQuestionIndex);
           const xpForThisQuestion = wasAnsweredIncorrectly ? 5 : 10; // 5 XP for retry, 10 XP for first correct
-          
+
           dispatch(addXP(xpForThisQuestion));
           setXpGained(xpGained + xpForThisQuestion);
-          
+
           console.log(`✨ XP awarded: ${xpForThisQuestion} (${wasAnsweredIncorrectly ? 'retry' : 'first try'})`);
         }
         setCorrectAnswersCount(correctAnswersCount + 1);
@@ -864,7 +865,7 @@ const QuestionScreen: React.FC<Props> = ({ navigation, route }) => {
 
     // Get current lives from user (Appwrite source of truth)
     const currentLives = user?.lives || 0;
-    
+
     // If lives is 0, user cannot continue
     if (currentLives <= 0) {
       const timeUntilNextLife = livesService.getTimeUntilNextLife(
@@ -897,11 +898,14 @@ const QuestionScreen: React.FC<Props> = ({ navigation, route }) => {
       // Level completed - submit results
       if (!user) return;
 
+      // Show loading state immediately
+      setIsSubmittingLevel(true);
+
       const timeSpentMinutes = Math.round((Date.now() - startTime) / 60000);
-      
+
       // Calculate accuracy based on total attempts (correct answers / total attempts)
       // This penalizes wrong answers: if you needed 15 attempts for 10 questions, accuracy = 67%
-      const accuracy = totalAttempts > 0 
+      const accuracy = totalAttempts > 0
         ? Math.round((correctAnswersCount / totalAttempts) * 100)
         : 0;
 
@@ -979,21 +983,21 @@ const QuestionScreen: React.FC<Props> = ({ navigation, route }) => {
         if (result.passed && !result.next_level_id) {
           // No next level returned means we're at the end of the current section
           console.log('🎉 Section completed! Finding next section...');
-          
+
           try {
             // Get all sections with caching
             const allSections = await cachedBackendApi.getSections();
             const currentSectionIndex = allSections.findIndex(s => s.section_id === sectionId);
-            
+
             if (currentSectionIndex !== -1 && currentSectionIndex < allSections.length - 1) {
               // There is a next section
               const nextSection = allSections[currentSectionIndex + 1];
               console.log('📚 Next section found:', nextSection.title);
-              
+
               // Get the first level of the next section with caching
               if (nextSection.section_id) {
                 const nextSectionLevels = await cachedBackendApi.getLevels(nextSection.section_id);
-                
+
                 if (nextSectionLevels.length > 0) {
                   nextLevelToUnlock = nextSectionLevels[0].level_id;
                   nextSectionId = nextSection.section_id;
@@ -1017,10 +1021,10 @@ const QuestionScreen: React.FC<Props> = ({ navigation, route }) => {
           const currentLivesValue = user.lives !== undefined && user.lives !== null ? user.lives : 5;
           const newLives = Math.min(currentLivesValue + 1, 5);
           const newLastLifeRegenTime = new Date().toISOString(); // Reset regeneration time
-          
+
           updateData.lives = newLives;
           updateData.lastLifeRegenTime = newLastLifeRegenTime;
-          
+
           dispatch(setHealth(newLives));
 
           // Update Redux store with new currentLevelId and lives
@@ -1032,7 +1036,7 @@ const QuestionScreen: React.FC<Props> = ({ navigation, route }) => {
               lastLifeRegenTime: newLastLifeRegenTime,
             })
           );
-          
+
           console.log(`✅ Level completed! Lives increased to ${newLives}/5`);
           console.log(`✅ Next level unlocked: ${nextLevelToUnlock} in section: ${nextSectionId}`);
         } else if (result.passed && !nextLevelToUnlock) {
@@ -1045,10 +1049,10 @@ const QuestionScreen: React.FC<Props> = ({ navigation, route }) => {
           const currentLivesValue = user.lives !== undefined && user.lives !== null ? user.lives : 5;
           const newLives = Math.min(currentLivesValue + 1, 5);
           const newLastLifeRegenTime = new Date().toISOString();
-          
+
           updateData.lives = newLives;
           updateData.lastLifeRegenTime = newLastLifeRegenTime;
-          
+
           dispatch(setHealth(newLives));
 
           dispatch(
@@ -1059,7 +1063,7 @@ const QuestionScreen: React.FC<Props> = ({ navigation, route }) => {
               lastLifeRegenTime: newLastLifeRegenTime,
             })
           );
-          
+
           console.log(`✅ Level completed! Lives increased to ${newLives}/5`);
           console.log('🎓 All content completed!');
         }
@@ -1075,6 +1079,10 @@ const QuestionScreen: React.FC<Props> = ({ navigation, route }) => {
         dispatch(refreshUserData(user.$id) as any);
 
         dispatch(nextLevel());
+
+        // Hide loading state before navigation
+        setIsSubmittingLevel(false);
+
         navigation.replace("LevelCompletion", {
           xpGained: xpGained,
           accuracy,
@@ -1083,6 +1091,10 @@ const QuestionScreen: React.FC<Props> = ({ navigation, route }) => {
         });
       } catch (error) {
         console.error("Error submitting level:", error);
+
+        // Hide loading state
+        setIsSubmittingLevel(false);
+
         // Still navigate to completion screen even if submission fails
         navigation.replace("LevelCompletion", {
           xpGained: xpGained,
@@ -1097,6 +1109,19 @@ const QuestionScreen: React.FC<Props> = ({ navigation, route }) => {
       <SafeAreaView style={styles.container}>
         <View style={styles.loadingContainer}>
           <ActivityIndicator size="large" color={COLORS.primary} />
+        </View>
+      </SafeAreaView>
+    );
+  }
+
+  // Loading screen while submitting level results
+  if (isSubmittingLevel) {
+    return (
+      <SafeAreaView style={styles.container}>
+        <View style={styles.submittingContainer}>
+          <ActivityIndicator size="large" color={COLORS.primary} />
+          <Text style={styles.submittingText}>Submitting your results...</Text>
+          <Text style={styles.submittingSubtext}>Please wait</Text>
         </View>
       </SafeAreaView>
     );
@@ -1134,9 +1159,9 @@ const QuestionScreen: React.FC<Props> = ({ navigation, route }) => {
           {/* Display content or description with markdown table support */}
           {renderMarkdownContent(
             levelData.level_summary ||
-              levelData.level?.description ||
-              levelData.description ||
-              "No content available for this level.",
+            levelData.level?.description ||
+            levelData.description ||
+            "No content available for this level.",
             styles.articleContent
           )}
         </ScrollView>
@@ -1235,9 +1260,9 @@ const QuestionScreen: React.FC<Props> = ({ navigation, route }) => {
           selectedAnswer={selectedAnswer}
           onAnswerSelect={handleAnswerSelect}
           disabled={isCorrectModalVisible || isIncorrectModalVisible}
-          // 🔇 AUDIO FEATURE - COMMENTED OUT FOR COST REDUCTION 
-          // onPlayAudio={handlePlayAudio}
-          // isPlayingAudio={isPlayingAudio}
+        // 🔇 AUDIO FEATURE - COMMENTED OUT FOR COST REDUCTION 
+        // onPlayAudio={handlePlayAudio}
+        // isPlayingAudio={isPlayingAudio}
         />
       );
     } else if (currentQuestion.question_type === "matching") {
@@ -1256,9 +1281,9 @@ const QuestionScreen: React.FC<Props> = ({ navigation, route }) => {
           }}
           disabled={isCorrectModalVisible || isIncorrectModalVisible}
           showResults={isCorrectModalVisible || isIncorrectModalVisible}
-          // 🔇 AUDIO FEATURE - COMMENTED OUT FOR COST REDUCTION 
-          // onPlayAudio={handlePlayAudio}
-          // isPlayingAudio={isPlayingAudio}
+        // 🔇 AUDIO FEATURE - COMMENTED OUT FOR COST REDUCTION 
+        // onPlayAudio={handlePlayAudio}
+        // isPlayingAudio={isPlayingAudio}
         />
       );
     } else if (currentQuestion.question_type === "fill_in_gap") {
@@ -1270,15 +1295,15 @@ const QuestionScreen: React.FC<Props> = ({ navigation, route }) => {
             setFillInGapAnswers({ ...fillInGapAnswers, [blankId]: answer });
           }}
           disabled={isCorrectModalVisible || isIncorrectModalVisible}
-          // 🔇 AUDIO FEATURE - COMMENTED OUT FOR COST REDUCTION 
-          // onPlayAudio={handlePlayAudio}
-          // isPlayingAudio={isPlayingAudio}
+        // 🔇 AUDIO FEATURE - COMMENTED OUT FOR COST REDUCTION 
+        // onPlayAudio={handlePlayAudio}
+        // isPlayingAudio={isPlayingAudio}
         />
       );
     } else {
       // Standard MCQ
       const mcqQ = currentQuestion as GeneratedQuestion;
-      
+
       // Safety check: ensure options exist
       const options = mcqQ.options || { A: '', B: '', C: '', D: '' };
       const optionsArray = [
@@ -1632,6 +1657,26 @@ const styles = StyleSheet.create({
     fontSize: FONT_SIZES.md,
     lineHeight: 26,
     color: COLORS.text,
+  },
+  submittingContainer: {
+    flex: 1,
+    justifyContent: "center",
+    alignItems: "center",
+    backgroundColor: COLORS.background,
+    padding: SPACING.xl,
+  },
+  submittingText: {
+    fontSize: FONT_SIZES.xl,
+    fontWeight: "bold",
+    color: COLORS.text,
+    marginTop: SPACING.lg,
+    textAlign: "center",
+  },
+  submittingSubtext: {
+    fontSize: FONT_SIZES.md,
+    color: COLORS.textSecondary || "#666",
+    marginTop: SPACING.sm,
+    textAlign: "center",
   },
 });
 
