@@ -413,7 +413,7 @@ const styles = StyleSheet.create({
   },
   settingsContainer: {
     paddingHorizontal: 20,
-    marginBottom: 32,
+    marginBottom: 25,
     backgroundColor: "#FFFFFF",
     zIndex: 5,
     position: "relative",
@@ -422,7 +422,7 @@ const styles = StyleSheet.create({
     flexDirection: "row",
     alignItems: "center",
     justifyContent: "space-between",
-    paddingVertical: 20,
+    paddingVertical: 10,
     backgroundColor: "#FFFFFF",
     zIndex: 5,
   },
@@ -431,7 +431,7 @@ const styles = StyleSheet.create({
     color: "#333",
   },
   footer: {
-    paddingHorizontal: 20,
+    paddingHorizontal: 20,  
     paddingBottom: 40,
     alignItems: "center",
     fontWeight: "700",
