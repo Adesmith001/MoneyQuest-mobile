@@ -3,7 +3,7 @@ import { BackendSection, BackendLevel } from '../types';
 
 // ⚠️ INCREMENT THIS VERSION whenever you want to invalidate ALL caches
 // This forces fresh data fetch when users update the app
-const CACHE_VERSION = 3;
+const CACHE_VERSION = 4;
 
 const CACHE_KEYS = {
   CACHE_VERSION: '@moneyquest_cache_version',
