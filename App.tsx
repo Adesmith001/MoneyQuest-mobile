@@ -8,7 +8,7 @@ import NotificationService from './src/services/notifications';
 import soundService from './src/services/soundService';
 import cachedBackendApi from './src/services/cachedBackendApi';
 import * as Linking from 'expo-linking';
-import { Alert, Platform, Text, ErrorUtils } from 'react-native';
+import { Alert, Platform, Text, ErrorUtils, View, ActivityIndicator, StyleSheet } from 'react-native';
 import * as NavigationBar from 'expo-navigation-bar';
 import * as Font from 'expo-font';
 import LoadingScreen from './src/components/LoadingScreen';
@@ -31,34 +31,69 @@ if (ErrorUtils) {
   });
 }
 
+// Simple loading component to show during initialization (prevents white screen)
+const InitializingScreen = () => (
+  <View style={initStyles.container}>
+    <ActivityIndicator size="large" color="#FF5C02" />
+  </View>
+);
+
+const initStyles = StyleSheet.create({
+  container: {
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
+    backgroundColor: '#D4E8F5',
+  },
+});
+
 export default function App() {
   const [fontsLoaded, setFontsLoaded] = useState(false);
   const [appReady, setAppReady] = useState(false);
+  const [initError, setInitError] = useState<string | null>(null);
 
   useEffect(() => {
+    let isMounted = true;
+
     const initializeApp = async () => {
-      // ⚡ CRITICAL: Initialize services in priority order
-      // Priority 1: Cache system (data backbone)
+      console.log('🚀 App initialization started');
+      
+      // ⚡ CRITICAL: Initialize services in priority order with proper error handling
+      // Priority 1: Cache system (data backbone) - with timeout
       try {
-        await cachedBackendApi.initializeCache();
+        const cachePromise = cachedBackendApi.initializeCache();
+        const timeoutPromise = new Promise((_, reject) => 
+          setTimeout(() => reject(new Error('Cache init timeout')), 5000)
+        );
+        await Promise.race([cachePromise, timeoutPromise]);
         console.log('✅ Cache system initialized');
       } catch (error) {
-        console.error('❌ Cache initialization error:', error);
+        console.error('❌ Cache initialization error (continuing anyway):', error);
+        // Don't block app on cache failure
       }
 
-      // Priority 2: Device capabilities (affects rendering)
+      // Priority 2: Device capabilities (affects rendering) - with timeout
       try {
-        await deviceCapabilities.initialize();
+        const devicePromise = deviceCapabilities.initialize();
+        const timeoutPromise = new Promise((_, reject) => 
+          setTimeout(() => reject(new Error('Device capabilities timeout')), 3000)
+        );
+        await Promise.race([devicePromise, timeoutPromise]);
         console.log('✅ Device capabilities detected');
       } catch (error) {
-        console.error('❌ Device capabilities error:', error);
+        console.error('❌ Device capabilities error (continuing anyway):', error);
+        // Don't block app on device detection failure
       }
 
-      // Priority 3: Fonts (critical for UI rendering)
+      // Priority 3: Fonts (critical for UI rendering) - with timeout
       try {
-        await Font.loadAsync({
+        const fontPromise = Font.loadAsync({
           'Arial-Rounded-MT-Bold': require('./assets/fonts/ArialRoundedMTBold.ttf'),
         });
+        const timeoutPromise = new Promise((_, reject) => 
+          setTimeout(() => reject(new Error('Font loading timeout')), 10000)
+        );
+        await Promise.race([fontPromise, timeoutPromise]);
         console.log('✅ Fonts loaded');
 
         // Set default font for all Text components
@@ -68,8 +103,12 @@ export default function App() {
         // @ts-ignore - Setting default style
         Text.defaultProps.style = defaultFontFamily;
       } catch (error) {
-        console.error('❌ Font loading error:', error);
-      } finally {
+        console.error('❌ Font loading error (using system font):', error);
+        // App will work with system fonts
+      }
+      
+      // Always set fonts as loaded (even if they failed)
+      if (isMounted) {
         setFontsLoaded(true);
       }
 
@@ -106,13 +145,25 @@ export default function App() {
       }, 500); // Delay 500ms to let UI render first
 
       // Mark app as ready
-      setAppReady(true);
+      if (isMounted) {
+        console.log('✅ App initialization complete');
+        setAppReady(true);
+      }
     };
 
-    initializeApp();
+    initializeApp().catch(error => {
+      console.error('❌ Critical app initialization error:', error);
+      if (isMounted) {
+        setInitError(error?.message || 'Unknown initialization error');
+        // Still try to render the app
+        setFontsLoaded(true);
+        setAppReady(true);
+      }
+    });
 
     // Cleanup on unmount
     return () => {
+      isMounted = false;
       try {
         soundService.cleanup();
       } catch (e) {
@@ -160,9 +211,9 @@ export default function App() {
     };
   }, []);
 
-  // Wait for fonts to load before rendering
+  // Show loading screen during initialization (prevents white screen)
   if (!fontsLoaded || !appReady) {
-    return null;
+    return <InitializingScreen />;
   }
 
   return (
