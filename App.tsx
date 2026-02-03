@@ -54,15 +54,7 @@ export default function App() {
         console.error('❌ Device capabilities error:', error);
       }
 
-      // Priority 3: Image cache (improves perceived performance)
-      try {
-        await imageCache.initialize();
-        console.log('✅ Image cache initialized');
-      } catch (error) {
-        console.error('❌ Image cache error:', error);
-      }
-
-      // Priority 4: Fonts (critical for UI rendering)
+      // Priority 3: Fonts (critical for UI rendering)
       try {
         await Font.loadAsync({
           'Arial-Rounded-MT-Bold': require('./assets/fonts/ArialRoundedMTBold.ttf'),

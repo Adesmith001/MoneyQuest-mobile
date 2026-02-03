@@ -630,6 +630,54 @@ class BackendApiService {
       `/sections/recap/${sectionNumber}?${params.toString()}`
     );
   }
+
+  /**
+   * Flag a question as having an issue
+   * @param questionId - The question/pair ID
+   * @param questionType - Type of question ('quiz', 'scenario', or 'matching')
+   * @param reason - Reason for flagging
+   * @param flaggedBy - Optional user ID who flagged the question
+   */
+  async flagQuestion(
+    questionId: string,
+    questionType: 'quiz' | 'scenario' | 'matching' | 'mcq',
+    reason: string,
+    flaggedBy?: string
+  ): Promise<{ success: boolean; message: string }> {
+    // Map 'mcq' to 'quiz' for backend compatibility
+    const backendQuestionType = questionType === 'mcq' ? 'quiz' : questionType;
+    
+    return await this.fetchApi<{ success: boolean; message: string }>('/questions/flag', {
+      method: 'POST',
+      body: JSON.stringify({
+        question_id: questionId,
+        question_type: backendQuestionType,
+        reason,
+        flagged_by: flaggedBy,
+      }),
+    });
+  }
+
+  /**
+   * Unflag a question
+   * @param questionId - The question/pair ID
+   * @param questionType - Type of question ('quiz', 'scenario', or 'matching')
+   */
+  async unflagQuestion(
+    questionId: string,
+    questionType: 'quiz' | 'scenario' | 'matching' | 'mcq'
+  ): Promise<{ success: boolean; message: string }> {
+    // Map 'mcq' to 'quiz' for backend compatibility
+    const backendQuestionType = questionType === 'mcq' ? 'quiz' : questionType;
+    
+    return await this.fetchApi<{ success: boolean; message: string }>('/questions/unflag', {
+      method: 'POST',
+      body: JSON.stringify({
+        question_id: questionId,
+        question_type: backendQuestionType,
+      }),
+    });
+  }
 }
 
 // Export singleton instance

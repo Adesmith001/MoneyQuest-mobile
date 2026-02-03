@@ -185,6 +185,9 @@ const QuestionScreen: React.FC<Props> = ({ navigation, route }) => {
   // Track if this level was already completed (for retakes - no life deduction)
   const [isRetake, setIsRetake] = useState(false);
 
+  // Track flagged questions (Set of question indices)
+  const [flaggedQuestions, setFlaggedQuestions] = useState<Set<number>>(new Set());
+
   // Refresh lives from Appwrite when screen is focused
   // Also sync progress when screen loses focus (user navigates away)
   useFocusEffect(
@@ -1395,6 +1398,79 @@ const QuestionScreen: React.FC<Props> = ({ navigation, route }) => {
           <Text style={styles.questionCounterText}>
             Question {currentQuestionIndex + 1}/{questions.length}
           </Text>
+          <TouchableOpacity
+            style={styles.flagButton}
+            onPress={async () => {
+              const currentQ = questions[currentQuestionIndex];
+              if (!currentQ) return;
+
+              // Get question ID based on question type
+              let questionId: string | undefined;
+              let questionType: 'quiz' | 'scenario' | 'matching' = 'quiz';
+
+              if (currentQ.question_type === 'matching') {
+                const matchingQ = currentQ as MatchingQuestion;
+                questionId = matchingQ.pair_id?.toString();
+                questionType = 'matching';
+              } else if (currentQ.question_type === 'scenario') {
+                const scenarioQ = currentQ as ScenarioQuestion;
+                questionId = scenarioQ.question_id?.toString();
+                questionType = 'scenario';
+              } else {
+                const mcqQ = currentQ as GeneratedQuestion;
+                questionId = mcqQ.question_id?.toString();
+                questionType = 'quiz';
+              }
+
+              // Update local state immediately
+              const newFlagged = new Set(flaggedQuestions);
+              const wasFlagged = newFlagged.has(currentQuestionIndex);
+              
+              if (wasFlagged) {
+                newFlagged.delete(currentQuestionIndex);
+              } else {
+                newFlagged.add(currentQuestionIndex);
+              }
+              setFlaggedQuestions(newFlagged);
+              soundService.playSound('buttonPress');
+
+              // Call backend API if question has an ID
+              if (questionId && user?.$id) {
+                try {
+                  if (wasFlagged) {
+                    await backendApi.unflagQuestion(questionId, questionType);
+                    console.log(`✅ Unflagged ${questionType} question ${questionId}`);
+                  } else {
+                    await backendApi.flagQuestion(
+                      questionId,
+                      questionType,
+                      'User flagged during quiz',
+                      user.$id
+                    );
+                    console.log(`✅ Flagged ${questionType} question ${questionId}`);
+                  }
+                } catch (error) {
+                  console.error('Failed to flag/unflag question:', error);
+                  // Revert local state on error
+                  if (wasFlagged) {
+                    newFlagged.add(currentQuestionIndex);
+                  } else {
+                    newFlagged.delete(currentQuestionIndex);
+                  }
+                  setFlaggedQuestions(new Set(newFlagged));
+                  Alert.alert('Error', 'Failed to flag question. Please try again.');
+                }
+              } else {
+                console.log('⚠️ Question has no ID, only flagged locally');
+              }
+            }}
+          >
+            <Ionicons
+              name={flaggedQuestions.has(currentQuestionIndex) ? 'flag' : 'flag-outline'}
+              size={24}
+              color={flaggedQuestions.has(currentQuestionIndex) ? COLORS.warning : COLORS.primary}
+            />
+          </TouchableOpacity>
         </View>
 
         {renderQuestion()}
@@ -1517,7 +1593,9 @@ const styles = StyleSheet.create({
     color: COLORS.card,
   },
   questionCounterContainer: {
+    flexDirection: 'row',
     alignItems: 'center',
+    justifyContent: 'center',
     marginBottom: SPACING.md,
     paddingVertical: SPACING.xs,
   },
@@ -1525,6 +1603,14 @@ const styles = StyleSheet.create({
     fontSize: FONT_SIZES.lg,
     fontWeight: 'bold',
     color: COLORS.primary,
+    marginRight: SPACING.sm,
+  },
+  flagButton: {
+    padding: SPACING.xs,
+    borderRadius: 8,
+    backgroundColor: COLORS.background,
+    borderWidth: 1,
+    borderColor: COLORS.border,
   },
   sectionTitleText: {
     fontSize: FONT_SIZES.md,
