@@ -30,6 +30,8 @@ if (ErrorUtils) {
   });
 }
 
+//Trying new build for IOS white screen fix
+
 // Simple loading component to show during initialization (prevents white screen)
 const InitializingScreen = () => (
   <View style={initStyles.container}>
