@@ -13,7 +13,6 @@ import * as NavigationBar from 'expo-navigation-bar';
 import * as Font from 'expo-font';
 import LoadingScreen from './src/components/LoadingScreen';
 import deviceCapabilities from './src/utils/DeviceCapabilities';
-import imageCache from './src/services/ImageCache';
 
 // Global error handler for React Native (prevents crashes)
 if (ErrorUtils) {

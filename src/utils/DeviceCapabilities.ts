@@ -32,14 +32,32 @@ class DeviceCapabilitiesService {
       return this.capabilities;
     }
 
-    const { width, height } = Dimensions.get("window");
-    const screenPixels = width * height;
+    try {
+      const { width, height } = Dimensions.get("window");
+      const screenPixels = width * height;
 
-    // Get device information
-    const brand = Device.brand;
-    const modelName = Device.modelName;
-    const totalMemory = Device.totalMemory;
-    const osVersion = Device.osVersion || "Unknown";
+      // Get device information with safe fallbacks for iOS
+      let brand: string | null = null;
+      let modelName: string | null = null;
+      let totalMemory: number | null = null;
+      let osVersion: string = "Unknown";
+
+      try {
+        brand = Device.brand;
+        modelName = Device.modelName;
+        osVersion = Device.osVersion || "Unknown";
+        
+        // totalMemory can be problematic on iOS - wrap in separate try-catch
+        try {
+          totalMemory = Device.totalMemory;
+        } catch (memError) {
+          console.warn("Could not read totalMemory:", memError);
+          totalMemory = null;
+        }
+      } catch (deviceError) {
+        console.warn("Error reading device info:", deviceError);
+        // Continue with null values
+      }
 
     // Determine performance tier based on multiple factors
     let performanceTier: "high" | "medium" | "low" = "medium";
@@ -111,24 +129,45 @@ class DeviceCapabilitiesService {
       maxConcurrentImages = 5;
     }
 
-    this.capabilities = {
-      performanceTier,
-      shouldReduceMotion,
-      shouldReduceDecorations,
-      shouldOptimizeImages,
-      maxConcurrentImages,
-      deviceInfo: {
-        brand,
-        modelName,
-        totalMemory,
-        osVersion,
-        platform: Platform.OS,
-      },
-    };
+      this.capabilities = {
+        performanceTier,
+        shouldReduceMotion,
+        shouldReduceDecorations,
+        shouldOptimizeImages,
+        maxConcurrentImages,
+        deviceInfo: {
+          brand,
+          modelName,
+          totalMemory,
+          osVersion,
+          platform: Platform.OS,
+        },
+      };
 
-    console.log("📱 Device Capabilities:", this.capabilities);
+      console.log("📱 Device Capabilities:", this.capabilities);
 
-    return this.capabilities;
+      return this.capabilities;
+    } catch (error) {
+      console.error("❌ Error initializing device capabilities:", error);
+      
+      // Return safe defaults on error
+      this.capabilities = {
+        performanceTier: "medium",
+        shouldReduceMotion: false,
+        shouldReduceDecorations: false,
+        shouldOptimizeImages: true,
+        maxConcurrentImages: 10,
+        deviceInfo: {
+          brand: null,
+          modelName: null,
+          totalMemory: null,
+          osVersion: "Unknown",
+          platform: Platform.OS,
+        },
+      };
+      
+      return this.capabilities;
+    }
   }
 
   /**
