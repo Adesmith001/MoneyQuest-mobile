@@ -47,7 +47,19 @@ const PremiumScreen: React.FC = () => {
     try {
       setIsLoading(true);
 
-      // Create trial subscription
+      // Check if user already has a subscription (including trial)
+      const existingSubscription = await subscriptionService.getUserSubscription(user.$id);
+      
+      if (existingSubscription) {
+        // User already has a subscription/trial - just navigate to app
+        navigation.reset({
+          index: 0,
+          routes: [{ name: "MainTabs" }],
+        });
+        return;
+      }
+
+      // Create trial subscription only if user doesn't have one
       await subscriptionService.createTrialSubscription(user.$id);
 
       Alert.alert(
@@ -90,8 +102,13 @@ const PremiumScreen: React.FC = () => {
     try {
       setIsLoading(true);
 
-      // Create trial subscription first
-      await subscriptionService.createTrialSubscription(user.$id);
+      // Check if user already has a subscription
+      const existingSubscription = await subscriptionService.getUserSubscription(user.$id);
+      
+      if (!existingSubscription) {
+        // Create trial subscription first only if user doesn't have one
+        await subscriptionService.createTrialSubscription(user.$id);
+      }
 
       // Initialize payment with KoraPay for after trial period
       const paymentResponse = await koraPayService.initializePayment(
@@ -170,7 +187,10 @@ const PremiumScreen: React.FC = () => {
         {/* Close Button */}
         <TouchableOpacity
           style={styles.closeButton}
-          onPress={() => navigation.goBack()}
+          onPress={() => navigation.reset({
+            index: 0,
+            routes: [{ name: "MainTabs" }],
+          })}
         >
           <Ionicons name="close" size={28} color="#FFF" />
         </TouchableOpacity>
@@ -209,17 +229,6 @@ const PremiumScreen: React.FC = () => {
             <Text style={styles.ctaButtonText}>Start 30-day free trial</Text>
           )}
         </TouchableOpacity>
-
-        {/* Terms */}
-        {/* <View style={styles.termsContainer}>
-          <Text style={styles.termsText}>
-            By placing this order, you agree to the{" "}
-            <Text style={styles.termsLink}>Terms of Service</Text> and{" "}
-            <Text style={styles.termsLink}>Privacy Policy</Text>. Subscription
-            automatically renews unless auto-renew is turned off at least
-            24-hours before the end of the current period.
-          </Text>
-        </View> */}
 
         {/* School Code Option */}
         <TouchableOpacity

@@ -2,6 +2,7 @@ import React from "react";
 import { Modal, View, Text, StyleSheet, Image, ScrollView } from "react-native";
 import CustomButton from "../CustomButton";
 import { COLORS, SPACING, FONT_SIZES } from "../../constants";
+import { RenderContentWithTables } from "../../utils/tableParser";
 
 interface CorrectAnswerModalProps {
   visible: boolean;
@@ -46,7 +47,10 @@ const CorrectAnswerModal: React.FC<CorrectAnswerModalProps> = ({
           
           {explanation && (
             <View style={styles.explanationContainer}>
-              <Text style={styles.explanationText}>{explanation}</Text>
+              <RenderContentWithTables 
+                content={explanation} 
+                textStyle={styles.explanationText}
+              />
             </View>
           )}
           <CustomButton title="Continue" onPress={onContinue} />

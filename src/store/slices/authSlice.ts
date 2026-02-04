@@ -82,12 +82,14 @@ export const signInWithGoogle = createAsyncThunk(
   "auth/signInWithGoogle",
   async (_, { rejectWithValue }) => {
     try {
-      // This will open the browser and return a URL
-      // The actual user data will come from handleOAuthCallback
+      // This will open the browser and return user data
       const result = await googleAuthService.signInWithGoogle();
       
-      // Return a pending state - actual login will complete via deep link
-      return { pending: true, url: result.url };
+      if (result.success && result.user) {
+        return result.user;
+      } else {
+        return rejectWithValue(result.error || "Google sign-in failed");
+      }
     } catch (error: any) {
       return rejectWithValue(error.message || "Google sign-in failed");
     }
@@ -286,7 +288,8 @@ export const completeOAuthOnboarding = createAsyncThunk(
   }, { rejectWithValue }) => {
     try {
       // Update existing user document with onboarding data
-      const updatedUser = await AuthService.updateUserDocument(userId, onboardingData);
+      await AuthService.updateUserOnboarding(userId, onboardingData);
+      const updatedUser = await AuthService.getUserDocument(userId);
       return updatedUser;
     } catch (error: any) {
       return rejectWithValue(error.message);
@@ -362,31 +365,32 @@ const authSlice = createSlice({
       })
       // Google Sign In
       .addCase(signInWithGoogle.pending, (state) => {
-        state.loading = true;
+        state.isLoading = true;
         state.error = null;
       })
       .addCase(signInWithGoogle.fulfilled, (state, action) => {
-        // Keep loading state until OAuth callback completes
-        state.loading = true;
+        state.isLoading = false;
+        state.isAuthenticated = true;
+        state.user = action.payload;
         state.error = null;
       })
       .addCase(signInWithGoogle.rejected, (state, action) => {
-        state.loading = false;
+        state.isLoading = false;
         state.error = action.payload as string;
       })
       // Handle OAuth callback
       .addCase(handleOAuthCallback.pending, (state) => {
-        state.loading = true;
+        state.isLoading = true;
         state.error = null;
       })
       .addCase(handleOAuthCallback.fulfilled, (state, action) => {
-        state.loading = false;
+        state.isLoading = false;
         state.isAuthenticated = true;
         state.user = action.payload;
         state.error = null;
       })
       .addCase(handleOAuthCallback.rejected, (state, action) => {
-        state.loading = false;
+        state.isLoading = false;
         state.error = action.payload as string;
       })
       // Get Current User

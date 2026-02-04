@@ -9,6 +9,8 @@ import {
   ActivityIndicator,
   Image,
   Alert,
+  Modal,
+  TextInput,
 } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
 import { useDispatch, useSelector } from "react-redux";
@@ -37,14 +39,13 @@ import {
   MatchingQuestion,
   FillInGapQuestion,
 } from "../../types";
-import { getNextLevel } from "../../config/learningPath";
 import soundService from "../../services/soundService";
 import livesService from "../../services/lives";
-import audioService from "../../services/audioService";
 import ScenarioQuestionComponent from "../../components/questions/ScenarioQuestion";
 import MatchingQuestionComponent from "../../components/questions/MatchingQuestion";
 import FillInGapQuestionComponent from "../../components/questions/FillInGapQuestion";
 import cacheService from "../../services/cacheService";
+import { RenderContentWithTables } from "../../utils/tableParser";
 
 interface Props {
   navigation: any;
@@ -57,6 +58,58 @@ interface Props {
     };
   };
 }
+
+/**
+ * Mix and limit questions to exactly 10 with specified distribution:
+ * 3 scenario, 3 MCQ, 2 fill in the gaps, 2 matching
+ */
+const mixAndLimitQuestions = (questions: AnyQuestion[]): AnyQuestion[] => {
+  // Separate questions by type
+  const scenario = questions.filter(q => q.question_type === 'scenario');
+  const mcq = questions.filter(q => q.question_type === 'mcq');
+  const fillGap = questions.filter(q => q.question_type === 'fill_in_gap');
+  const matching = questions.filter(q => q.question_type === 'matching');
+
+  // Target counts for each type
+  const targetCounts = {
+    scenario: 3,
+    mcq: 3,
+    fillGap: 2,
+    matching: 2,
+  };
+
+  // Select questions for each type (shuffle and take required amount)
+  const selectedQuestions: AnyQuestion[] = [];
+
+  // Helper to shuffle and take N items
+  const shuffleAndTake = (arr: AnyQuestion[], count: number) => {
+    const shuffled = [...arr].sort(() => Math.random() - 0.5);
+    return shuffled.slice(0, Math.min(count, arr.length));
+  };
+
+  // Add scenario questions (3)
+  selectedQuestions.push(...shuffleAndTake(scenario, targetCounts.scenario));
+  
+  // Add MCQ questions (3)
+  selectedQuestions.push(...shuffleAndTake(mcq, targetCounts.mcq));
+  
+  // Add fill in gap questions (2)
+  selectedQuestions.push(...shuffleAndTake(fillGap, targetCounts.fillGap));
+  
+  // Add matching questions (2)
+  selectedQuestions.push(...shuffleAndTake(matching, targetCounts.matching));
+
+  // If we don't have enough questions, fill with any available type
+  const remainingNeeded = 10 - selectedQuestions.length;
+  if (remainingNeeded > 0) {
+    const usedIds = new Set(selectedQuestions.map((_, i) => i));
+    const remaining = questions.filter((_, i) => !usedIds.has(i));
+    selectedQuestions.push(...shuffleAndTake(remaining, remainingNeeded));
+  }
+
+  // Shuffle the final mix and return exactly 10 questions
+  return selectedQuestions.sort(() => Math.random() - 0.5).slice(0, 10);
+};
 
 /**
  * Normalize a question to ensure it has all required properties
@@ -77,6 +130,7 @@ const normalizeQuestion = (q: any): AnyQuestion | null => {
       correct_matches: q.correct_matches || {},
       explanation: q.explanation || '',
       difficulty: q.difficulty || 'medium',
+      pair_id: q.pair_id, // Preserve database ID
     } as MatchingQuestion;
   }
   
@@ -88,6 +142,7 @@ const normalizeQuestion = (q: any): AnyQuestion | null => {
       blanks: q.blanks || [],
       explanation: q.explanation || '',
       difficulty: q.difficulty || 'medium',
+      gap_id: q.gap_id, // Preserve database ID
     } as FillInGapQuestion;
   }
   
@@ -114,6 +169,7 @@ const normalizeQuestion = (q: any): AnyQuestion | null => {
     explanations,
     difficulty: q.difficulty || 'medium',
     question_type: questionType as 'mcq' | 'scenario',
+    question_id: q.question_id, // Preserve database ID
   };
   
   if (questionType === 'scenario') {
@@ -121,6 +177,7 @@ const normalizeQuestion = (q: any): AnyQuestion | null => {
       ...baseQuestion,
       question_type: 'scenario',
       scenario_context: q.scenario_context || q.scenario || '',
+      scenario_id: q.scenario_id, // Preserve database ID
     } as ScenarioQuestion;
   }
   
@@ -167,11 +224,6 @@ const QuestionScreen: React.FC<Props> = ({ navigation, route }) => {
   const [totalAttempts, setTotalAttempts] = useState(0); // Track all attempts (correct + incorrect)
   const [xpGained, setXpGained] = useState(0);
   const [startTime, setStartTime] = useState<number>(Date.now());
-  // 🔇 AUDIO FEATURE - COMMENTED OUT FOR COST REDUCTION
-  // const [isPlayingAudio, setIsPlayingAudio] = useState(false);
-  // const [isPlayingExplanation, setIsPlayingExplanation] = useState(false);
-  // const [isPlayingLevelInfo, setIsPlayingLevelInfo] = useState(false);
-  // const [isPlayingArticle, setIsPlayingArticle] = useState(false);
   const [matchingResults, setMatchingResults] = useState<{
     correct: string[];
     incorrect: string[];
@@ -179,6 +231,14 @@ const QuestionScreen: React.FC<Props> = ({ navigation, route }) => {
 
   // Track if this level was already completed (for retakes - no life deduction)
   const [isRetake, setIsRetake] = useState(false);
+  
+  // Track if level results are being submitted (final submission)
+  const [isSubmittingLevel, setIsSubmittingLevel] = useState(false);
+  // Track if waiting for next question (disables button after answer)
+  const [isWaitingForNext, setIsWaitingForNext] = useState(false);
+
+  // Flag question state
+  const [isFlagged, setIsFlagged] = useState(false);
 
   // Refresh lives from Appwrite when screen is focused
   // Also sync progress when screen loses focus (user navigates away)
@@ -188,11 +248,17 @@ const QuestionScreen: React.FC<Props> = ({ navigation, route }) => {
         if (!user?.$id) return;
         
         try {
-          const { lives, lastLifeRegenTime } = await livesService.refreshLives(
+          // Add timeout to prevent hangs on iOS
+          const livesPromise = livesService.refreshLives(
             user.$id,
             user.lives !== undefined && user.lives !== null ? user.lives : 5,
             user.lastLifeRegenTime || new Date().toISOString()
           );
+          const timeoutPromise = new Promise<never>((_, reject) =>
+            setTimeout(() => reject(new Error('Lives refresh timeout')), 5000)
+          );
+
+          const { lives, lastLifeRegenTime } = await Promise.race([livesPromise, timeoutPromise]);
           
           // Update Redux store with new lives
           dispatch(setHealth(lives));
@@ -200,7 +266,8 @@ const QuestionScreen: React.FC<Props> = ({ navigation, route }) => {
           
           console.log(`✅ Lives refreshed from Appwrite: ${lives}/5`);
         } catch (error) {
-          console.error('Failed to refresh lives:', error);
+          console.error('Failed to refresh lives (non-fatal):', error);
+          // Continue with cached lives - don't block the game
         }
       };
 
@@ -341,7 +408,9 @@ const QuestionScreen: React.FC<Props> = ({ navigation, route }) => {
           });
           
           console.log(`✅ Loaded ${allQuestions.length} recap questions from ${sourceSection.section_title}`);
-          setQuestions(allQuestions);
+          const mixedQuestions = mixAndLimitQuestions(allQuestions);
+          console.log(`🎲 Mixed and limited to ${mixedQuestions.length} questions`);
+          setQuestions(mixedQuestions);
         } else {
           // Regular level - Check cache for level data first
           let cachedLevelData = await cacheService.getLevelData(levelId);
@@ -383,7 +452,11 @@ const QuestionScreen: React.FC<Props> = ({ navigation, route }) => {
             .filter((q): q is AnyQuestion => q !== null);
           
           console.log(`✅ Loaded ${normalizedQuestions.length} normalized questions for level ${levelId}`);
-          setQuestions(normalizedQuestions);
+          
+          // Mix and limit to exactly 10 questions with proper distribution
+          const mixedQuestions = mixAndLimitQuestions(normalizedQuestions);
+          console.log(`🎲 Mixed and limited to ${mixedQuestions.length} questions`);
+          setQuestions(mixedQuestions);
         }
 
         // Check if user has saved progress for this level
@@ -464,7 +537,7 @@ const QuestionScreen: React.FC<Props> = ({ navigation, route }) => {
         const progressData = {
           userId: user.$id,
           level: levelId,
-          section: 1, // You may want to pass this as a parameter
+          section: 1, // Section number for tracking (not UUID)
           currentQuestionIndex,
           questionsAnswered: currentQuestionIndex + 1,
           questionsCorrect: correctAnswersCount,
@@ -545,88 +618,14 @@ const QuestionScreen: React.FC<Props> = ({ navigation, route }) => {
     }
   };
 
-  // 🔇 AUDIO FEATURE - COMMENTED OUT FOR COST REDUCTION
-  // const handlePlayAudio = async () => {
-  //   if (!questions[currentQuestionIndex] || isPlayingAudio) return;
-
-  //   try {
-  //     setIsPlayingAudio(true);
-  //     const currentQ = questions[currentQuestionIndex];
-
-  //     // If it's a Scenario question, read context + question + options
-  //     if (currentQ.question_type === "scenario" && "scenario_context" in currentQ) {
-  //       const scenarioQ = currentQ as ScenarioQuestion;
-  //       const fullText = `Scenario: ${scenarioQ.scenario_context}. Question: ${scenarioQ.question}`;
-  //       await audioService.readQuestionWithOptions(fullText, scenarioQ.options);
-  //     }
-  //     // If it's an MCQ with options, read question + options
-  //     else if (currentQ.question_type === "mcq" && "options" in currentQ) {
-  //       const mcqQ = currentQ as GeneratedQuestion;
-  //       await audioService.readQuestionWithOptions(mcqQ.question, mcqQ.options);
-  //     } else {
-  //       // For other question types, just read the question
-  //       await audioService.readQuestion(currentQ.question);
-  //     }
-
-  //     setIsPlayingAudio(false);
-  //   } catch (error) {
-  //     console.error("Failed to play audio:", error);
-  //     setIsPlayingAudio(false);
-  //     Alert.alert("Audio Error", "Failed to play audio. Please try again.");
-  //   }
-  // };
-
-  // 🔇 AUDIO FEATURE - COMMENTED OUT FOR COST REDUCTION
-  // const handlePlayExplanation = async () => {
-  //   if (isPlayingExplanation) return;
-
-  //   try {
-  //     setIsPlayingExplanation(true);
-  //     const explanation = getExplanation();
-  //     await audioService.readExplanation(explanation);
-  //     setIsPlayingExplanation(false);
-  //   } catch (error) {
-  //     console.error("Failed to play explanation audio:", error);
-  //     setIsPlayingExplanation(false);
-  //     Alert.alert("Audio Error", "Failed to play explanation audio.");
-  //   }
-  // };
-
-  // 🔇 AUDIO FEATURE - COMMENTED OUT FOR COST REDUCTION
-  // const handlePlayLevelInfo = async () => {
-  //   if (isPlayingLevelInfo) return;
-
-  //   try {
-  //     setIsPlayingLevelInfo(true);
-  //     const levelInfoText = `${sectionTitle}. ${levelTitle}.`;
-  //     await audioService.readQuestion(levelInfoText);
-  //     setIsPlayingLevelInfo(false);
-  //   } catch (error) {
-  //     console.error("Failed to play level info audio:", error);
-  //     setIsPlayingLevelInfo(false);
-  //     Alert.alert("Audio Error", "Failed to play level info audio.");
-  //   }
-  // };
-
-  // 🔇 AUDIO FEATURE - COMMENTED OUT FOR COST REDUCTION
-  // const handlePlayArticle = async () => {
-  //   if (isPlayingArticle || !levelData) return;
-
-  //   try {
-  //     setIsPlayingArticle(true);
-  //     const articleText = levelData.level_summary || levelData.level?.description || levelData.description || '';
-  //     await audioService.readQuestion(articleText);
-  //     setIsPlayingArticle(false);
-  //   } catch (error) {
-  //     console.error('Failed to play article audio:', error);
-  //     setIsPlayingArticle(false);
-  //     Alert.alert('Audio Error', 'Failed to play article audio.');
-  //   }
-  // };
 
   const handleSubmit = async () => {
     const currentQuestion = questions[currentQuestionIndex];
     if (!currentQuestion || !user) return;
+
+    // Prevent multiple submissions
+    if (isWaitingForNext) return;
+    setIsWaitingForNext(true);
 
     let isCorrect = false;
     let userAnswer: any = selectedAnswer;
@@ -777,7 +776,7 @@ const QuestionScreen: React.FC<Props> = ({ navigation, route }) => {
 
     try {
       // Record answer and update XP (life already deducted above if not retake)
-      // On retakes, we still record the answer but XP won't be given again
+      // On retakes, give reduced XP (5 instead of 10)
       const result = await questionService.recordAnswer(
         user.$id,
         levelId,
@@ -787,16 +786,15 @@ const QuestionScreen: React.FC<Props> = ({ navigation, route }) => {
           ? (currentQuestion as GeneratedQuestion).correct_answer
           : "correct",
         isCorrect,
-        5 // Time spent in seconds (you can track this properly)
+        5, // Time spent in seconds (you can track this properly)
+        isRetake // Pass retake status to get correct XP amount
       );
 
       if (isCorrect) {
         soundService.playSound("correct"); // Play correct sound
-        // Only give XP on first completion, not retakes
-        if (!isRetake) {
-          dispatch(addXP(result.xpEarned));
-          setXpGained(xpGained + result.xpEarned);
-        }
+        // Give XP: 10 for first time, 5 for retakes
+        dispatch(addXP(result.xpEarned));
+        setXpGained(xpGained + result.xpEarned);
         setCorrectAnswersCount(correctAnswersCount + 1);
         setCorrectModalVisible(true);
       } else {
@@ -829,6 +827,8 @@ const QuestionScreen: React.FC<Props> = ({ navigation, route }) => {
     setMatchingAnswers({});
     console.log("this is the matching questions", matchingAnswers);
     setFillInGapAnswers({});
+    setIsFlagged(false); // Reset flag state for next question
+    setIsWaitingForNext(false); // Re-enable the button for next question
 
     // Get current lives from user (Appwrite source of truth)
     const currentLives = user?.lives || 0;
@@ -864,6 +864,8 @@ const QuestionScreen: React.FC<Props> = ({ navigation, route }) => {
     } else {
       // Level completed - submit results
       if (!user) return;
+
+      setIsSubmittingLevel(true); // Show loading screen
 
       const timeSpentMinutes = Math.round((Date.now() - startTime) / 60000);
       
@@ -1084,28 +1086,17 @@ const QuestionScreen: React.FC<Props> = ({ navigation, route }) => {
         </View>
 
         <ScrollView contentContainerStyle={styles.articleContainer}>
-          {/* <TouchableOpacity
-            style={styles.articleAudioButton}
-            onPress={handlePlayArticle}
-            disabled={isPlayingArticle}
-          >
-            <Ionicons
-              name={isPlayingArticle ? "pause-circle" : "volume-high"}
-              size={32}
-              color={COLORS.primary}
-            />
-            <Text style={styles.articleAudioText}>
-              {isPlayingArticle ? "Playing..." : "Listen to article"}
-            </Text>
-          </TouchableOpacity> */}
 
           {/* Display content or description */}
-          <Text style={styles.articleContent}>
-            {levelData.level_summary ||
+          <RenderContentWithTables 
+            content={
+              levelData.level_summary ||
               levelData.level?.description ||
               levelData.description ||
-              "No content available for this level."}
-          </Text>
+              "No content available for this level."
+            }
+            textStyle={styles.articleContent}
+          />
         </ScrollView>
 
         <View style={styles.footer}>
@@ -1193,6 +1184,73 @@ const QuestionScreen: React.FC<Props> = ({ navigation, route }) => {
     }
   };
 
+  const handleFlagQuestion = async () => {
+    const currentQuestion = questions[currentQuestionIndex];
+    if (!currentQuestion) return;
+
+    // If already flagged, just unflag locally (toggle off)
+    if (isFlagged) {
+      setIsFlagged(false);
+      console.log('🏴 Question unflagged');
+      return;
+    }
+
+    // Flag the question
+    try {
+      // Determine question type and ID
+      let questionType: 'quiz' | 'scenario' | 'matching' = 'quiz';
+      let questionId = '';
+      
+      // Try to find the actual database ID
+      const questionData = currentQuestion as any;
+
+      if (currentQuestion.question_type === 'scenario') {
+        questionType = 'scenario';
+        // For scenario questions: scenario_id is the primary key in the database
+        questionId = String(questionData.scenario_id);
+      } else if (currentQuestion.question_type === 'matching') {
+        questionType = 'matching';
+        // For matching questions: pair_id is the primary key in the database
+        questionId = String(questionData.pair_id);
+      } else if (currentQuestion.question_type === 'fill_in_gap') {
+        questionType = 'quiz'; // Fill-in-gap treated as quiz type
+        // For fill-gap questions: gap_id is the primary key in the database
+        questionId = String(questionData.gap_id);
+      } else {
+        questionType = 'quiz';
+        // For quiz questions: question_id is the primary key in the database
+        questionId = String(questionData.question_id);
+      }
+
+      // Validate that we have a proper numeric ID
+      if (!questionId || questionId === 'undefined' || questionId === 'null') {
+        console.warn('⚠️ Question ID not found, cannot flag question');
+        console.log('Question data:', questionData);
+        return;
+      }
+
+      console.log('🏴 Flagging question:', {
+        type: questionType,
+        id: questionId,
+        questionText: currentQuestion.question.substring(0, 50) + '...'
+      });
+
+      await backendApi.flagQuestion(
+        questionId,
+        questionType,
+        "Question flagged by user",
+        user?.$id
+      );
+
+      setIsFlagged(true);
+      console.log('✅ Question flagged successfully');
+    } catch (error) {
+      console.error("Error flagging question:", error);
+      // Still set as flagged even if API fails to prevent multiple attempts
+      setIsFlagged(true);
+    }
+  };
+
   // Render question based on type
   const renderQuestion = () => {
     if (currentQuestion.question_type === "scenario") {
@@ -1201,10 +1259,6 @@ const QuestionScreen: React.FC<Props> = ({ navigation, route }) => {
           question={currentQuestion as ScenarioQuestion}
           selectedAnswer={selectedAnswer}
           onAnswerSelect={handleAnswerSelect}
-          disabled={isCorrectModalVisible || isIncorrectModalVisible}
-          // 🔇 AUDIO FEATURE - COMMENTED OUT FOR COST REDUCTION 
-          // onPlayAudio={handlePlayAudio}
-          // isPlayingAudio={isPlayingAudio}
         />
       );
     } else if (currentQuestion.question_type === "matching") {
@@ -1223,9 +1277,6 @@ const QuestionScreen: React.FC<Props> = ({ navigation, route }) => {
           }}
           disabled={isCorrectModalVisible || isIncorrectModalVisible}
           showResults={isCorrectModalVisible || isIncorrectModalVisible}
-          // 🔇 AUDIO FEATURE - COMMENTED OUT FOR COST REDUCTION 
-          // onPlayAudio={handlePlayAudio}
-          // isPlayingAudio={isPlayingAudio}
         />
       );
     } else if (currentQuestion.question_type === "fill_in_gap") {
@@ -1237,9 +1288,6 @@ const QuestionScreen: React.FC<Props> = ({ navigation, route }) => {
             setFillInGapAnswers({ ...fillInGapAnswers, [blankId]: answer });
           }}
           disabled={isCorrectModalVisible || isIncorrectModalVisible}
-          // 🔇 AUDIO FEATURE - COMMENTED OUT FOR COST REDUCTION 
-          // onPlayAudio={handlePlayAudio}
-          // isPlayingAudio={isPlayingAudio}
         />
       );
     } else {
@@ -1259,17 +1307,6 @@ const QuestionScreen: React.FC<Props> = ({ navigation, route }) => {
         <>
           <View style={styles.questionWithAudioContainer}>
             <Text style={styles.questionText}>{mcqQ.question}</Text>
-            {/* <TouchableOpacity
-              style={styles.playButton}
-              onPress={handlePlayAudio}
-              disabled={isPlayingAudio}
-            >
-              <Ionicons
-                name={isPlayingAudio ? "pause-circle" : "play-circle"}
-                size={32}
-                color={COLORS.primary}
-              />
-            </TouchableOpacity> */}
           </View>
           <View style={styles.optionsContainer}>
             {optionsArray.map((option) => (
@@ -1308,27 +1345,27 @@ const QuestionScreen: React.FC<Props> = ({ navigation, route }) => {
         <ProgressBar
           progress={progress}
           onClose={() => navigation.popToTop()}
+          onGoToArticle={handleBackToArticle}
         />
       </View>
 
       <ScrollView contentContainerStyle={styles.content}>
-        <View style={styles.levelInfoContainer}>
-          <View style={styles.levelInfoContent}>
-            <View style={styles.levelInfoTextContainer}>
-              <Text style={styles.sectionTitleText}>{sectionTitle}</Text>
-              <Text style={styles.levelTitleText}>{levelTitle}</Text>
-            </View>
-            <TouchableOpacity
-              style={styles.backToArticleButton}
-              onPress={handleBackToArticle}
-            >
-              <Ionicons
-                name="book-outline"
-                size={20}
-                color={COLORS.card}
-              />
-              <Text style={styles.backToArticleText}>Go To Article</Text>
-            </TouchableOpacity>
+        <View style={styles.questionHeaderRow}>
+          <TouchableOpacity
+            style={styles.flagButton}
+            onPress={handleFlagQuestion}
+          >
+            <Ionicons 
+              name={isFlagged ? "flag" : "flag-outline"} 
+              size={20} 
+              color={isFlagged ? "#FF6B6B" : "#999"} 
+            />
+          </TouchableOpacity>
+          
+          <View style={styles.questionCounterContainer}>
+            <Text style={styles.questionCounterText}>
+              {currentQuestionIndex + 1}/{questions.length}
+            </Text>
           </View>
         </View>
 
@@ -1339,9 +1376,20 @@ const QuestionScreen: React.FC<Props> = ({ navigation, route }) => {
         <CustomButton
           title={"Next"}
           onPress={handleSubmit}
-          disabled={!canSubmit}
+          disabled={!canSubmit || isWaitingForNext}
         />
       </View>
+
+      {/* Level completion loading screen */}
+      {isSubmittingLevel && (
+        <View style={styles.submittingOverlay}>
+          <View style={styles.submittingCard}>
+            <ActivityIndicator size="large" color={COLORS.primary} />
+            <Text style={styles.submittingText}>Submitting answers...</Text>
+            <Text style={styles.submittingSubtext}>Please wait</Text>
+          </View>
+        </View>
+      )}
 
       <CorrectAnswerModal
         visible={isCorrectModalVisible}
@@ -1416,53 +1464,22 @@ const styles = StyleSheet.create({
     padding: SPACING.md,
     justifyContent: "center",
   },
-  levelInfoContainer: {
-    backgroundColor: COLORS.primary,
-    borderRadius: 12,
-    padding: SPACING.md,
-    marginBottom: SPACING.lg,
-    alignItems: "center",
-  },
-  levelInfoContent: {
+  questionHeaderRow: {
     flexDirection: "row",
-    alignItems: "center",
     justifyContent: "space-between",
-    width: "100%",
-  },
-  levelInfoTextContainer: {
-    flex: 1,
     alignItems: "center",
+    marginBottom: SPACING.sm,
   },
-  levelInfoAudioButton: {
+  flagButton: {
     padding: SPACING.xs,
-    marginLeft: SPACING.sm,
   },
-  backToArticleButton: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    backgroundColor: 'rgba(255, 255, 255, 0.2)',
-    paddingHorizontal: SPACING.sm,
-    paddingVertical: SPACING.xs,
-    borderRadius: 8,
-    gap: 4,
+  questionCounterContainer: {
+    alignItems: "flex-end",
   },
-  backToArticleText: {
-    fontSize: FONT_SIZES.sm,
-    fontWeight: '600',
-    color: COLORS.card,
-  },
-  sectionTitleText: {
-    fontSize: FONT_SIZES.md,
-    fontWeight: "600",
-    color: COLORS.card,
-    textAlign: "center",
-    marginBottom: SPACING.xs,
-  },
-  levelTitleText: {
-    fontSize: FONT_SIZES.lg,
-    fontWeight: "bold",
-    color: COLORS.card,
-    textAlign: "center",
+  questionCounterText: {
+    fontSize: 16,
+    fontWeight: 'bold',
+    color: COLORS.primary,
   },
   sectionTitle: {
     fontSize: FONT_SIZES.lg,
@@ -1538,6 +1555,42 @@ const styles = StyleSheet.create({
   },
   footer: {
     padding: SPACING.md,
+  },
+  submittingOverlay: {
+    position: 'absolute',
+    top: 0,
+    left: 0,
+    right: 0,
+    bottom: 0,
+    backgroundColor: 'rgba(0, 0, 0, 0.5)',
+    justifyContent: 'center',
+    alignItems: 'center',
+    zIndex: 1000,
+  },
+  submittingCard: {
+    backgroundColor: COLORS.card,
+    borderRadius: 16,
+    padding: SPACING.xl,
+    alignItems: 'center',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.3,
+    shadowRadius: 8,
+    elevation: 8,
+    minWidth: 200,
+  },
+  submittingText: {
+    fontSize: FONT_SIZES.lg,
+    fontWeight: 'bold',
+    color: COLORS.text,
+    marginTop: SPACING.md,
+    textAlign: 'center',
+  },
+  submittingSubtext: {
+    fontSize: FONT_SIZES.sm,
+    color: '#666',
+    marginTop: SPACING.xs,
+    textAlign: 'center',
   },
   submitButton: {
     backgroundColor: COLORS.primary,

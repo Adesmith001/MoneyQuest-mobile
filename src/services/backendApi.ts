@@ -630,6 +630,30 @@ class BackendApiService {
       `/sections/recap/${sectionNumber}?${params.toString()}`
     );
   }
+
+  /**
+   * Flag a question as having an issue
+   * @param questionId - The question ID
+   * @param questionType - Type of question: 'quiz', 'scenario', or 'matching'
+   * @param reason - Reason for flagging
+   * @param flaggedBy - Optional user ID who flagged
+   */
+  async flagQuestion(
+    questionId: string,
+    questionType: 'quiz' | 'scenario' | 'matching',
+    reason: string,
+    flaggedBy?: string
+  ): Promise<{ success: boolean; message: string }> {
+    return await this.fetchApi('/questions/flag', {
+      method: 'POST',
+      body: JSON.stringify({
+        question_id: questionId,
+        question_type: questionType,
+        reason,
+        flagged_by: flaggedBy,
+      }),
+    });
+  }
 }
 
 // Export singleton instance

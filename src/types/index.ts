@@ -1,4 +1,5 @@
 export interface User {
+  hasCompletedTutorial: any;
   currentUser?: any;
   userDocument?: any;
   $id: string;

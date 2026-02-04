@@ -8,7 +8,7 @@ import NotificationService from './src/services/notifications';
 import soundService from './src/services/soundService';
 import cachedBackendApi from './src/services/cachedBackendApi';
 import * as Linking from 'expo-linking';
-import { Alert, Platform, Text, ErrorUtils } from 'react-native';
+import { Alert, Platform, ErrorUtils } from 'react-native';
 import * as NavigationBar from 'expo-navigation-bar';
 import * as Font from 'expo-font';
 import LoadingScreen from './src/components/LoadingScreen';
@@ -30,97 +30,82 @@ if (ErrorUtils) {
 }
 
 export default function App() {
-  const [fontsLoaded, setFontsLoaded] = useState(false);
-  const [appReady, setAppReady] = useState(false);
+  const [isAppReady, setIsAppReady] = useState(false);
 
   useEffect(() => {
-    const initializeApp = async () => {
-      // Initialize cache system FIRST (checks version and clears old data if needed)
-      // This ensures users get fresh data when the app is updated
+    async function prepare() {
       try {
-        await cachedBackendApi.initializeCache();
-        console.log('✅ Cache system initialized');
-      } catch (error) {
-        console.error('❌ Cache initialization error:', error);
-        // Continue anyway - cache will be initialized on first use
-      }
+        console.log('🚀 App initializing...');
 
-      // Load custom fonts (critical - block rendering until done)
-      try {
-        await Font.loadAsync({
-          'Arial-Rounded-MT-Bold': require('./assets/fonts/ArialRoundedMTBold.ttf'),
-        });
-        console.log('✅ Fonts loaded');
-
-        // Set default font for all Text components
-        const defaultFontFamily = { fontFamily: 'Arial-Rounded-MT-Bold' };
-        // @ts-ignore - Setting default props
-        Text.defaultProps = Text.defaultProps || {};
-        // @ts-ignore - Setting default style
-        Text.defaultProps.style = defaultFontFamily;
-      } catch (error) {
-        console.error('❌ Font loading error:', error);
-        // Continue without custom fonts to prevent crash
-      } finally {
-        // Always allow app to render, even if fonts fail
-        setFontsLoaded(true);
-      }
-
-      // Configure navigation bar for Android (non-critical)
-      if (Platform.OS === 'android') {
+        // Priority 1: Cache service (critical for data fetching)
         try {
-          await NavigationBar.setVisibilityAsync('hidden');
-          await NavigationBar.setBehaviorAsync('inset-swipe');
-          await NavigationBar.setBackgroundColorAsync('#00000000');
+          await cachedBackendApi.initializeCache();
+          console.log('✅ Cache service initialized');
         } catch (error) {
-          console.error('❌ NavigationBar setup error:', error);
+          console.error('❌ Cache service error:', error);
+          // Continue anyway - cache is not critical
         }
-      }
 
-      // Initialize notifications (non-critical)
-      try {
-        await NotificationService.initialize();
-        const hasPermission = await NotificationService.requestPermissions();
-        if (hasPermission) {
-          await NotificationService.scheduleDailyReminder();
-          await NotificationService.scheduleEngagementNotifications();
-          console.log('✅ Notifications initialized and scheduled');
+        // Priority 2: Fonts (critical for UI rendering) - with timeout
+        try {
+          const fontPromise = Font.loadAsync({
+            'Arial-Rounded-MT-Bold': require('./assets/fonts/ArialRoundedMTBold.ttf'),
+          });
+          const timeoutPromise = new Promise((_, reject) => 
+            setTimeout(() => reject(new Error('Font loading timeout')), 10000)
+          );
+          await Promise.race([fontPromise, timeoutPromise]);
+          console.log('✅ Fonts loaded');
+        } catch (error) {
+          console.error('❌ Font loading error:', error);
+          // Continue anyway - use system fonts
+        }
+
+        // Priority 3: Sound service (non-blocking) - Skip on iOS for now
+        if (Platform.OS !== 'ios') {
+          try {
+            await soundService.initialize();
+            console.log('✅ Sound service initialized');
+          } catch (error) {
+            console.error('❌ Sound service error (non-fatal):', error);
+          }
         } else {
-          console.log('⚠️ Notification permissions not granted');
+          console.log('⚠️ Sound service skipped on iOS');
         }
+
+        // Priority 4: Notification service (non-blocking) - Skip on iOS for now
+        if (Platform.OS !== 'ios') {
+          try {
+            await NotificationService.initialize();
+            console.log('✅ Notification service initialized');
+          } catch (error) {
+            console.error('❌ Notification service error (non-fatal):', error);
+          }
+        } else {
+          console.log('⚠️ Notification service skipped on iOS');
+        }
+
+        // Priority 5: Android navigation bar (Android only)
+        if (Platform.OS === 'android') {
+          try {
+            await NavigationBar.setBackgroundColorAsync('#FFFFFF');
+            await NavigationBar.setButtonStyleAsync('dark');
+            console.log('✅ Navigation bar configured (Android)');
+          } catch (error) {
+            console.error('❌ Navigation bar error:', error);
+          }
+        }
+
+        console.log('✅ App initialization complete');
+        setIsAppReady(true);
       } catch (error) {
-        console.error('❌ Notification initialization error:', error);
-        // Continue without notifications
+        console.error('❌ Critical initialization error:', error);
+        // Still set app ready to avoid infinite loading
+        setIsAppReady(true);
       }
+    }
 
-      // Initialize sound service (non-critical)
-      try {
-        await soundService.initialize();
-        console.log('✅ Sound service initialized');
-      } catch (error) {
-        console.error('❌ Sound service initialization error:', error);
-        // Continue without sound effects
-      }
-
-      // Mark app as ready
-      setAppReady(true);
-    };
-
-    initializeApp();
-
-    // Cleanup on unmount
-    return () => {
-      try {
-        soundService.cleanup();
-      } catch (e) {
-        console.error('Sound cleanup error:', e);
-      }
-      try {
-        NotificationService.cleanup();
-      } catch (e) {
-        console.error('Notification cleanup error:', e);
-      }
-    };
+    prepare();
   }, []);
 
   useEffect(() => {
@@ -157,9 +142,9 @@ export default function App() {
     };
   }, []);
 
-  // Wait for fonts to load before rendering
-  if (!fontsLoaded || !appReady) {
-    return null;
+  // Wait for app to be ready before rendering
+  if (!isAppReady) {
+    return <LoadingScreen />;
   }
 
   return (

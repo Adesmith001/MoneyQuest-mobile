@@ -9,11 +9,13 @@ import { livesService } from "../services/lives";
 interface ProgressBarProps {
   progress: number;
   onClose: () => void;
+  onGoToArticle?: () => void;
 }
 
 const ProgressBar: React.FC<ProgressBarProps> = ({
   progress,
   onClose,
+  onGoToArticle,
 }) => {
   const { user } = useSelector((state: RootState) => state.auth);
   const gameHealth = useSelector((state: RootState) => state.game.health);
@@ -37,24 +39,39 @@ const ProgressBar: React.FC<ProgressBarProps> = ({
   }, [user?.lives, user?.lastLifeRegenTime, gameHealth]);
 
   return (
-    <View style={styles.container}>
-      <TouchableOpacity onPress={onClose} style={styles.closeButton}>
-        <Ionicons name="close-outline" size={30} color="black" />
-      </TouchableOpacity>
-      <View style={styles.progressWrapper}>
-        <View style={styles.progressContainer}>
-          <View style={[styles.progress, { width: `${progress}%` }]} />
+    <View style={styles.outerContainer}>
+      <View style={styles.container}>
+        <TouchableOpacity onPress={onClose} style={styles.closeButton}>
+          <Ionicons name="close-outline" size={30} color="black" />
+        </TouchableOpacity>
+        <View style={styles.progressWrapper}>
+          <View style={styles.progressContainer}>
+            <View style={[styles.progress, { width: `${progress}%` }]} />
+          </View>
+        </View>
+        <View style={styles.livesContainer}>
+          <Ionicons name="heart" size={20} color="#FF5722" />
+          <Text style={styles.livesText}>{displayLives}</Text>
         </View>
       </View>
-      <View style={styles.livesContainer}>
-        <Ionicons name="heart" size={20} color="#FF5722" />
-        <Text style={styles.livesText}>{displayLives}</Text>
-      </View>
+      {onGoToArticle && (
+        <TouchableOpacity
+          style={styles.articleButton}
+          onPress={onGoToArticle}
+        >
+          <Ionicons name="book-outline" size={16} color="#666" />
+          <Text style={styles.articleButtonText}>Go To Article</Text>
+        </TouchableOpacity>
+      )}
     </View>
   );
 };
 
 const styles = StyleSheet.create({
+  outerContainer: {
+    width: "100%",
+    alignItems: "center",
+  },
   container: {
     flexDirection: "row",
     justifyContent: "center",
@@ -96,6 +113,21 @@ const styles = StyleSheet.create({
     fontWeight: "bold",
     color: "#FF5722",
     marginLeft: 4,
+  },
+  articleButton: {
+    flexDirection: "row",
+    alignItems: "center",
+    backgroundColor: "#f0f0f0",
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+    borderRadius: 20,
+    marginTop: 8,
+    gap: 4,
+  },
+  articleButtonText: {
+    fontSize: 13,
+    fontWeight: "600",
+    color: "#666",
   },
 });
 

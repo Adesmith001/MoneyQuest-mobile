@@ -80,14 +80,20 @@ const HomeScreen: React.FC<Props> = ({ navigation }) => {
             setIsLoading(true);
           }
 
-          // 🩺 STEP 0: Refresh user lives from Appwrite (always do this)
+          // 🩺 STEP 0: Refresh user lives from Appwrite (with timeout protection for iOS)
           if (user?.$id) {
             try {
-              const { lives, lastLifeRegenTime } = await livesService.refreshLives(
+              // Add timeout to prevent hangs on iOS
+              const livesPromise = livesService.refreshLives(
                 user.$id,
                 user.lives !== undefined && user.lives !== null ? user.lives : 5,
                 user.lastLifeRegenTime || new Date().toISOString()
               );
+              const timeoutPromise = new Promise<never>((_, reject) =>
+                setTimeout(() => reject(new Error('Lives refresh timeout')), 5000)
+              );
+
+              const { lives, lastLifeRegenTime } = await Promise.race([livesPromise, timeoutPromise]);
 
               // Update Redux store if lives changed
               if (lives !== user.lives || lastLifeRegenTime !== user.lastLifeRegenTime) {
@@ -95,7 +101,8 @@ const HomeScreen: React.FC<Props> = ({ navigation }) => {
                 console.log(`✅ Lives refreshed on HomeScreen: ${lives}/5`);
               }
             } catch (error) {
-              console.error('Failed to refresh lives on HomeScreen:', error);
+              console.error('Failed to refresh lives on HomeScreen (non-fatal):', error);
+              // Continue with cached lives - don't block the UI
             }
           }
 
@@ -525,7 +532,6 @@ const HomeScreen: React.FC<Props> = ({ navigation }) => {
   };
 
   const renderSection = (section: Section, sectionIndex: number) => {
-    // Get decorations for this section based on its title
     const sectionDecorations = getDecorationsForSection(section.title, sectionIndex);
 
     return (
@@ -599,7 +605,6 @@ const HomeScreen: React.FC<Props> = ({ navigation }) => {
           <View style={styles.levelsContainer}>
             {section.levels
               .slice()
-              .reverse()
               .map((node, reverseIndex) => {
                 const originalIndex = section.levels.length - 1 - reverseIndex;
                 return renderLevelNode(

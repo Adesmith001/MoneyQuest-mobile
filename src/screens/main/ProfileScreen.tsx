@@ -127,7 +127,7 @@ const ProfileScreen: React.FC<Props> = ({ navigation }) => {
     navigation.navigate("EditProfile");
   };
 
-  const inviteLink = `https://invite.moneyquest.com/${user?.$id}`;
+  const inviteLink = `https://www.nurtureehaven.com`;
 
   // Get lives directly from Appwrite user object
   const currentLivesValue = user.lives !== undefined && user.lives !== null ? user.lives : 5;

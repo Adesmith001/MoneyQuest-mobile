@@ -63,19 +63,22 @@ class CacheService {
 
   /**
    * Clear ALL MoneyQuest cached data (used when cache version changes)
+   * IMPORTANT: Does NOT clear user progress or completed levels
    */
   private async clearAllMoneyQuestCaches(): Promise<void> {
     try {
       const allKeys = await AsyncStorage.getAllKeys();
       
-      // Filter only MoneyQuest cache keys (but NOT the version key yet)
+      // Filter only MoneyQuest cache keys, EXCLUDING user data
       const cacheKeys = allKeys.filter(
-        key => key.startsWith('@moneyquest_') && key !== CACHE_KEYS.CACHE_VERSION
+        key => key.startsWith('@moneyquest_') && 
+               key !== CACHE_KEYS.CACHE_VERSION &&
+               key !== CACHE_KEYS.COMPLETED_LEVELS // Preserve user progress
       );
       
       if (cacheKeys.length > 0) {
         await AsyncStorage.multiRemove(cacheKeys);
-        console.log(`🗑️ Cleared ${cacheKeys.length} cache entries`);
+        console.log(`🗑️ Cleared ${cacheKeys.length} cache entries (user progress preserved)`);
       }
     } catch (error) {
       console.error('Failed to clear all caches:', error);
@@ -143,11 +146,26 @@ class CacheService {
   }
 
   /**
-   * Clear all cached data
+   * Clear all cached data (sections, levels, questions)
+   * IMPORTANT: Does NOT clear user progress or completed levels
    */
   async clearCache(): Promise<void> {
     try {
-      await AsyncStorage.removeItem(CACHE_KEYS.COMPLETED_LEVELS);
+      console.log('🗑️ Clearing content caches (user progress preserved)');
+      // Only remove content cache keys, not user data
+      const allKeys = await AsyncStorage.getAllKeys();
+      const contentCacheKeys = allKeys.filter(
+        key => (key.startsWith(CACHE_KEYS.SECTIONS) ||
+                key.startsWith(CACHE_KEYS.LEVELS_PREFIX) ||
+                key.startsWith(CACHE_KEYS.QUESTIONS_PREFIX) ||
+                key.startsWith(CACHE_KEYS.LEVEL_DATA_PREFIX)) &&
+               key !== CACHE_KEYS.COMPLETED_LEVELS
+      );
+      
+      if (contentCacheKeys.length > 0) {
+        await AsyncStorage.multiRemove(contentCacheKeys);
+        console.log(`✅ Cleared ${contentCacheKeys.length} content cache entries`);
+      }
     } catch (error) {
       console.error('Failed to clear cache:', error);
     }

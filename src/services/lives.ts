@@ -1,6 +1,7 @@
 import { databases, DB_ID, COLLECTIONS } from './appwrite';
 import { User } from '../types';
 import notificationService from './notifications';
+import { Platform } from 'react-native';
 
 const MAX_LIVES = 5;
 const LIFE_REGEN_TIME_MS = 2 * 60 * 60 * 1000; // 2 hours in milliseconds
@@ -211,21 +212,29 @@ class LivesService {
       await this.updateUserLives(userId, lives, lastLifeRegenTime);
       console.log(`✅ Lives synced to Appwrite: ${lives}/${MAX_LIVES}`);
 
-      // 🔔 Schedule notification when lives reach max
+      // 🔔 Schedule notification when lives reach max (wrap in try-catch for iOS safety)
       if (lives === MAX_LIVES && currentLives < MAX_LIVES) {
         console.log('🎉 Lives are full! User can resume learning.');
         // Optionally notify immediately that lives are full
-        await notificationService.sendImmediateNotification(
-          '💚 Lives Restored!',
-          'Your lives are full! Time to continue your financial learning journey.',
-          'lives-notifications'
-        );
+        try {
+          await notificationService.sendImmediateNotification(
+            '💚 Lives Restored!',
+            'Your lives are full! Time to continue your financial learning journey.',
+            'lives-notifications'
+          );
+        } catch (error) {
+          console.warn('Failed to send lives notification (non-fatal):', error);
+        }
       }
 
-      // 🔔 Schedule notification for next life if not at max
+      // 🔔 Schedule notification for next life if not at max (wrap in try-catch for iOS safety)
       if (lives < MAX_LIVES) {
         const timeUntilNextLife = this.getTimeUntilNextLife(lives, lastLifeRegenTime);
-        await notificationService.scheduleLifeFullNotification(timeUntilNextLife);
+        try {
+          await notificationService.scheduleLifeFullNotification(timeUntilNextLife);
+        } catch (error) {
+          console.warn('Failed to schedule life notification (non-fatal):', error);
+        }
       }
     }
 

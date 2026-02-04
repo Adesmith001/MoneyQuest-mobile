@@ -2,6 +2,7 @@ import React from "react";
 import { Modal, View, Text, StyleSheet, Image, ScrollView } from "react-native";
 import CustomButton from "../CustomButton";
 import { COLORS, SPACING, FONT_SIZES } from "../../constants";
+import { RenderContentWithTables } from "../../utils/tableParser";
 
 interface IncorrectAnswerModalProps {
   visible: boolean;
@@ -73,7 +74,10 @@ const IncorrectAnswerModal: React.FC<IncorrectAnswerModalProps> = ({
                   is incorrect
                 </Text>
                 {explanation && (
-                  <Text style={styles.explanationText}>{explanation}</Text>
+                  <RenderContentWithTables 
+                    content={explanation} 
+                    textStyle={styles.explanationText}
+                  />
                 )}
               </View>
             )}
