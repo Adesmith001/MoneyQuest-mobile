@@ -222,6 +222,7 @@ class BackendApiService {
             ...q,
             question_type: 'scenario',
             scenario_context: q.scenario || q.scenario_context || '',
+            scenario_id: q.question_id || q.scenario_id, // Backend uses question_id for scenarios
             options: q.options || {
               A: q.option_a || '',
               B: q.option_b || '',
@@ -297,6 +298,7 @@ class BackendApiService {
                 correct_matches: correctMatches,
                 explanation: explanations.join('\n'),
                 difficulty: groupPairs[0]?.difficulty || 'medium',
+                pair_id: groupPairs[0]?.pair_id || groupPairs[0]?.question_id, // Use first pair's ID for flagging
               });
             }
           }

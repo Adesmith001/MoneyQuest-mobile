@@ -47,11 +47,9 @@ class QuestionService {
         return randomize ? this.shuffleArray(transformed).slice(0, numQuestions) : transformed.slice(0, numQuestions);
       }
 
-      // Generate new questions if not enough exist
-      console.log(`Generating ${numQuestions} new questions for level ${levelId}`);
-      const generateResponse = await backendApi.generateQuestions(levelId, numQuestions, difficulty, questionType, randomize);
-      
-      return this.transformBackendQuestions(generateResponse.questions);
+      // If no questions available, return empty array
+      console.log(`No questions available for level ${levelId}`);
+      return [];
     } catch (error) {
       console.error('Get questions for level error:', error);
       throw error;
@@ -89,6 +87,7 @@ class QuestionService {
             D: q.explanation_d || 'No explanation available.',
           },
           difficulty: q.difficulty || 'medium',
+          scenario_id: q.question_id || q.scenario_id, // Backend uses question_id for scenarios
         })) as ScenarioQuestion[];
       }
       return [];
@@ -123,6 +122,7 @@ class QuestionService {
             D: q.explanation_d || q.explanations?.D || 'No explanation available.',
           },
           difficulty: q.difficulty || 'medium',
+          question_id: q.question_id, // Preserve database ID
         })) as GeneratedQuestion[];
       }
       return [];
@@ -230,6 +230,7 @@ class QuestionService {
             correct_matches: correctMatches,
             explanation: 'Match each concept with its correct definition or example.',
             difficulty: 'medium',
+            pair_id: pairs[0]?.pair_id || pairs[0]?.question_id, // Use first pair's ID for flagging
           } as MatchingQuestion);
         }
         

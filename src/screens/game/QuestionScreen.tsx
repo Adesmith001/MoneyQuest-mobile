@@ -177,7 +177,7 @@ const normalizeQuestion = (q: any): AnyQuestion | null => {
       ...baseQuestion,
       question_type: 'scenario',
       scenario_context: q.scenario_context || q.scenario || '',
-      scenario_id: q.scenario_id, // Preserve database ID
+      scenario_id: q.scenario_id || q.question_id, // Fallback to question_id (backend uses this field)
     } as ScenarioQuestion;
   }
   
@@ -800,6 +800,8 @@ const QuestionScreen: React.FC<Props> = ({ navigation, route }) => {
       } else {
         // Life already deducted above, just show the modal
         setIncorrectModalVisible(true);
+        // Allow user to retry - reset waiting state for incorrect answers
+        setIsWaitingForNext(false);
       }
 
       // Refresh user data to update profile with latest XP and lives
@@ -816,6 +818,8 @@ const QuestionScreen: React.FC<Props> = ({ navigation, route }) => {
       // If incorrect, still show the modal (life was already deducted)
       if (!isCorrect) {
         setIncorrectModalVisible(true);
+        // Allow user to retry on error too
+        setIsWaitingForNext(false);
       }
     }
   };
