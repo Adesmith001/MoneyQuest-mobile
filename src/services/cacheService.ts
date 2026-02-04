@@ -1,9 +1,12 @@
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { BackendSection, BackendLevel } from '../types';
 
-// ⚠️ INCREMENT THIS VERSION whenever you want to invalidate ALL caches
+// ⚠️ INCREMENT THIS VERSION whenever you want to invalidate CONTENT caches (not user data!)
 // This forces fresh data fetch when users update the app
-const CACHE_VERSION = 3;
+const CACHE_VERSION = 4;
+
+// User preference keys (should never be cleared during cache updates)
+const SOUND_ENABLED_KEY = '@sound_enabled';
 
 const CACHE_KEYS = {
   CACHE_VERSION: '@moneyquest_cache_version',
@@ -63,22 +66,44 @@ class CacheService {
 
   /**
    * Clear ALL MoneyQuest cached data (used when cache version changes)
-   * IMPORTANT: Does NOT clear user progress or completed levels
+   * IMPORTANT: Preserves user progress data (completed levels, user stats)
    */
   private async clearAllMoneyQuestCaches(): Promise<void> {
     try {
       const allKeys = await AsyncStorage.getAllKeys();
       
-      // Filter only MoneyQuest cache keys, EXCLUDING user data
-      const cacheKeys = allKeys.filter(
-        key => key.startsWith('@moneyquest_') && 
-               key !== CACHE_KEYS.CACHE_VERSION &&
-               key !== CACHE_KEYS.COMPLETED_LEVELS // Preserve user progress
-      );
+      // Keys to PRESERVE - user progress data that should NEVER be cleared
+      const preservedKeyPatterns = [
+        CACHE_KEYS.CACHE_VERSION,
+        CACHE_KEYS.COMPLETED_LEVELS, // User's completed levels - CRITICAL USER DATA
+        'persist:root', // Redux persist data - contains auth, game state, streak, etc.
+        'persist:auth',
+        'persist:game',
+        'persist:streak',
+        'persist:learning',
+        'userId', // User ID for OAuth
+        'lastAppOpenTime', // App usage tracking
+        'user_streak_data', // Legacy streak data
+        'streak_migration_complete', // Streak migration status
+        SOUND_ENABLED_KEY, // User preferences
+      ];
+      
+      // Filter only MoneyQuest content cache keys (NOT user progress)
+      // Also check if key starts with any preserved pattern
+      const cacheKeys = allKeys.filter(key => {
+        if (!key.startsWith('@moneyquest_')) return false;
+        
+        // Check if this key matches any preserved pattern
+        const isPreserved = preservedKeyPatterns.some(pattern => 
+          key === pattern || key.startsWith(pattern)
+        );
+        
+        return !isPreserved;
+      });
       
       if (cacheKeys.length > 0) {
         await AsyncStorage.multiRemove(cacheKeys);
-        console.log(`🗑️ Cleared ${cacheKeys.length} cache entries (user progress preserved)`);
+        console.log(`🗑️ Cleared ${cacheKeys.length} content cache entries (user progress preserved)`);
       }
     } catch (error) {
       console.error('Failed to clear all caches:', error);

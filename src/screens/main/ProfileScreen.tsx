@@ -43,14 +43,14 @@ const ProfileScreen: React.FC<Props> = ({ navigation }) => {
     React.useCallback(() => {
       const refreshUserLives = async () => {
         if (!user?.$id) return;
-        
+
         try {
           const { lives, lastLifeRegenTime } = await livesService.refreshLives(
             user.$id,
             user.lives !== undefined && user.lives !== null ? user.lives : 5,
             user.lastLifeRegenTime || new Date().toISOString()
           );
-          
+
           // Update Redux store with new lives if changed
           if (lives !== user.lives || lastLifeRegenTime !== user.lastLifeRegenTime) {
             dispatch(updateUser({ lives, lastLifeRegenTime }));
@@ -127,7 +127,7 @@ const ProfileScreen: React.FC<Props> = ({ navigation }) => {
     navigation.navigate("EditProfile");
   };
 
-  const inviteLink = `https://www.nurtureehaven.com`;
+  const inviteLink = `https://www.nurtureehaven.com/`;
 
   // Get lives directly from Appwrite user object
   const currentLivesValue = user.lives !== undefined && user.lives !== null ? user.lives : 5;
@@ -165,34 +165,34 @@ const ProfileScreen: React.FC<Props> = ({ navigation }) => {
                   <Text style={styles.statIcon}>🔥</Text>
                 </View>
                 <View style={styles.statBottomRow}>
-                  <Text style={styles.statValue}>{currentStreak}</Text>
+                  <Text style={styles.statValue}>{weeklyStreak}</Text>
                   <Text style={styles.statLabel}>Current streak</Text>
                 </View>
               </View>
             </View>
             {/* <View style={styles.statsRow}> */}
-              <View style={styles.statCard}>
-                <View style={styles.statRow}>
-                  <View style={styles.statTopRow}>
-                    <Image
-                      source={require("../../../assets/xp-icon.png")}
-                      style={styles.statIconImage}
-                    />
-                  </View>
-                  <View style={styles.statBottomRow}>
-                    <Text style={styles.statValue}>
-                      {formatXP(user.monthlyXP || 0)}
-                    </Text>
-                    <Text style={styles.statLabel}>Monthly XP</Text>
-                    <Text style={styles.statSubLabel}>
-                      {getDaysUntilMonthEnd()} days left
-                    </Text>
-                  </View>
+            <View style={styles.statCard}>
+              <View style={styles.statRow}>
+                <View style={styles.statTopRow}>
+                  <Image
+                    source={require("../../../assets/xp-icon.png")}
+                    style={styles.statIconImage}
+                  />
                 </View>
+                <View style={styles.statBottomRow}>
+                  <Text style={styles.statValue}>
+                    {formatXP(user.monthlyXP || 0)}
+                  </Text>
+                  <Text style={styles.statLabel}>Monthly XP</Text>
+                  <Text style={styles.statSubLabel}>
+                    {getDaysUntilMonthEnd()} days left
+                  </Text>
+                </View>
+              </View>
               {/* </View> */}
             </View>
           </View>
-           
+
 
           <View style={styles.statsRow}>
             <View style={styles.statCard}>
@@ -232,9 +232,9 @@ const ProfileScreen: React.FC<Props> = ({ navigation }) => {
         <View style={styles.contactSection}>
           <Text style={styles.contactTitle}>Contact Us</Text>
           <Text style={styles.contactSubtitle}>Have questions or feedback? Reach out to us!</Text>
-          
+
           <View style={styles.contactOptions}>
-            <TouchableOpacity 
+            <TouchableOpacity
               style={styles.contactButton}
               onPress={() => Linking.openURL('mailto:moneyquest25@gmail.com')}
             >
@@ -244,7 +244,7 @@ const ProfileScreen: React.FC<Props> = ({ navigation }) => {
               <Text style={styles.contactButtonText}>Email Us</Text>
             </TouchableOpacity>
 
-            <TouchableOpacity 
+            <TouchableOpacity
               style={styles.contactButton}
               onPress={() => Linking.openURL('https://www.instagram.com/nurture_haven/')}
             >
@@ -254,7 +254,7 @@ const ProfileScreen: React.FC<Props> = ({ navigation }) => {
               <Text style={styles.contactButtonText}>Instagram</Text>
             </TouchableOpacity>
 
-            <TouchableOpacity 
+            <TouchableOpacity
               style={styles.contactButton}
               onPress={() => Linking.openURL('https://www.tiktok.com/@nurture_haven')}
             >

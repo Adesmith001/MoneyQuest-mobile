@@ -55,6 +55,7 @@ export interface BackendQuestion {
 
 // Generated Question format (from /generate-questions endpoint)
 export interface GeneratedQuestion {
+  question_id?: number | string; // Question ID from backend
   question: string;
   options: {
     A: string;
@@ -81,6 +82,7 @@ export interface ScenarioQuestion extends GeneratedQuestion {
 
 // Matching Question (match items from two columns)
 export interface MatchingQuestion {
+  pair_id?: number | string; // Pair ID from backend
   question_type: 'matching';
   question: string;
   left_items: { id: string; text: string }[]; // Items to match from
@@ -92,6 +94,7 @@ export interface MatchingQuestion {
 
 // Fill in the Gap Question
 export interface FillInGapQuestion {
+  question_id?: number | string; // Question ID from backend
   question_type: 'fill_in_gap';
   question: string; // Question text with blanks marked as {blank1}, {blank2}, etc.
   blanks: {

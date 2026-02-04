@@ -1,43 +1,53 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, Suspense, lazy } from 'react';
 import { NavigationContainer } from '@react-navigation/native';
 import { createStackNavigator } from '@react-navigation/stack';
 import { useSelector, useDispatch } from 'react-redux';
 import { RootState, AppDispatch } from '../store';
 import * as Linking from 'expo-linking';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
-import { Alert } from 'react-native';
+import { Alert, ActivityIndicator, View } from 'react-native';
 import googleAuthService from '../services/googleAuth';
 import { updateUser } from '../store/slices/authSlice';
 
+// ⚡ Loading screen is always loaded (critical for app start)
+import LoadingScreen from '../screens/common/LoadingScreen';
+import SplashScreen from '../screens/onboarding/SplashScreen';
+
+// 🚀 Lazy load all other screens for better performance
 // Onboarding
-import OnboardingFlow from '../screens/onboarding/OnboardingFlow';
-import AgeSelectionScreen from '../screens/onboarding/AgeSelectionScreen';
-import LearningLimitScreen from '../screens/onboarding/LearningLimitScreen';
-import GoalSelectionScreen from '../screens/onboarding/GoalSelectionScreen';
-import ReferralSourceScreen from '../screens/onboarding/ReferralSourceScreen';
-import AvatarSelectionScreen from '../screens/onboarding/AvatarSelectionScreen';
-import WelcomeSuccessScreen from '../screens/onboarding/WelcomeSuccessScreen';
+const OnboardingFlow = lazy(() => import('../screens/onboarding/OnboardingFlow'));
+const AgeSelectionScreen = lazy(() => import('../screens/onboarding/AgeSelectionScreen'));
+const LearningLimitScreen = lazy(() => import('../screens/onboarding/LearningLimitScreen'));
+const GoalSelectionScreen = lazy(() => import('../screens/onboarding/GoalSelectionScreen'));
+const ReferralSourceScreen = lazy(() => import('../screens/onboarding/ReferralSourceScreen'));
+const AvatarSelectionScreen = lazy(() => import('../screens/onboarding/AvatarSelectionScreen'));
+const WelcomeSuccessScreen = lazy(() => import('../screens/onboarding/WelcomeSuccessScreen'));
 
 // Auth Screens
-import WelcomeScreen from '../screens/auth/WelcomeScreen';
-import LoginScreen from '../screens/auth/LoginScreen';
-import RegisterScreen from '../screens/auth/RegisterScreen';
-import ForgotPasswordScreen from '../screens/auth/ForgotPasswordScreen';
-import ProfileSetupScreen from '../screens/auth/ProfileSetupScreen';
+const WelcomeScreen = lazy(() => import('../screens/auth/WelcomeScreen'));
+const LoginScreen = lazy(() => import('../screens/auth/LoginScreen'));
+const RegisterScreen = lazy(() => import('../screens/auth/RegisterScreen'));
+const ForgotPasswordScreen = lazy(() => import('../screens/auth/ForgotPasswordScreen'));
+const ProfileSetupScreen = lazy(() => import('../screens/auth/ProfileSetupScreen'));
 
 // Main App
-import MainTabNavigator from './MainTabNavigator';
+const MainTabNavigator = lazy(() => import('./MainTabNavigator'));
 
 // Other Screens
-import LoadingScreen from '../screens/common/LoadingScreen'; // Import the new loading screen
-import PremiumScreen from '../screens/common/PremiumScreen';
-import PaymentPendingScreen from '../screens/common/PaymentPendingScreen';
-import SchoolCodeEntryScreen from '../screens/common/SchoolCodeEntryScreen';
-import QuestionScreen from '../screens/game/QuestionScreen';
-import LevelCompletionScreen from '../screens/game/LevelCompletionScreen';
-import EditProfileScreen from '../screens/profile/EditProfileScreen';
-import ChangeAvatarScreen from '../screens/profile/ChangeAvatarScreen'; // Import the new screen
-import SplashScreen from '../screens/onboarding/SplashScreen';
+const PremiumScreen = lazy(() => import('../screens/common/PremiumScreen'));
+const PaymentPendingScreen = lazy(() => import('../screens/common/PaymentPendingScreen'));
+const SchoolCodeEntryScreen = lazy(() => import('../screens/common/SchoolCodeEntryScreen'));
+const QuestionScreen = lazy(() => import('../screens/game/QuestionScreen'));
+const LevelCompletionScreen = lazy(() => import('../screens/game/LevelCompletionScreen'));
+const EditProfileScreen = lazy(() => import('../screens/profile/EditProfileScreen'));
+const ChangeAvatarScreen = lazy(() => import('../screens/profile/ChangeAvatarScreen'));
+
+// Suspense fallback loading component
+const SuspenseFallback = () => (
+  <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center', backgroundColor: '#D4E8F5' }}>
+    <ActivityIndicator size="large" color="#FF5C02" />
+  </View>
+);
 
 export type RootStackParamList = {
   // Onboarding
@@ -246,11 +256,13 @@ const AppNavigator: React.FC = () => {
     return (
       <SafeAreaProvider>
         <NavigationContainer>
-          <Stack.Navigator screenOptions={{ headerShown: false }}>
-            <Stack.Screen name="Onboarding">
-              {() => <OnboardingFlow onComplete={handleOnboardingComplete} />}
-            </Stack.Screen>
-          </Stack.Navigator>
+          <Suspense fallback={<SuspenseFallback />}>
+            <Stack.Navigator screenOptions={{ headerShown: false }}>
+              <Stack.Screen name="Onboarding">
+                {() => <OnboardingFlow onComplete={handleOnboardingComplete} />}
+              </Stack.Screen>
+            </Stack.Navigator>
+          </Suspense>
         </NavigationContainer>
       </SafeAreaProvider>
     );
@@ -266,89 +278,91 @@ const AppNavigator: React.FC = () => {
   return (
     <SafeAreaProvider>
       <NavigationContainer linking={linking}>
-        <Stack.Navigator screenOptions={{ headerShown: false }}>
-          {!isAuthenticated ? (
-            // Auth Stack
-            <>
-              <Stack.Screen name="Welcome" component={WelcomeScreen} />
-              <Stack.Screen name="Login" component={LoginScreen} />
-              <Stack.Screen name="Register" component={RegisterScreen} />
-              <Stack.Screen name="ForgotPassword" component={ForgotPasswordScreen} />
-              <Stack.Screen name="ProfileSetup" component={ProfileSetupScreen} />
-              {/* Onboarding screens for new user registration */}
-              <Stack.Screen name="AgeSelection" component={AgeSelectionScreen} />
-              <Stack.Screen name="LearningLimitSelection" component={LearningLimitScreen} />
-              <Stack.Screen name="LearningLimit" component={LearningLimitScreen} />
-              <Stack.Screen name="GoalSelection" component={GoalSelectionScreen} />
-              <Stack.Screen name="ReferralSource" component={ReferralSourceScreen} />
-              <Stack.Screen name="AvatarSelection" component={AvatarSelectionScreen} />
-              <Stack.Screen name="WelcomeSuccess" component={WelcomeSuccessScreen} />
-            </>
-          ) : oauthUserNeedsOnboarding ? (
-            // OAuth user needs onboarding
-            <>
-              <Stack.Screen name="AgeSelection" component={AgeSelectionScreen} />
-              <Stack.Screen name="LearningLimitSelection" component={LearningLimitScreen} />
-              <Stack.Screen name="LearningLimit" component={LearningLimitScreen} />
-              <Stack.Screen name="GoalSelection" component={GoalSelectionScreen} />
-              <Stack.Screen name="ReferralSource" component={ReferralSourceScreen} />
-              <Stack.Screen name="AvatarSelection" component={AvatarSelectionScreen} />
-              <Stack.Screen name="WelcomeSuccess" component={WelcomeSuccessScreen} />
-            </>
-          ) : (
-            // Authenticated Stack
-            <>
-              <Stack.Screen name="MainApp" component={MainTabNavigator} />
-              <Stack.Screen name="MainTabs" component={MainTabNavigator} />
-              <Stack.Screen
-                name="Premium"
-                component={PremiumScreen}
-                options={{
-                  headerShown: false,
-                  presentation: 'modal',
-                }}
-              />
-              <Stack.Screen
-                name="SchoolCodeEntry"
-                component={SchoolCodeEntryScreen}
-                options={{
-                  headerShown: false,
-                  presentation: 'modal',
-                }}
-              />
-              <Stack.Screen
-                name="PaymentPending"
-                component={PaymentPendingScreen}
-                options={{
-                  headerShown: false,
-                  gestureEnabled: false,
-                }}
-              />
-              <Stack.Screen
-                name="Question"
-                component={QuestionScreen as any}
-                options={{
-                  gestureEnabled: false, // Prevent swipe to go back during questions
-                }}
-              />
-              <Stack.Screen name="LevelCompletion" component={LevelCompletionScreen} />
-              <Stack.Screen
-                name="EditProfile"
-                component={EditProfileScreen}
-                options={{
-                  headerShown: false,
-                }}
-              />
-              <Stack.Screen
-                name="ChangeAvatar"
-                component={ChangeAvatarScreen}
-                options={{
-                  headerShown: false,
-                }}
-              />
-            </>
-          )}
-        </Stack.Navigator>
+        <Suspense fallback={<SuspenseFallback />}>
+          <Stack.Navigator screenOptions={{ headerShown: false }}>
+            {!isAuthenticated ? (
+              // Auth Stack
+              <>
+                <Stack.Screen name="Welcome" component={WelcomeScreen} />
+                <Stack.Screen name="Login" component={LoginScreen} />
+                <Stack.Screen name="Register" component={RegisterScreen} />
+                <Stack.Screen name="ForgotPassword" component={ForgotPasswordScreen} />
+                <Stack.Screen name="ProfileSetup" component={ProfileSetupScreen} />
+                {/* Onboarding screens for new user registration */}
+                <Stack.Screen name="AgeSelection" component={AgeSelectionScreen} />
+                <Stack.Screen name="LearningLimitSelection" component={LearningLimitScreen} />
+                <Stack.Screen name="LearningLimit" component={LearningLimitScreen} />
+                <Stack.Screen name="GoalSelection" component={GoalSelectionScreen} />
+                <Stack.Screen name="ReferralSource" component={ReferralSourceScreen} />
+                <Stack.Screen name="AvatarSelection" component={AvatarSelectionScreen} />
+                <Stack.Screen name="WelcomeSuccess" component={WelcomeSuccessScreen} />
+              </>
+            ) : oauthUserNeedsOnboarding ? (
+              // OAuth user needs onboarding
+              <>
+                <Stack.Screen name="AgeSelection" component={AgeSelectionScreen} />
+                <Stack.Screen name="LearningLimitSelection" component={LearningLimitScreen} />
+                <Stack.Screen name="LearningLimit" component={LearningLimitScreen} />
+                <Stack.Screen name="GoalSelection" component={GoalSelectionScreen} />
+                <Stack.Screen name="ReferralSource" component={ReferralSourceScreen} />
+                <Stack.Screen name="AvatarSelection" component={AvatarSelectionScreen} />
+                <Stack.Screen name="WelcomeSuccess" component={WelcomeSuccessScreen} />
+              </>
+            ) : (
+              // Authenticated Stack
+              <>
+                <Stack.Screen name="MainApp" component={MainTabNavigator} />
+                <Stack.Screen name="MainTabs" component={MainTabNavigator} />
+                <Stack.Screen
+                  name="Premium"
+                  component={PremiumScreen}
+                  options={{
+                    headerShown: false,
+                    presentation: 'modal',
+                  }}
+                />
+                <Stack.Screen
+                  name="SchoolCodeEntry"
+                  component={SchoolCodeEntryScreen}
+                  options={{
+                    headerShown: false,
+                    presentation: 'modal',
+                  }}
+                />
+                <Stack.Screen
+                  name="PaymentPending"
+                  component={PaymentPendingScreen}
+                  options={{
+                    headerShown: false,
+                    gestureEnabled: false,
+                  }}
+                />
+                <Stack.Screen
+                  name="Question"
+                  component={QuestionScreen as any}
+                  options={{
+                    gestureEnabled: false, // Prevent swipe to go back during questions
+                  }}
+                />
+                <Stack.Screen name="LevelCompletion" component={LevelCompletionScreen} />
+                <Stack.Screen
+                  name="EditProfile"
+                  component={EditProfileScreen}
+                  options={{
+                    headerShown: false,
+                  }}
+                />
+                <Stack.Screen
+                  name="ChangeAvatar"
+                  component={ChangeAvatarScreen}
+                  options={{
+                    headerShown: false,
+                  }}
+                />
+              </>
+            )}
+          </Stack.Navigator>
+        </Suspense>
       </NavigationContainer>
     </SafeAreaProvider>
   );

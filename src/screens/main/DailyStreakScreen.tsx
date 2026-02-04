@@ -71,7 +71,7 @@ const DailyStreakScreen: React.FC = () => {
               style={styles.maskedView}
               maskElement={
                 <View style={styles.maskedView}>
-                  <Text style={styles.streakNumberText}>{currentStreak}</Text>
+                  <Text style={styles.streakNumberText}>{weeklyStreak}</Text>
                 </View>
               }
             >

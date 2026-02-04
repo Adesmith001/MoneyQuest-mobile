@@ -62,7 +62,7 @@ const gameSlice = createSlice({
     },
     nextLevel: (state) => {
       state.currentLevel += 1;
-      state.currentSection = 1;
+      state.currentSection = 0;
       state.currentQuestion = 0;
     },
     resetProgress: (state) => {

@@ -85,11 +85,8 @@ export const signInWithGoogle = createAsyncThunk(
       // This will open the browser and return user data
       const result = await googleAuthService.signInWithGoogle();
       
-      if (result.success && result.user) {
-        return result.user;
-      } else {
-        return rejectWithValue(result.error || "Google sign-in failed");
-      }
+      // Return a pending state - actual login will complete via deep link
+      return { pending: true };
     } catch (error: any) {
       return rejectWithValue(error.message || "Google sign-in failed");
     }
@@ -369,9 +366,8 @@ const authSlice = createSlice({
         state.error = null;
       })
       .addCase(signInWithGoogle.fulfilled, (state, action) => {
-        state.isLoading = false;
-        state.isAuthenticated = true;
-        state.user = action.payload;
+        // Keep loading state until OAuth callback completes
+        state.isLoading = true;
         state.error = null;
       })
       .addCase(signInWithGoogle.rejected, (state, action) => {
