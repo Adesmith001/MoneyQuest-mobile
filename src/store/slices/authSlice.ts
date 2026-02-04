@@ -82,8 +82,7 @@ export const signInWithGoogle = createAsyncThunk(
   "auth/signInWithGoogle",
   async (_, { rejectWithValue }) => {
     try {
-      // This will open the browser and return a URL
-      // The actual user data will come from handleOAuthCallback
+      // This will open the browser and return user data
       const result = await googleAuthService.signInWithGoogle();
       
       // Return a pending state - actual login will complete via deep link

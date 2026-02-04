@@ -403,6 +403,7 @@ class QuestionService {
    * @param correctAnswer - The correct answer
    * @param isCorrect - Whether the answer was correct
    * @param timeSpent - Time spent on the question in seconds
+   * @param isRetake - Whether this is a retake of a previously completed level
    */
   async recordAnswer(
     userId: string,
@@ -410,11 +411,12 @@ class QuestionService {
     selectedAnswer: string,
     correctAnswer: string,
     isCorrect: boolean,
-    timeSpent: number
+    timeSpent: number,
+    isRetake: boolean = false
   ): Promise<{ livesRemaining: number; canContinue: boolean; xpEarned: number }> {
     try {
-      // Calculate XP earned
-      const xpEarned = isCorrect ? 10 : 0; // 10 XP per correct answer
+      // Calculate XP earned: 10 XP for first time, 5 XP for retakes
+      const xpEarned = isCorrect ? (isRetake ? 5 : 10) : 0;
 
       // Update user stats - with error handling for missing user
       let user;
@@ -455,7 +457,7 @@ class QuestionService {
     } catch (error) {
       console.error('Record answer error:', error);
       // Return safe defaults instead of throwing
-      return { livesRemaining: 5, canContinue: true, xpEarned: isCorrect ? 10 : 0 };
+      return { livesRemaining: 5, canContinue: true, xpEarned: isCorrect ? (isRetake ? 5 : 10) : 0 };
     }
   }
 

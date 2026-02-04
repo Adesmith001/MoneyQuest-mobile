@@ -8,11 +8,10 @@ import NotificationService from './src/services/notifications';
 import soundService from './src/services/soundService';
 import cachedBackendApi from './src/services/cachedBackendApi';
 import * as Linking from 'expo-linking';
-import { Alert, Platform, Text, ErrorUtils, View, ActivityIndicator, StyleSheet } from 'react-native';
+import { Alert, Platform, ErrorUtils } from 'react-native';
 import * as NavigationBar from 'expo-navigation-bar';
 import * as Font from 'expo-font';
 import LoadingScreen from './src/components/LoadingScreen';
-import deviceCapabilities from './src/utils/DeviceCapabilities';
 
 // Global error handler for React Native (prevents crashes)
 if (ErrorUtils) {
@@ -30,159 +29,90 @@ if (ErrorUtils) {
   });
 }
 
-//Trying new build for IOS white screen fix
-
-// Simple loading component to show during initialization (prevents white screen)
-const InitializingScreen = () => (
-  <View style={initStyles.container}>
-    <ActivityIndicator size="large" color="#FF5C02" />
-  </View>
-);
-
-const initStyles = StyleSheet.create({
-  container: {
-    flex: 1,
-    justifyContent: 'center',
-    alignItems: 'center',
-    backgroundColor: '#D4E8F5',
-  },
-});
-
 export default function App() {
-  const [fontsLoaded, setFontsLoaded] = useState(false);
-  const [appReady, setAppReady] = useState(false);
-  const [initError, setInitError] = useState<string | null>(null);
+  const [isAppReady, setIsAppReady] = useState(false);
 
   useEffect(() => {
-    let isMounted = true;
-
-    const initializeApp = async () => {
-      console.log('🚀 App initialization started');
-      
-      // ⚡ CRITICAL: Initialize services in priority order with proper error handling
-      // Priority 1: Cache system (data backbone) - with timeout
+    async function prepare() {
       try {
-        const cachePromise = cachedBackendApi.initializeCache();
-        const timeoutPromise = new Promise((_, reject) => 
-          setTimeout(() => reject(new Error('Cache init timeout')), 5000)
-        );
-        await Promise.race([cachePromise, timeoutPromise]);
-        console.log('✅ Cache system initialized');
-      } catch (error) {
-        console.error('❌ Cache initialization error (continuing anyway):', error);
-        // Don't block app on cache failure
-      }
+        console.log('🚀 App initializing...');
 
-      // Priority 2: Device capabilities (affects rendering) - with timeout
-      try {
-        const devicePromise = deviceCapabilities.initialize();
-        const timeoutPromise = new Promise((_, reject) => 
-          setTimeout(() => reject(new Error('Device capabilities timeout')), 3000)
-        );
-        await Promise.race([devicePromise, timeoutPromise]);
-        console.log('✅ Device capabilities detected');
-      } catch (error) {
-        console.error('❌ Device capabilities error (continuing anyway):', error);
-        // Don't block app on device detection failure
-      }
-
-      // Priority 3: Fonts (critical for UI rendering) - with timeout
-      try {
-        const fontPromise = Font.loadAsync({
-          'Arial-Rounded-MT-Bold': require('./assets/fonts/ArialRoundedMTBold.ttf'),
-        });
-        const timeoutPromise = new Promise((_, reject) => 
-          setTimeout(() => reject(new Error('Font loading timeout')), 10000)
-        );
-        await Promise.race([fontPromise, timeoutPromise]);
-        console.log('✅ Fonts loaded');
-
-        // Set default font for all Text components
-        const defaultFontFamily = { fontFamily: 'Arial-Rounded-MT-Bold' };
-        // @ts-ignore - Setting default props
-        Text.defaultProps = Text.defaultProps || {};
-        // @ts-ignore - Setting default style
-        Text.defaultProps.style = defaultFontFamily;
-      } catch (error) {
-        console.error('❌ Font loading error (using system font):', error);
-        // App will work with system fonts
-      }
-      
-      // Always set fonts as loaded (even if they failed)
-      if (isMounted) {
-        setFontsLoaded(true);
-      }
-
-      // ⏱️ NON-CRITICAL: Move to background after UI is interactive
-      // This allows the app to render faster
-      setTimeout(() => {
-        // Configure navigation bar for Android (non-critical)
-        if (Platform.OS === 'android') {
-          NavigationBar.setVisibilityAsync('hidden')
-            .then(() => NavigationBar.setBehaviorAsync('inset-swipe'))
-            .then(() => NavigationBar.setBackgroundColorAsync('#00000000'))
-            .catch(error => console.error('❌ NavigationBar setup error:', error));
+        // Priority 1: Cache service (critical for data fetching)
+        try {
+          await cachedBackendApi.initializeCache();
+          console.log('✅ Cache service initialized');
+        } catch (error) {
+          console.error('❌ Cache service error:', error);
+          // Continue anyway - cache is not critical
         }
 
-        // Initialize notifications (non-critical, background)
-        NotificationService.initialize()
-          .then(() => NotificationService.requestPermissions())
-          .then(hasPermission => {
-            if (hasPermission) {
-              return Promise.all([
-                NotificationService.scheduleDailyReminder(),
-                NotificationService.scheduleEngagementNotifications(),
-              ]);
-            }
-            return null;
-          })
-          .then(() => console.log('✅ Notifications initialized in background'))
-          .catch(error => console.error('❌ Notification initialization error:', error));
+        // Priority 2: Fonts (critical for UI rendering) - with timeout
+        try {
+          const fontPromise = Font.loadAsync({
+            'Arial-Rounded-MT-Bold': require('./assets/fonts/ArialRoundedMTBold.ttf'),
+          });
+          const timeoutPromise = new Promise((_, reject) => 
+            setTimeout(() => reject(new Error('Font loading timeout')), 10000)
+          );
+          await Promise.race([fontPromise, timeoutPromise]);
+          console.log('✅ Fonts loaded');
+        } catch (error) {
+          console.error('❌ Font loading error:', error);
+          // Continue anyway - use system fonts
+        }
 
-        // Initialize sound service (non-critical, background)
-        soundService.initialize()
-          .then(() => console.log('✅ Sound service initialized in background'))
-          .catch(error => console.error('❌ Sound service initialization error:', error));
-      }, 500); // Delay 500ms to let UI render first
+        // Priority 3: Sound service (non-blocking) - Skip on iOS for now
+        if (Platform.OS !== 'ios') {
+          try {
+            await soundService.initialize();
+            console.log('✅ Sound service initialized');
+          } catch (error) {
+            console.error('❌ Sound service error (non-fatal):', error);
+          }
+        } else {
+          console.log('⚠️ Sound service skipped on iOS');
+        }
 
-      // Mark app as ready
-      if (isMounted) {
+        // Priority 4: Notification service (non-blocking) - Skip on iOS for now
+        if (Platform.OS !== 'ios') {
+          try {
+            await NotificationService.initialize();
+            console.log('✅ Notification service initialized');
+          } catch (error) {
+            console.error('❌ Notification service error (non-fatal):', error);
+          }
+        } else {
+          console.log('⚠️ Notification service skipped on iOS');
+        }
+
+        // Priority 5: Android navigation bar (Android only)
+        if (Platform.OS === 'android') {
+          try {
+            await NavigationBar.setBackgroundColorAsync('#FFFFFF');
+            await NavigationBar.setButtonStyleAsync('dark');
+            console.log('✅ Navigation bar configured (Android)');
+          } catch (error) {
+            console.error('❌ Navigation bar error:', error);
+          }
+        }
+
         console.log('✅ App initialization complete');
-        setAppReady(true);
+        setIsAppReady(true);
+      } catch (error) {
+        console.error('❌ Critical initialization error:', error);
+        // Still set app ready to avoid infinite loading
+        setIsAppReady(true);
       }
-    };
+    }
 
-    initializeApp().catch(error => {
-      console.error('❌ Critical app initialization error:', error);
-      if (isMounted) {
-        setInitError(error?.message || 'Unknown initialization error');
-        // Still try to render the app
-        setFontsLoaded(true);
-        setAppReady(true);
-      }
-    });
-
-    // Cleanup on unmount
-    return () => {
-      isMounted = false;
-      try {
-        soundService.cleanup();
-      } catch (e) {
-        console.error('Sound cleanup error:', e);
-      }
-      try {
-        NotificationService.cleanup();
-      } catch (e) {
-        console.error('Notification cleanup error:', e);
-      }
-    };
+    prepare();
   }, []);
 
   useEffect(() => {
     const handleDeepLink = async (event: { url: string }) => {
       try {
         console.log('Deep link received:', event.url);
-
+        
         if (event.url.includes('oauth-callback/success')) {
           console.log('OAuth success callback received');
           // The session should already be created by Appwrite
@@ -212,9 +142,9 @@ export default function App() {
     };
   }, []);
 
-  // Show loading screen during initialization (prevents white screen)
-  if (!fontsLoaded || !appReady) {
-    return <InitializingScreen />;
+  // Wait for app to be ready before rendering
+  if (!isAppReady) {
+    return <LoadingScreen />;
   }
 
   return (

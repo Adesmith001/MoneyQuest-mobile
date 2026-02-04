@@ -29,8 +29,6 @@ import cacheService from "../../services/cacheService";
 import { livesService } from "../../services/lives";
 import LearningPathSkeleton from "../../components/skeletons/LearningPathSkeleton";
 import { getDecorationsForSection, SectionDecoration } from "../../config/sectionDecorations";
-import ProgressiveImage from "../../components/ProgressiveImage";
-import deviceCapabilities from "../../utils/DeviceCapabilities";
 
 interface Props {
   navigation: any;
@@ -82,14 +80,20 @@ const HomeScreen: React.FC<Props> = ({ navigation }) => {
             setIsLoading(true);
           }
 
-          // 🩺 STEP 0: Refresh user lives from Appwrite (always do this)
+          // 🩺 STEP 0: Refresh user lives from Appwrite (with timeout protection for iOS)
           if (user?.$id) {
             try {
-              const { lives, lastLifeRegenTime } = await livesService.refreshLives(
+              // Add timeout to prevent hangs on iOS
+              const livesPromise = livesService.refreshLives(
                 user.$id,
                 user.lives !== undefined && user.lives !== null ? user.lives : 5,
                 user.lastLifeRegenTime || new Date().toISOString()
               );
+              const timeoutPromise = new Promise<never>((_, reject) =>
+                setTimeout(() => reject(new Error('Lives refresh timeout')), 5000)
+              );
+
+              const { lives, lastLifeRegenTime } = await Promise.race([livesPromise, timeoutPromise]);
 
               // Update Redux store if lives changed
               if (lives !== user.lives || lastLifeRegenTime !== user.lastLifeRegenTime) {
@@ -97,7 +101,8 @@ const HomeScreen: React.FC<Props> = ({ navigation }) => {
                 console.log(`✅ Lives refreshed on HomeScreen: ${lives}/5`);
               }
             } catch (error) {
-              console.error('Failed to refresh lives on HomeScreen:', error);
+              console.error('Failed to refresh lives on HomeScreen (non-fatal):', error);
+              // Continue with cached lives - don't block the UI
             }
           }
 
@@ -486,28 +491,23 @@ const HomeScreen: React.FC<Props> = ({ navigation }) => {
               {node.isCompleted ? (
                 <Text style={styles.completedNodeIcon}>✓</Text>
               ) : node.isCurrent ? (
-                <ProgressiveImage
+                <Image
                   source={require("../../../assets/starIcon.png")}
                   style={styles.starIcon}
-                  resizeMode="contain"
-                  showLoader={false}
                 />
               ) : node.isUnlocked ? (
-                <ProgressiveImage
+                <Image
                   source={require("../../../assets/starIcon.png")}
                   style={styles.starIcon}
-                  resizeMode="contain"
-                  showLoader={false}
                 />
               ) : (
-                <ProgressiveImage
+                <Image
                   source={require("../../../assets/lockIcon.png")}
                   style={styles.starIcon}
-                  resizeMode="contain"
-                  showLoader={false}
                 />
               )}
             </TouchableOpacity>
+            {/* Removed level title display - users can see it when they click */}
           </View>
         </View>
 
@@ -523,7 +523,6 @@ const HomeScreen: React.FC<Props> = ({ navigation }) => {
               <Image
                 source={getAvatarById(user?.avatar)}
                 style={styles.avatarImage}
-                resizeMode="contain"
               />
             </View>
           </View>
@@ -533,33 +532,31 @@ const HomeScreen: React.FC<Props> = ({ navigation }) => {
   };
 
   const renderSection = (section: Section, sectionIndex: number) => {
-    // Get decorations for this section based on its title
     const sectionDecorations = getDecorationsForSection(section.title, sectionIndex);
-
-    // 📱 Optimize decorations for low-end devices
-    const capabilities = deviceCapabilities.getCapabilities();
-    const decorationReduction = capabilities?.performanceTier === 'low' ? 0.3 :
-      capabilities?.performanceTier === 'medium' ? 0.7 : 1.0;
-
-    // Reduce number of clouds and decorations on low-end devices
-    const cloudCount = Math.ceil(6 * decorationReduction); // Base: 6 clouds
-    const decorationCount = Math.ceil(sectionDecorations.decorations.length * decorationReduction);
 
     return (
       <View key={section.id} style={styles.pageContainer}>
-        {/* Cloud decorations - reduced on low-end devices */}
+        {/* Cloud decorations */}
         <View style={styles.cloudsContainer}>
-          {cloudCount >= 1 && <Text style={[styles.cloud, { top: 20, left: 30 }]}>☁️</Text>}
-          {cloudCount >= 2 && <Text style={[styles.cloud, { top: 60, right: 40 }]}>☁️</Text>}
-          {cloudCount >= 3 && <Text style={[styles.cloud, { top: 100, left: screenWidth * 0.6 }]}>☁️</Text>}
-          {cloudCount >= 4 && <Text style={[styles.cloud, { top: 200, right: 20, fontSize: 40 }]}>☁️</Text>}
-          {cloudCount >= 5 && <Text style={[styles.cloud, { top: 350, left: 20, fontSize: 45 }]}>☁️</Text>}
-          {cloudCount >= 6 && <Text style={[styles.cloud, { top: 500, right: 50, fontSize: 35 }]}>☁️</Text>}
+          <Text style={[styles.cloud, { top: 20, left: 30 }]}>☁️</Text>
+          <Text style={[styles.cloud, { top: 60, right: 40 }]}>☁️</Text>
+          <Text style={[styles.cloud, { top: 100, left: screenWidth * 0.6 }]}>
+            ☁️
+          </Text>
+          <Text style={[styles.cloud, { top: 200, right: 20, fontSize: 40 }]}>
+            ☁️
+          </Text>
+          <Text style={[styles.cloud, { top: 350, left: 20, fontSize: 45 }]}>
+            ☁️
+          </Text>
+          <Text style={[styles.cloud, { top: 500, right: 50, fontSize: 35 }]}>
+            ☁️
+          </Text>
         </View>
 
-        {/* Section-specific decorative elements - reduced on low-end devices */}
+        {/* Section-specific decorative elements */}
         <View style={styles.decorationsContainer}>
-          {sectionDecorations.decorations.slice(0, decorationCount).map((decoration, idx) => (
+          {sectionDecorations.decorations.map((decoration, idx) => (
             <Text
               key={`decoration-${idx}`}
               style={[
@@ -592,11 +589,9 @@ const HomeScreen: React.FC<Props> = ({ navigation }) => {
               </Text>
             </View>
             <View style={styles.bookIcon}>
-              <ProgressiveImage
+              <Image
                 source={require("../../../assets/bookIcon.png")}
                 style={styles.bookIconImage}
-                resizeMode="contain"
-                showLoader={false}
               />
             </View>
           </View>
@@ -608,15 +603,17 @@ const HomeScreen: React.FC<Props> = ({ navigation }) => {
           showsVerticalScrollIndicator={false}
         >
           <View style={styles.levelsContainer}>
-            {section.levels.map((node, index) => {
-              const isLast = index === section.levels.length - 1;
-              return renderLevelNode(
-                node,
-                index,
-                isLast,
-                sectionIndex
-              );
-            })}
+            {section.levels
+              .slice()
+              .map((node, reverseIndex) => {
+                const originalIndex = section.levels.length - 1 - reverseIndex;
+                return renderLevelNode(
+                  node,
+                  originalIndex,
+                  originalIndex === 0, // First level is now at bottom
+                  sectionIndex
+                );
+              })}
           </View>
         </ScrollView>
       </View>
@@ -636,12 +633,10 @@ const HomeScreen: React.FC<Props> = ({ navigation }) => {
     return (
       <SafeAreaView style={styles.container}>
         <View style={styles.emptyStateContainer}>
-          <ProgressiveImage
+          <Image
             source={require('../../../assets/fox.png')}
             style={styles.emptyStateFox}
             resizeMode="contain"
-            showLoader={true}
-            loaderSize="large"
           />
           <Text style={styles.emptyStateTitle}>No Learning Content Available</Text>
           <Text style={styles.emptyStateMessage}>

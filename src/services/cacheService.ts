@@ -171,11 +171,26 @@ class CacheService {
   }
 
   /**
-   * Clear all cached data
+   * Clear all cached data (sections, levels, questions)
+   * IMPORTANT: Does NOT clear user progress or completed levels
    */
   async clearCache(): Promise<void> {
     try {
-      await AsyncStorage.removeItem(CACHE_KEYS.COMPLETED_LEVELS);
+      console.log('🗑️ Clearing content caches (user progress preserved)');
+      // Only remove content cache keys, not user data
+      const allKeys = await AsyncStorage.getAllKeys();
+      const contentCacheKeys = allKeys.filter(
+        key => (key.startsWith(CACHE_KEYS.SECTIONS) ||
+                key.startsWith(CACHE_KEYS.LEVELS_PREFIX) ||
+                key.startsWith(CACHE_KEYS.QUESTIONS_PREFIX) ||
+                key.startsWith(CACHE_KEYS.LEVEL_DATA_PREFIX)) &&
+               key !== CACHE_KEYS.COMPLETED_LEVELS
+      );
+      
+      if (contentCacheKeys.length > 0) {
+        await AsyncStorage.multiRemove(contentCacheKeys);
+        console.log(`✅ Cleared ${contentCacheKeys.length} content cache entries`);
+      }
     } catch (error) {
       console.error('Failed to clear cache:', error);
     }
