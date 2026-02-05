@@ -8,10 +8,20 @@ import NotificationService from './src/services/notifications';
 import soundService from './src/services/soundService';
 import cachedBackendApi from './src/services/cachedBackendApi';
 import * as Linking from 'expo-linking';
-import { Alert, Platform, ErrorUtils } from 'react-native';
+import { Alert, Platform, ErrorUtils, View, Text, StyleSheet } from 'react-native';
 import * as NavigationBar from 'expo-navigation-bar';
 import * as Font from 'expo-font';
 import LoadingScreen from './src/components/LoadingScreen';
+
+// Import environment config early to ensure it's loaded
+import { ENV } from './src/config/environment';
+
+// Verify critical config on startup
+console.log('🚀 MoneyQuest App Starting...');
+console.log('📦 Environment check:');
+console.log('  - APPWRITE_ENDPOINT:', ENV.APPWRITE_ENDPOINT ? '✅' : '❌ MISSING');
+console.log('  - APPWRITE_PROJECT_ID:', ENV.APPWRITE_PROJECT_ID ? '✅' : '❌ MISSING');
+console.log('  - MONEYQUEST_API_BASE_URL:', ENV.MONEYQUEST_API_BASE_URL ? '✅' : '❌ MISSING');
 
 // Global error handler for React Native (prevents crashes)
 if (ErrorUtils) {
@@ -29,8 +39,71 @@ if (ErrorUtils) {
   });
 }
 
-export default function App() {
+// Error boundary fallback component
+const ErrorFallback = ({ error }: { error: Error }) => (
+  <View style={errorStyles.container}>
+    <Text style={errorStyles.title}>Something went wrong</Text>
+    <Text style={errorStyles.message}>{error?.message || 'Unknown error'}</Text>
+    <Text style={errorStyles.hint}>Please restart the app</Text>
+  </View>
+);
+
+const errorStyles = StyleSheet.create({
+  container: {
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
+    backgroundColor: '#FFFFFF',
+    padding: 20,
+  },
+  title: {
+    fontSize: 20,
+    fontWeight: 'bold',
+    color: '#FF5722',
+    marginBottom: 10,
+  },
+  message: {
+    fontSize: 14,
+    color: '#666',
+    textAlign: 'center',
+    marginBottom: 20,
+  },
+  hint: {
+    fontSize: 12,
+    color: '#999',
+  },
+});
+
+// Error Boundary Component to catch rendering errors
+class ErrorBoundary extends React.Component<
+  { children: React.ReactNode },
+  { hasError: boolean; error: Error | null }
+> {
+  constructor(props: { children: React.ReactNode }) {
+    super(props);
+    this.state = { hasError: false, error: null };
+  }
+
+  static getDerivedStateFromError(error: Error) {
+    console.error('🔴 ErrorBoundary caught error:', error);
+    return { hasError: true, error };
+  }
+
+  componentDidCatch(error: Error, errorInfo: React.ErrorInfo) {
+    console.error('🔴 ErrorBoundary details:', error, errorInfo);
+  }
+
+  render() {
+    if (this.state.hasError) {
+      return <ErrorFallback error={this.state.error!} />;
+    }
+    return this.props.children;
+  }
+}
+
+function AppContent() {
   const [isAppReady, setIsAppReady] = useState(false);
+  const [initError, setInitError] = useState<Error | null>(null);
 
   useEffect(() => {
     async function prepare() {
@@ -142,6 +215,11 @@ export default function App() {
     };
   }, []);
 
+  // Show error screen if initialization failed critically
+  if (initError) {
+    return <ErrorFallback error={initError} />;
+  }
+
   // Wait for app to be ready before rendering
   if (!isAppReady) {
     return <LoadingScreen />;
@@ -154,5 +232,14 @@ export default function App() {
         <StatusBar style="dark" translucent backgroundColor="transparent" />
       </PersistGate>
     </Provider>
+  );
+}
+
+// Main App component with Error Boundary
+export default function App() {
+  return (
+    <ErrorBoundary>
+      <AppContent />
+    </ErrorBoundary>
   );
 }

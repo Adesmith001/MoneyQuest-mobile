@@ -1,8 +1,5 @@
 import axios from 'axios';
-import {
-  KORAPAY_SECRET_KEY,
-  KORAPAY_API_URL,
-} from '../../env';
+import { ENV } from '../config/environment';
 import { getRandomBytes } from 'expo-crypto';
 import {
   PaymentIntent,
@@ -16,8 +13,8 @@ class KoraPayService {
   private apiUrl: string;
 
   constructor() {
-    this.secretKey = KORAPAY_SECRET_KEY;
-    this.apiUrl = KORAPAY_API_URL;
+    this.secretKey = ENV.KORAPAY_SECRET_KEY;
+    this.apiUrl = ENV.KORAPAY_API_URL;
   }
 
   /**

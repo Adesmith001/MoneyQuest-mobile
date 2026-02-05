@@ -84,10 +84,26 @@
     "extra": {
       "eas": {
         "projectId": "6dcf413d-e595-4507-9374-30c460ddf8d7"
-      }
+      },
+      "APPWRITE_ENDPOINT": "https://fra.cloud.appwrite.io/v1",
+      "APPWRITE_PROJECT_ID": "68cc6ab300330cae9c56",
+      "APPWRITE_DATABASE_ID": "68cc891e001ebcafceeb",
+      "MONEYQUEST_API_BASE_URL": "https://moneyquestproject-demo-production.up.railway.app"
     },
     "owner": "adesmith",
     "plugins": [
+      [
+        "expo-build-properties",
+        {
+          "ios": {
+            "newArchEnabled": false,
+            "flipper": false
+          },
+          "android": {
+            "newArchEnabled": false
+          }
+        }
+      ],
       [
         "expo-font",
         {

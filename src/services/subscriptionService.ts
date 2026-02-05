@@ -1,9 +1,9 @@
 import { ID, Query, Permission, Role } from 'react-native-appwrite';
 import { databases } from './appwrite';
-import {
-  APPWRITE_DATABASE_ID,
-  APPWRITE_SUBSCRIPTIONS_COLLECTION_ID,
-} from '../../env';
+import { ENV } from '../config/environment';
+
+const APPWRITE_DATABASE_ID = ENV.APPWRITE_DATABASE_ID;
+const APPWRITE_SUBSCRIPTIONS_COLLECTION_ID = ENV.APPWRITE_SUBSCRIPTIONS_COLLECTION_ID;
 import {
   Subscription,
   SubscriptionStatus,

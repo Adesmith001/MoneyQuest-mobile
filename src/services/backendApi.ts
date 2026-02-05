@@ -1,4 +1,4 @@
-import { MONEYQUEST_API_BASE_URL } from '../../env';
+import { ENV } from '../config/environment';
 import {
   BackendLevel,
   BackendSection,
@@ -23,7 +23,8 @@ class BackendApiService {
   private pendingRequests: Map<string, Promise<any>> = new Map();
 
   constructor() {
-    this.baseUrl = MONEYQUEST_API_BASE_URL;
+    this.baseUrl = ENV.MONEYQUEST_API_BASE_URL;
+    console.log('📡 BackendApiService initialized with URL:', this.baseUrl);
   }
 
   /**
