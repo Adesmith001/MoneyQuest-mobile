@@ -1,51 +1,51 @@
-import React, { useState, useEffect, Suspense, lazy } from 'react';
+import React, { useState, useEffect } from 'react';
 import { NavigationContainer } from '@react-navigation/native';
 import { createStackNavigator } from '@react-navigation/stack';
 import { useSelector, useDispatch } from 'react-redux';
 import { RootState, AppDispatch } from '../store';
 import * as Linking from 'expo-linking';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
-import { Alert, ActivityIndicator, View } from 'react-native';
+import { Alert, ActivityIndicator, View, Text } from 'react-native';
 import googleAuthService from '../services/googleAuth';
 import { updateUser } from '../store/slices/authSlice';
 
-// ⚡ Loading screen is always loaded (critical for app start)
+// ⚡ Import ALL screens directly - lazy loading causes white screen on iOS production
 import LoadingScreen from '../screens/common/LoadingScreen';
 import SplashScreen from '../screens/onboarding/SplashScreen';
 
-// 🚀 Lazy load all other screens for better performance
 // Onboarding
-const OnboardingFlow = lazy(() => import('../screens/onboarding/OnboardingFlow'));
-const AgeSelectionScreen = lazy(() => import('../screens/onboarding/AgeSelectionScreen'));
-const LearningLimitScreen = lazy(() => import('../screens/onboarding/LearningLimitScreen'));
-const GoalSelectionScreen = lazy(() => import('../screens/onboarding/GoalSelectionScreen'));
-const ReferralSourceScreen = lazy(() => import('../screens/onboarding/ReferralSourceScreen'));
-const AvatarSelectionScreen = lazy(() => import('../screens/onboarding/AvatarSelectionScreen'));
-const WelcomeSuccessScreen = lazy(() => import('../screens/onboarding/WelcomeSuccessScreen'));
+import OnboardingFlow from '../screens/onboarding/OnboardingFlow';
+import AgeSelectionScreen from '../screens/onboarding/AgeSelectionScreen';
+import LearningLimitScreen from '../screens/onboarding/LearningLimitScreen';
+import GoalSelectionScreen from '../screens/onboarding/GoalSelectionScreen';
+import ReferralSourceScreen from '../screens/onboarding/ReferralSourceScreen';
+import AvatarSelectionScreen from '../screens/onboarding/AvatarSelectionScreen';
+import WelcomeSuccessScreen from '../screens/onboarding/WelcomeSuccessScreen';
 
 // Auth Screens
-const WelcomeScreen = lazy(() => import('../screens/auth/WelcomeScreen'));
-const LoginScreen = lazy(() => import('../screens/auth/LoginScreen'));
-const RegisterScreen = lazy(() => import('../screens/auth/RegisterScreen'));
-const ForgotPasswordScreen = lazy(() => import('../screens/auth/ForgotPasswordScreen'));
-const ProfileSetupScreen = lazy(() => import('../screens/auth/ProfileSetupScreen'));
+import WelcomeScreen from '../screens/auth/WelcomeScreen';
+import LoginScreen from '../screens/auth/LoginScreen';
+import RegisterScreen from '../screens/auth/RegisterScreen';
+import ForgotPasswordScreen from '../screens/auth/ForgotPasswordScreen';
+import ProfileSetupScreen from '../screens/auth/ProfileSetupScreen';
 
 // Main App
-const MainTabNavigator = lazy(() => import('./MainTabNavigator'));
+import MainTabNavigator from './MainTabNavigator';
 
 // Other Screens
-const PremiumScreen = lazy(() => import('../screens/common/PremiumScreen'));
-const PaymentPendingScreen = lazy(() => import('../screens/common/PaymentPendingScreen'));
-const SchoolCodeEntryScreen = lazy(() => import('../screens/common/SchoolCodeEntryScreen'));
-const QuestionScreen = lazy(() => import('../screens/game/QuestionScreen'));
-const LevelCompletionScreen = lazy(() => import('../screens/game/LevelCompletionScreen'));
-const EditProfileScreen = lazy(() => import('../screens/profile/EditProfileScreen'));
-const ChangeAvatarScreen = lazy(() => import('../screens/profile/ChangeAvatarScreen'));
+import PremiumScreen from '../screens/common/PremiumScreen';
+import PaymentPendingScreen from '../screens/common/PaymentPendingScreen';
+import SchoolCodeEntryScreen from '../screens/common/SchoolCodeEntryScreen';
+import QuestionScreen from '../screens/game/QuestionScreen';
+import LevelCompletionScreen from '../screens/game/LevelCompletionScreen';
+import EditProfileScreen from '../screens/profile/EditProfileScreen';
+import ChangeAvatarScreen from '../screens/profile/ChangeAvatarScreen';
 
-// Suspense fallback loading component
-const SuspenseFallback = () => (
-  <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center', backgroundColor: '#D4E8F5' }}>
+// Simple fallback loading component (no longer using Suspense)
+const SimpleFallback = () => (
+  <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center', backgroundColor: '#FFFFFF' }}>
     <ActivityIndicator size="large" color="#FF5C02" />
+    <Text style={{ marginTop: 10, color: '#666' }}>Loading...</Text>
   </View>
 );
 
@@ -256,13 +256,11 @@ const AppNavigator: React.FC = () => {
     return (
       <SafeAreaProvider>
         <NavigationContainer>
-          <Suspense fallback={<SuspenseFallback />}>
-            <Stack.Navigator screenOptions={{ headerShown: false }}>
-              <Stack.Screen name="Onboarding">
-                {() => <OnboardingFlow onComplete={handleOnboardingComplete} />}
-              </Stack.Screen>
-            </Stack.Navigator>
-          </Suspense>
+          <Stack.Navigator screenOptions={{ headerShown: false }}>
+            <Stack.Screen name="Onboarding">
+              {() => <OnboardingFlow onComplete={handleOnboardingComplete} />}
+            </Stack.Screen>
+          </Stack.Navigator>
         </NavigationContainer>
       </SafeAreaProvider>
     );
@@ -278,16 +276,15 @@ const AppNavigator: React.FC = () => {
   return (
     <SafeAreaProvider>
       <NavigationContainer linking={linking}>
-        <Suspense fallback={<SuspenseFallback />}>
-          <Stack.Navigator screenOptions={{ headerShown: false }}>
-            {!isAuthenticated ? (
-              // Auth Stack
-              <>
-                <Stack.Screen name="Welcome" component={WelcomeScreen} />
-                <Stack.Screen name="Login" component={LoginScreen} />
-                <Stack.Screen name="Register" component={RegisterScreen} />
-                <Stack.Screen name="ForgotPassword" component={ForgotPasswordScreen} />
-                <Stack.Screen name="ProfileSetup" component={ProfileSetupScreen} />
+        <Stack.Navigator screenOptions={{ headerShown: false }}>
+          {!isAuthenticated ? (
+            // Auth Stack
+            <>
+              <Stack.Screen name="Welcome" component={WelcomeScreen} />
+              <Stack.Screen name="Login" component={LoginScreen} />
+              <Stack.Screen name="Register" component={RegisterScreen} />
+              <Stack.Screen name="ForgotPassword" component={ForgotPasswordScreen} />
+              <Stack.Screen name="ProfileSetup" component={ProfileSetupScreen} />
                 {/* Onboarding screens for new user registration */}
                 <Stack.Screen name="AgeSelection" component={AgeSelectionScreen} />
                 <Stack.Screen name="LearningLimitSelection" component={LearningLimitScreen} />
@@ -362,7 +359,6 @@ const AppNavigator: React.FC = () => {
               </>
             )}
           </Stack.Navigator>
-        </Suspense>
       </NavigationContainer>
     </SafeAreaProvider>
   );

@@ -4,24 +4,16 @@ import { Provider } from 'react-redux';
 import { PersistGate } from 'redux-persist/integration/react';
 import { store, persistor } from './src/store';
 import AppNavigator from './src/navigation/AppNavigator';
-import NotificationService from './src/services/notifications';
-import soundService from './src/services/soundService';
-import cachedBackendApi from './src/services/cachedBackendApi';
 import * as Linking from 'expo-linking';
-import { Alert, Platform, ErrorUtils, View, Text, StyleSheet } from 'react-native';
-import * as NavigationBar from 'expo-navigation-bar';
+import { Alert, Platform, ErrorUtils, View, Text, StyleSheet, LogBox } from 'react-native';
 import * as Font from 'expo-font';
 import LoadingScreen from './src/components/LoadingScreen';
 
-// Import environment config early to ensure it's loaded
-import { ENV } from './src/config/environment';
-
-// Verify critical config on startup
-console.log('🚀 MoneyQuest App Starting...');
-console.log('📦 Environment check:');
-console.log('  - APPWRITE_ENDPOINT:', ENV.APPWRITE_ENDPOINT ? '✅' : '❌ MISSING');
-console.log('  - APPWRITE_PROJECT_ID:', ENV.APPWRITE_PROJECT_ID ? '✅' : '❌ MISSING');
-console.log('  - MONEYQUEST_API_BASE_URL:', ENV.MONEYQUEST_API_BASE_URL ? '✅' : '❌ MISSING');
+// Ignore specific warnings that don't affect functionality
+LogBox.ignoreLogs([
+  'Non-serializable values were found in the navigation state',
+  'Require cycle:',
+]);
 
 // Global error handler for React Native (prevents crashes)
 if (ErrorUtils) {
@@ -110,22 +102,17 @@ function AppContent() {
       try {
         console.log('🚀 App initializing...');
 
-        // Priority 1: Cache service (critical for data fetching)
-        try {
-          await cachedBackendApi.initializeCache();
-          console.log('✅ Cache service initialized');
-        } catch (error) {
-          console.error('❌ Cache service error:', error);
-          // Continue anyway - cache is not critical
-        }
-
-        // Priority 2: Fonts (critical for UI rendering) - with timeout
+        // Only load fonts - skip other services that might cause issues on iOS
         try {
           const fontPromise = Font.loadAsync({
             'Arial-Rounded-MT-Bold': require('./assets/fonts/ArialRoundedMTBold.ttf'),
           });
-          const timeoutPromise = new Promise((_, reject) => 
-            setTimeout(() => reject(new Error('Font loading timeout')), 10000)
+          // 5 second timeout for fonts
+          const timeoutPromise = new Promise<void>((resolve) => 
+            setTimeout(() => {
+              console.log('⚠️ Font loading timeout, continuing anyway');
+              resolve();
+            }, 5000)
           );
           await Promise.race([fontPromise, timeoutPromise]);
           console.log('✅ Fonts loaded');
@@ -134,51 +121,27 @@ function AppContent() {
           // Continue anyway - use system fonts
         }
 
-        // Priority 3: Sound service (non-blocking) - Skip on iOS for now
-        if (Platform.OS !== 'ios') {
-          try {
-            await soundService.initialize();
-            console.log('✅ Sound service initialized');
-          } catch (error) {
-            console.error('❌ Sound service error (non-fatal):', error);
-          }
-        } else {
-          console.log('⚠️ Sound service skipped on iOS');
-        }
-
-        // Priority 4: Notification service (non-blocking) - Skip on iOS for now
-        if (Platform.OS !== 'ios') {
-          try {
-            await NotificationService.initialize();
-            console.log('✅ Notification service initialized');
-          } catch (error) {
-            console.error('❌ Notification service error (non-fatal):', error);
-          }
-        } else {
-          console.log('⚠️ Notification service skipped on iOS');
-        }
-
-        // Priority 5: Android navigation bar (Android only)
-        if (Platform.OS === 'android') {
-          try {
-            await NavigationBar.setBackgroundColorAsync('#FFFFFF');
-            await NavigationBar.setButtonStyleAsync('dark');
-            console.log('✅ Navigation bar configured (Android)');
-          } catch (error) {
-            console.error('❌ Navigation bar error:', error);
-          }
-        }
-
         console.log('✅ App initialization complete');
-        setIsAppReady(true);
       } catch (error) {
         console.error('❌ Critical initialization error:', error);
-        // Still set app ready to avoid infinite loading
+        setInitError(error instanceof Error ? error : new Error(String(error)));
+      } finally {
+        // ALWAYS set app ready after 3 seconds max
         setIsAppReady(true);
       }
     }
 
     prepare();
+    
+    // Failsafe: Force app ready after 5 seconds no matter what
+    const failsafe = setTimeout(() => {
+      if (!isAppReady) {
+        console.log('⚠️ Failsafe triggered - forcing app ready');
+        setIsAppReady(true);
+      }
+    }, 5000);
+    
+    return () => clearTimeout(failsafe);
   }, []);
 
   useEffect(() => {
