@@ -46,6 +46,9 @@ import MatchingQuestionComponent from "../../components/questions/MatchingQuesti
 import FillInGapQuestionComponent from "../../components/questions/FillInGapQuestion";
 import cacheService from "../../services/cacheService";
 import { RenderContentWithTables } from "../../utils/tableParser";
+import CoachMark from "../../components/tutorial/CoachMark";
+import { QUESTION_COACH_STEPS } from "../../config/coachMarkSteps";
+import { markQuestionGuideSeen } from "../../store/slices/tutorialSlice";
 
 interface Props {
   navigation: any;
@@ -199,6 +202,8 @@ const QuestionScreen: React.FC<Props> = ({ navigation, route }) => {
   const dispatch = useDispatch();
   const { user } = useSelector((state: RootState) => state.auth);
 
+  const { hasSeenQuestionGuide } = useSelector((state: RootState) => state.tutorial);
+
   const [questions, setQuestions] = useState<AnyQuestion[]>([]);
   const [levelData, setLevelData] = useState<any>(null);
   const [currentQuestionIndex, setCurrentQuestionIndex] = useState(0);
@@ -216,6 +221,10 @@ const QuestionScreen: React.FC<Props> = ({ navigation, route }) => {
   }>({});
 
   const [viewMode, setViewMode] = useState<"article" | "quiz">("article");
+
+  // Coach marks (must be after viewMode declaration)
+  const [coachStep, setCoachStep] = useState(0);
+  const showCoachMarks = !hasSeenQuestionGuide && !isLoading && viewMode === 'quiz' && questions.length > 0 && currentQuestionIndex === 0;
 
   const [isCorrectModalVisible, setCorrectModalVisible] = useState(false);
   const [isIncorrectModalVisible, setIncorrectModalVisible] = useState(false);
@@ -1427,6 +1436,22 @@ const QuestionScreen: React.FC<Props> = ({ navigation, route }) => {
             : undefined
         }
       />
+
+      {/* Coach marks for first-time question experience */}
+      <CoachMark
+        visible={showCoachMarks}
+        steps={QUESTION_COACH_STEPS}
+        currentStep={coachStep}
+        onNext={() => setCoachStep((prev) => prev + 1)}
+        onSkip={() => {
+          dispatch(markQuestionGuideSeen());
+          setCoachStep(0);
+        }}
+        onComplete={() => {
+          dispatch(markQuestionGuideSeen());
+          setCoachStep(0);
+        }}
+      />
     </SafeAreaView>
   );
 };
@@ -1636,8 +1661,8 @@ const styles = StyleSheet.create({
     color: COLORS.primary,
   },
   articleContent: {
-    fontSize: FONT_SIZES.md,
-    lineHeight: 26,
+    fontSize: FONT_SIZES.lg, // Increased from md (16px) to lg (18px) for better readability
+    lineHeight: 28, // Increased from 26 to 28 for better spacing
     color: COLORS.text,
   },
 });

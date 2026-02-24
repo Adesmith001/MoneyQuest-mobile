@@ -8,6 +8,7 @@ import { SafeAreaProvider } from 'react-native-safe-area-context';
 import { Alert, ActivityIndicator, View, Text } from 'react-native';
 import googleAuthService from '../services/googleAuth';
 import { updateUser } from '../store/slices/authSlice';
+import { completeAppTour } from '../store/slices/tutorialSlice';
 
 // ⚡ Import ALL screens directly - lazy loading causes white screen on iOS production
 import LoadingScreen from '../screens/common/LoadingScreen';
@@ -21,6 +22,9 @@ import GoalSelectionScreen from '../screens/onboarding/GoalSelectionScreen';
 import ReferralSourceScreen from '../screens/onboarding/ReferralSourceScreen';
 import AvatarSelectionScreen from '../screens/onboarding/AvatarSelectionScreen';
 import WelcomeSuccessScreen from '../screens/onboarding/WelcomeSuccessScreen';
+
+// Tutorial
+import AppTourScreen from '../screens/tutorial/AppTourScreen';
 
 // Auth Screens
 import WelcomeScreen from '../screens/auth/WelcomeScreen';
@@ -151,11 +155,14 @@ const linking = {
 
 const AppNavigator: React.FC = () => {
   const { isAuthenticated, isLoading, showWelcomeScreen, user } = useSelector((state: RootState) => state.auth);
+  const { hasCompletedAppTour } = useSelector((state: RootState) => state.tutorial);
   const dispatch = useDispatch<AppDispatch>();
   // Skip onboarding screens - users go directly to login/home
   const [showOnboarding, setShowOnboarding] = useState<boolean>(false);
   // Always show splash screen first when app opens
   const [showSplash, setShowSplash] = useState<boolean>(true);
+  // Show app tour after welcome screen for new users
+  const [showAppTour, setShowAppTour] = useState<boolean>(false);
 
   const handleOnboardingComplete = () => {
     setShowOnboarding(false);
@@ -247,6 +254,20 @@ const AppNavigator: React.FC = () => {
             />
           </Stack.Navigator>
         </NavigationContainer>
+      </SafeAreaProvider>
+    );
+  }
+
+  // Show app tour for first-time users right after welcome screen
+  // or when triggered from tutorial hub
+  if ((isAuthenticated && !hasCompletedAppTour) || showAppTour) {
+    return (
+      <SafeAreaProvider>
+        <AppTourScreen
+          onComplete={() => {
+            setShowAppTour(false);
+          }}
+        />
       </SafeAreaProvider>
     );
   }

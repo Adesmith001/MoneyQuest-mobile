@@ -22,6 +22,9 @@ import { loadStreakData } from "../../store/slices/streakSlice";
 import { livesService } from "../../services/lives";
 import { levelProgressService } from "../../services/levelProgress";
 import { updateUser } from "../../store/slices/authSlice";
+import CoachMark from "../../components/tutorial/CoachMark";
+import { PROFILE_COACH_STEPS } from "../../config/coachMarkSteps";
+import { markProfileGuideSeen } from "../../store/slices/tutorialSlice";
 
 const { width: screenWidth } = Dimensions.get("window");
 
@@ -35,8 +38,13 @@ const ProfileScreen: React.FC<Props> = ({ navigation }) => {
   const { currentStreak, totalStreak, daysThisMonth, weeklyStreak } = useSelector(
     (state: RootState) => state.streak
   );
+  const { hasSeenProfileGuide } = useSelector((state: RootState) => state.tutorial);
   const [isInviteModalVisible, setInviteModalVisible] = useState(false);
   const [lifeRegenTime, setLifeRegenTime] = useState('');
+
+  // Coach marks
+  const [coachStep, setCoachStep] = useState(0);
+  const showCoachMarks = !hasSeenProfileGuide;
 
   // Refresh lives when screen is focused
   useFocusEffect(
@@ -223,48 +231,21 @@ const ProfileScreen: React.FC<Props> = ({ navigation }) => {
           size="large"
           style={{
             marginHorizontal: 10,
-            marginBottom: 20,
+            marginBottom: 12,
             width: screenWidth - 40,
           }}
         />
 
-        {/* Contact Us Section */}
-        <View style={styles.contactSection}>
-          <Text style={styles.contactTitle}>Contact Us</Text>
-          <Text style={styles.contactSubtitle}>Have questions or feedback? Reach out to us!</Text>
-
-          <View style={styles.contactOptions}>
-            <TouchableOpacity
-              style={styles.contactButton}
-              onPress={() => Linking.openURL('mailto:moneyquest25@gmail.com')}
-            >
-              <View style={[styles.contactIconWrapper, { backgroundColor: '#EA4335' }]}>
-                <Ionicons name="mail" size={20} color="#FFFFFF" />
-              </View>
-              <Text style={styles.contactButtonText}>Email Us</Text>
-            </TouchableOpacity>
-
-            <TouchableOpacity
-              style={styles.contactButton}
-              onPress={() => Linking.openURL('https://www.instagram.com/nurture_haven/')}
-            >
-              <View style={[styles.contactIconWrapper, { backgroundColor: '#E4405F' }]}>
-                <Ionicons name="logo-instagram" size={20} color="#FFFFFF" />
-              </View>
-              <Text style={styles.contactButtonText}>Instagram</Text>
-            </TouchableOpacity>
-
-            <TouchableOpacity
-              style={styles.contactButton}
-              onPress={() => Linking.openURL('https://www.tiktok.com/@nurture_haven')}
-            >
-              <View style={[styles.contactIconWrapper, { backgroundColor: '#000000' }]}>
-                <Ionicons name="logo-tiktok" size={20} color="#FFFFFF" />
-              </View>
-              <Text style={styles.contactButtonText}>TikTok</Text>
-            </TouchableOpacity>
-          </View>
-        </View>
+        {/* How to Play Button */}
+        <TouchableOpacity
+          style={styles.howToPlayButton}
+          activeOpacity={0.7}
+          onPress={() => navigation.navigate('TutorialHub')}
+        >
+          <Ionicons name="help-circle-outline" size={22} color="#FF5722" />
+          <Text style={styles.howToPlayText}>How to Play</Text>
+          <Ionicons name="chevron-forward" size={18} color="#CCC" />
+        </TouchableOpacity>
 
         {/* Badges & Achievement */}
         <View style={styles.achievementsSection}>
@@ -282,6 +263,22 @@ const ProfileScreen: React.FC<Props> = ({ navigation }) => {
         visible={isInviteModalVisible}
         onClose={() => setInviteModalVisible(false)}
         inviteLink={inviteLink}
+      />
+
+      {/* Coach marks for first-time profile visitors */}
+      <CoachMark
+        visible={showCoachMarks}
+        steps={PROFILE_COACH_STEPS}
+        currentStep={coachStep}
+        onNext={() => setCoachStep((prev) => prev + 1)}
+        onSkip={() => {
+          dispatch(markProfileGuideSeen());
+          setCoachStep(0);
+        }}
+        onComplete={() => {
+          dispatch(markProfileGuideSeen());
+          setCoachStep(0);
+        }}
       />
     </SafeAreaView>
   );
@@ -435,48 +432,29 @@ const styles = StyleSheet.create({
     borderRadius: 16,
     marginBottom: 12,
   },
-  contactSection: {
+  howToPlayButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#FFFFFF',
     marginHorizontal: 20,
-    paddingVertical: 20,
-    paddingHorizontal: 16,
     marginBottom: 20,
-    backgroundColor: "#FFFFFF",
+    paddingVertical: 16,
+    paddingHorizontal: 20,
     borderRadius: 16,
-    borderWidth: 2,
-    borderColor: "#E5E5E5",
+    borderWidth: 1,
+    borderColor: '#F0F0F0',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.06,
+    shadowRadius: 4,
+    elevation: 1,
   },
-  contactTitle: {
-    fontSize: 18,
-    fontWeight: "bold",
-    color: "#333",
-    marginBottom: 8,
-    textAlign: "center",
-  },
-  contactSubtitle: {
-    fontSize: 14,
-    color: "#666",
-    textAlign: "center",
-    marginBottom: 20,
-  },
-  contactOptions: {
-    flexDirection: "row",
-    justifyContent: "space-around",
-  },
-  contactButton: {
-    alignItems: "center",
-  },
-  contactIconWrapper: {
-    width: 48,
-    height: 48,
-    borderRadius: 24,
-    justifyContent: "center",
-    alignItems: "center",
-    marginBottom: 8,
-  },
-  contactButtonText: {
-    fontSize: 12,
-    color: "#333",
-    fontWeight: "500",
+  howToPlayText: {
+    flex: 1,
+    fontSize: 16,
+    fontWeight: '600',
+    color: '#333',
+    marginLeft: 12,
   },
 });
 

@@ -1,4 +1,4 @@
-import React, { useEffect } from "react";
+import React, { useEffect, useState } from "react";
 import { View, Text, StyleSheet, SafeAreaView, ScrollView } from "react-native";
 import { useSelector, useDispatch } from "react-redux";
 import { RootState } from "../../store";
@@ -6,6 +6,9 @@ import { LinearGradient } from "expo-linear-gradient";
 import { Ionicons } from "@expo/vector-icons";
 import MaskedView from "@react-native-masked-view/masked-view";
 import { updateStreakOnLogin } from "../../store/slices/streakSlice";
+import CoachMark from "../../components/tutorial/CoachMark";
+import { STREAK_COACH_STEPS } from "../../config/coachMarkSteps";
+import { markStreakGuideSeen } from "../../store/slices/tutorialSlice";
 
 const getPastSevenDays = () => {
   const days = ["Su", "Mo", "Tu", "We", "Th", "Fr", "Sa"];
@@ -35,6 +38,11 @@ const DailyStreakScreen: React.FC = () => {
   const { currentStreak, loginHistory, isLoading, weeklyStreak } = useSelector(
     (state: RootState) => state.streak
   );
+  const { hasSeenStreakGuide } = useSelector((state: RootState) => state.tutorial);
+
+  // Coach marks
+  const [coachStep, setCoachStep] = useState(0);
+  const showCoachMarks = !hasSeenStreakGuide && !isLoading;
 
   useEffect(() => {
     if (user?.$id) {
@@ -117,7 +125,21 @@ const DailyStreakScreen: React.FC = () => {
         )}
         </View>
       </ScrollView>
-    </SafeAreaView>
+      {/* Coach marks for first-time streak visitors */}
+      <CoachMark
+        visible={showCoachMarks}
+        steps={STREAK_COACH_STEPS}
+        currentStep={coachStep}
+        onNext={() => setCoachStep((prev) => prev + 1)}
+        onSkip={() => {
+          dispatch(markStreakGuideSeen());
+          setCoachStep(0);
+        }}
+        onComplete={() => {
+          dispatch(markStreakGuideSeen());
+          setCoachStep(0);
+        }}
+      />    </SafeAreaView>
   );
 };
 

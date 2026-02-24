@@ -7,11 +7,12 @@ import gameReducer from './slices/gameSlice';
 import leaderboardReducer from './slices/leaderboardSlice';
 import streakReducer from './slices/streakSlice';
 import learningReducer from './slices/learningSlice';
+import tutorialReducer from './slices/tutorialSlice';
 
 const persistConfig = {
   key: 'root',
   storage: AsyncStorage,
-  whitelist: ['auth', 'game', 'streak', 'learning'], // Persist auth, game, streak, and learning state
+  whitelist: ['auth', 'game', 'streak', 'learning', 'tutorial'], // Persist auth, game, streak, learning, and tutorial state
 };
 
 const rootReducer = combineReducers({
@@ -20,6 +21,7 @@ const rootReducer = combineReducers({
   leaderboard: leaderboardReducer,
   streak: streakReducer,
   learning: learningReducer,
+  tutorial: tutorialReducer,
 });
 
 const persistedReducer = persistReducer(persistConfig, rootReducer);

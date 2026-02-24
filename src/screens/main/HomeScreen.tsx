@@ -1,4 +1,4 @@
-import React, { useEffect, useState, useRef } from "react";
+import React, { useState, useRef, useEffect } from "react";
 import {
   View,
   Text,
@@ -8,27 +8,25 @@ import {
   TouchableOpacity,
   Dimensions,
   Image,
-  ActivityIndicator,
   Alert,
+  Animated,
 } from "react-native";
 import Svg, { Path } from "react-native-svg";
 import { useSelector, useDispatch } from "react-redux";
 import { RootState } from "../../store";
 import { getAvatarById } from "../../utils/avatarUtils";
-import {
-  setCurrentLevel,
-  setCurrentSection,
-} from "../../store/slices/gameSlice";
 import { backendApi } from "../../services/backendApi";
 import cachedBackendApi from "../../services/cachedBackendApi";
 import { databases, DB_ID, COLLECTIONS, Query } from "../../services/appwrite";
-import { BackendLevel } from "../../types";
 import { useFocusEffect } from "@react-navigation/native";
 import { updateUser } from "../../store/slices/authSlice";
 import cacheService from "../../services/cacheService";
 import { livesService } from "../../services/lives";
 import LearningPathSkeleton from "../../components/skeletons/LearningPathSkeleton";
-import { getDecorationsForSection, SectionDecoration } from "../../config/sectionDecorations";
+import { getDecorationsForSection } from "../../config/sectionDecorations";
+import CoachMark from "../../components/tutorial/CoachMark";
+import { HOME_COACH_STEPS } from "../../config/coachMarkSteps";
+import { markHomeTourSeen } from "../../store/slices/tutorialSlice";
 
 interface Props {
   navigation: any;
@@ -55,6 +53,7 @@ const { width: screenWidth, height: screenHeight } = Dimensions.get("window");
 
 const HomeScreen: React.FC<Props> = ({ navigation }) => {
   const { user } = useSelector((state: RootState) => state.auth);
+  const { hasSeenHomeTour } = useSelector((state: RootState) => state.tutorial);
   const dispatch = useDispatch();
 
   const [sections, setSections] = useState<Section[]>([]);
@@ -62,11 +61,51 @@ const HomeScreen: React.FC<Props> = ({ navigation }) => {
   const [completedLevels, setCompletedLevels] = useState<Set<string>>(new Set());
   const [hasScrolledToCurrentSection, setHasScrolledToCurrentSection] = useState(false);
 
+  // Coach marks
+  const [coachStep, setCoachStep] = useState(0);
+  const showCoachMarks = !hasSeenHomeTour && !isLoading && sections.length > 0;
+  // const [hasScrolledToCurrentSection, setHasScrolledToCurrentSection] = useState(false);
+
   // Track if initial data has been loaded to avoid redundant API calls
   const [hasInitiallyLoaded, setHasInitiallyLoaded] = useState(false);
 
   // Ref for horizontal scroll to scroll to user's current section
   const horizontalScrollRef = useRef<ScrollView>(null);
+
+  // Animation values for parallax scrolling (one per section)
+  const scrollYValues = useRef<{ [key: string]: Animated.Value }>({});
+  
+  // Pulse animation for current level node
+  const pulseAnim = useRef(new Animated.Value(1)).current;
+
+  // Initialize scroll animation values for each section
+  useEffect(() => {
+    sections.forEach((section) => {
+      if (!scrollYValues.current[section.id]) {
+        scrollYValues.current[section.id] = new Animated.Value(0);
+      }
+    });
+  }, [sections]);
+
+  // Start pulse animation for current level indicator
+  useEffect(() => {
+    const pulseAnimation = Animated.loop(
+      Animated.sequence([
+        Animated.timing(pulseAnim, {
+          toValue: 1.05,
+          duration: 2000,
+          useNativeDriver: true,
+        }),
+        Animated.timing(pulseAnim, {
+          toValue: 1,
+          duration: 2000,
+          useNativeDriver: true,
+        }),
+      ])
+    );
+    pulseAnimation.start();
+    return () => pulseAnimation.stop();
+  }, [pulseAnim]);
 
   // Fetch sections and levels from backend when screen is focused
   useFocusEffect(
@@ -478,35 +517,41 @@ const HomeScreen: React.FC<Props> = ({ navigation }) => {
         <View style={[styles.levelRow, !isLeftSide && styles.levelRowReverse]}>
           {/* Level node */}
           <View style={styles.nodeWrapper}>
-            <TouchableOpacity
+            <Animated.View
               style={[
-                styles.levelNode,
-                node.isCompleted && styles.completedLevelNode,
-                node.isCurrent && !node.isCompleted && styles.currentLevelNode,
-                !node.isUnlocked && !node.isCurrent && !node.isCompleted && styles.lockedNode,
+                { transform: node.isCurrent && !node.isCompleted ? [{ scale: pulseAnim }] : [] }
               ]}
-              onPress={handleNodePress}
-              disabled={!node.isUnlocked && !node.isCurrent && !node.isCompleted}
             >
-              {node.isCompleted ? (
-                <Text style={styles.completedNodeIcon}>✓</Text>
-              ) : node.isCurrent ? (
-                <Image
-                  source={require("../../../assets/starIcon.png")}
-                  style={styles.starIcon}
-                />
-              ) : node.isUnlocked ? (
-                <Image
-                  source={require("../../../assets/starIcon.png")}
-                  style={styles.starIcon}
-                />
-              ) : (
-                <Image
-                  source={require("../../../assets/lockIcon.png")}
-                  style={styles.starIcon}
-                />
-              )}
-            </TouchableOpacity>
+              <TouchableOpacity
+                style={[
+                  styles.levelNode,
+                  node.isCompleted && styles.completedLevelNode,
+                  node.isCurrent && !node.isCompleted && styles.currentLevelNode,
+                  !node.isUnlocked && !node.isCurrent && !node.isCompleted && styles.lockedNode,
+                ]}
+                onPress={handleNodePress}
+                disabled={!node.isUnlocked && !node.isCurrent && !node.isCompleted}
+              >
+                {node.isCompleted ? (
+                  <Text style={styles.completedNodeIcon}>✓</Text>
+                ) : node.isCurrent ? (
+                  <Image
+                    source={require("../../../assets/starIcon.png")}
+                    style={styles.starIcon}
+                  />
+                ) : node.isUnlocked ? (
+                  <Image
+                    source={require("../../../assets/starIcon.png")}
+                    style={styles.starIcon}
+                  />
+                ) : (
+                  <Image
+                    source={require("../../../assets/lockIcon.png")}
+                    style={styles.starIcon}
+                  />
+                )}
+              </TouchableOpacity>
+            </Animated.View>
             {/* Removed level title display - users can see it when they click */}
           </View>
         </View>
@@ -533,31 +578,59 @@ const HomeScreen: React.FC<Props> = ({ navigation }) => {
 
   const renderSection = (section: Section, sectionIndex: number) => {
     const sectionDecorations = getDecorationsForSection(section.title, sectionIndex);
+    
+    // Get or create scroll value for this section
+    if (!scrollYValues.current[section.id]) {
+      scrollYValues.current[section.id] = new Animated.Value(0);
+    }
+    const scrollY = scrollYValues.current[section.id];
+
+    // Cloud parallax interpolations (slower movement - 0.3x speed)
+    const cloudParallax = (initialTop: number) => ({
+      transform: [{
+        translateY: scrollY.interpolate({
+          inputRange: [0, 1000],
+          outputRange: [0, -300],
+          extrapolate: 'extend',
+        })
+      }]
+    });
+
+    // Decoration parallax interpolations (medium movement - 0.5x speed)
+    const decorationParallax = (initialTop: number = 0) => ({
+      transform: [{
+        translateY: scrollY.interpolate({
+          inputRange: [0, 1000],
+          outputRange: [0, -500],
+          extrapolate: 'extend',
+        })
+      }]
+    });
 
     return (
       <View key={section.id} style={styles.pageContainer}>
-        {/* Cloud decorations */}
+        {/* Cloud decorations with parallax */}
         <View style={styles.cloudsContainer}>
-          <Text style={[styles.cloud, { top: 20, left: 30 }]}>☁️</Text>
-          <Text style={[styles.cloud, { top: 60, right: 40 }]}>☁️</Text>
-          <Text style={[styles.cloud, { top: 100, left: screenWidth * 0.6 }]}>
+          <Animated.Text style={[styles.cloud, { top: 20, left: 30 }, cloudParallax(20)]}>☁️</Animated.Text>
+          <Animated.Text style={[styles.cloud, { top: 60, right: 40 }, cloudParallax(60)]}>☁️</Animated.Text>
+          <Animated.Text style={[styles.cloud, { top: 100, left: screenWidth * 0.6 }, cloudParallax(100)]}>
             ☁️
-          </Text>
-          <Text style={[styles.cloud, { top: 200, right: 20, fontSize: 40 }]}>
+          </Animated.Text>
+          <Animated.Text style={[styles.cloud, { top: 200, right: 20, fontSize: 40 }, cloudParallax(200)]}>
             ☁️
-          </Text>
-          <Text style={[styles.cloud, { top: 350, left: 20, fontSize: 45 }]}>
+          </Animated.Text>
+          <Animated.Text style={[styles.cloud, { top: 350, left: 20, fontSize: 45 }, cloudParallax(350)]}>
             ☁️
-          </Text>
-          <Text style={[styles.cloud, { top: 500, right: 50, fontSize: 35 }]}>
+          </Animated.Text>
+          <Animated.Text style={[styles.cloud, { top: 500, right: 50, fontSize: 35 }, cloudParallax(500)]}>
             ☁️
-          </Text>
+          </Animated.Text>
         </View>
 
-        {/* Section-specific decorative elements */}
+        {/* Section-specific decorative elements with parallax */}
         <View style={styles.decorationsContainer}>
           {sectionDecorations.decorations.map((decoration, idx) => (
-            <Text
+            <Animated.Text
               key={`decoration-${idx}`}
               style={[
                 styles.sectionDecoration,
@@ -570,10 +643,11 @@ const HomeScreen: React.FC<Props> = ({ navigation }) => {
                   opacity: decoration.opacity || 0.9,
                   transform: [{ rotate: `${decoration.rotation || 0}deg` }],
                 },
+                decorationParallax(decoration.position.top || 0),
               ]}
             >
               {decoration.emoji}
-            </Text>
+            </Animated.Text>
           ))}
         </View>
 
@@ -597,10 +671,15 @@ const HomeScreen: React.FC<Props> = ({ navigation }) => {
           </View>
         </View>
 
-        {/* Scrollable Levels */}
-        <ScrollView
+        {/* Scrollable Levels with scroll tracking */}
+        <Animated.ScrollView
           style={styles.sectionScrollView}
           showsVerticalScrollIndicator={false}
+          onScroll={Animated.event(
+            [{ nativeEvent: { contentOffset: { y: scrollY } } }],
+            { useNativeDriver: true }
+          )}
+          scrollEventThrottle={16}
         >
           <View style={styles.levelsContainer}>
             {section.levels
@@ -615,7 +694,7 @@ const HomeScreen: React.FC<Props> = ({ navigation }) => {
                 );
               })}
           </View>
-        </ScrollView>
+        </Animated.ScrollView>
       </View>
     );
   };
@@ -671,6 +750,22 @@ const HomeScreen: React.FC<Props> = ({ navigation }) => {
       >
         {sections.map((section, index) => renderSection(section, index))}
       </ScrollView>
+
+      {/* Coach marks for first-time users */}
+      <CoachMark
+        visible={showCoachMarks}
+        steps={HOME_COACH_STEPS}
+        currentStep={coachStep}
+        onNext={() => setCoachStep((prev) => prev + 1)}
+        onSkip={() => {
+          dispatch(markHomeTourSeen());
+          setCoachStep(0);
+        }}
+        onComplete={() => {
+          dispatch(markHomeTourSeen());
+          setCoachStep(0);
+        }}
+      />
     </SafeAreaView>
   );
 };
