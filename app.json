@@ -91,6 +91,7 @@
       "MONEYQUEST_API_BASE_URL": "https://moneyquestproject-demo-production.up.railway.app"
     },
     "owner": "adesmith",
+    "privacyPolicyUrl": "https://www.nurtureehaven.com/privacy-policy",
     "plugins": [
       [
         "expo-build-properties",
