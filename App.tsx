@@ -8,6 +8,7 @@ import * as Linking from 'expo-linking';
 import { Alert, Platform, ErrorUtils, View, Text, StyleSheet, LogBox } from 'react-native';
 import * as Font from 'expo-font';
 import LoadingScreen from './src/components/LoadingScreen';
+import notificationService from './src/services/notifications';
 
 // Ignore specific warnings that don't affect functionality
 LogBox.ignoreLogs([
@@ -128,6 +129,11 @@ function AppContent() {
       } finally {
         // ALWAYS set app ready after 3 seconds max
         setIsAppReady(true);
+
+        // Setup notifications after app is ready (non-blocking)
+        notificationService.setupAllNotifications().catch(err => {
+          console.warn('⚠️ Notification setup failed (non-blocking):', err);
+        });
       }
     }
 

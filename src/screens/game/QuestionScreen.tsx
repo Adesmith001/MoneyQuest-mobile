@@ -1661,8 +1661,8 @@ const styles = StyleSheet.create({
     color: COLORS.primary,
   },
   articleContent: {
-    fontSize: FONT_SIZES.lg, // Increased from md (16px) to lg (18px) for better readability
-    lineHeight: 28, // Increased from 26 to 28 for better spacing
+    fontSize: FONT_SIZES.lg + 1,
+    lineHeight: 30,
     color: COLORS.text,
   },
 });

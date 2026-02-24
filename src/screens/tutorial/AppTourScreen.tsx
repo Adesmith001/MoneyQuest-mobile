@@ -51,7 +51,7 @@ const TOUR_SLIDES: TourSlide[] = [
     icon: '❤️',
     title: 'Lives System',
     description:
-      'You start with 5 lives. Each wrong answer costs 1 life. Lives regenerate 1 per hour.\n\nNo lives? Take a break and come back later!',
+      'You start with 5 lives. Each wrong answer costs 1 life. Lives regenerate 1 per 2 hours.\n\nNo lives? Take a break and come back later!',
     mascotMessage: "Don't worry if you make mistakes — we all learn from them!",
     backgroundColor: '#FCE4EC',
     accentColor: '#F44336',

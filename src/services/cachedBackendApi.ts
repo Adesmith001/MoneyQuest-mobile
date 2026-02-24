@@ -7,7 +7,6 @@ import {
   selectSections,
   selectLevels,
   selectQuestions,
-  clearLearningCache,
 } from '../store/slices/learningSlice';
 import backendApi from './backendApi';
 import cacheService from './cacheService';
@@ -20,11 +19,16 @@ import { BackendSection, BackendLevel } from '../types';
  * 2. AsyncStorage (persistent, offline backup)
  * 3. Backend API (authoritative source)
  * 
- * Cache duration: 7 days
- * Cache versioning: Automatically clears old caches when app is updated
+ * Refresh strategy:
+ * - Serve cached data instantly on every session
+ * - Once per session, check if cache is >7 days old
+ * - If stale, silently fetch fresh data in the background
+ * - Fresh data is written to AsyncStorage only (not Redux)
+ * - User sees updated content on their NEXT session
  * 
  * IMPORTANT: Redux state is persisted and rehydrated on app start.
- * Data should only be fetched from API when cache is invalid or missing.
+ * Data should only be fetched from API when cache is missing,
+ * or silently refreshed in background when stale.
  */
 class CachedBackendApiService {
   // Track if we've already fetched during this session to avoid duplicate calls
@@ -32,24 +36,18 @@ class CachedBackendApiService {
   private sessionFetchedLevels = new Set<string>();
   private sessionFetchedQuestions = new Set<string>();
   private cacheInitialized = false;
+  private backgroundRefreshRunning = false;
 
   /**
-   * Initialize the cache system (checks version and clears old data if needed)
+   * Initialize the cache system
    * Should be called early in app startup, before any data fetching
    */
   async initializeCache(): Promise<void> {
     if (this.cacheInitialized) return;
 
     try {
-      // Initialize cache service (checks version and clears if needed)
+      // Initialize cache service
       await cacheService.initialize();
-      
-      // If cache was cleared due to version change, also clear Redux store
-      // This ensures fresh data is fetched
-      if (!cacheService.isInitialized()) {
-        store.dispatch(clearLearningCache());
-      }
-      
       this.cacheInitialized = true;
       console.log('✅ CachedBackendApi cache initialized');
     } catch (error) {
@@ -71,7 +69,8 @@ class CachedBackendApiService {
   /**
    * Get sections with caching
    * Priority: Redux (persisted) -> AsyncStorage -> API
-   * Will NOT call API if valid cache exists
+   * Will NOT call API if valid cache exists.
+   * Triggers a silent background refresh if cache is >7 days old.
    */
   async getSections(): Promise<BackendSection[]> {
     // Ensure cache is initialized first
@@ -83,6 +82,8 @@ class CachedBackendApiService {
     const reduxCached = selectSections(state);
     if (reduxCached && reduxCached.length > 0) {
       console.log('✅ Sections from Redux cache (persisted)');
+      // Kick off silent background refresh if stale (fire-and-forget)
+      this.triggerBackgroundRefreshIfNeeded();
       return reduxCached;
     }
 
@@ -92,6 +93,8 @@ class CachedBackendApiService {
       console.log('✅ Sections from AsyncStorage cache');
       // Sync to Redux store for faster access
       store.dispatch(setSections(asyncCached));
+      // Kick off silent background refresh if stale
+      this.triggerBackgroundRefreshIfNeeded();
       return asyncCached;
     }
 
@@ -258,63 +261,73 @@ class CachedBackendApiService {
     return !!(reduxCached && reduxCached.length > 0);
   }
 
+  // ===== SILENT BACKGROUND REFRESH =====
+
   /**
-   * Force refresh sections (bypass cache)
+   * Trigger a silent background refresh if cache is stale (>7 days).
+   * Only runs once per session. Does NOT update Redux — fresh data
+   * is written to AsyncStorage and picked up on the next session.
    */
-  async refreshSections(): Promise<BackendSection[]> {
-    console.log('🔄 Force refreshing sections');
-    this.sessionFetchedSections = false;
-    await cacheService.invalidateSections();
-    const sections = await backendApi.getSections();
-    store.dispatch(setSections(sections));
-    await cacheService.saveSections(sections);
-    this.sessionFetchedSections = true;
-    return sections;
+  private triggerBackgroundRefreshIfNeeded(): void {
+    // Only run once per session
+    if (cacheService.isBackgroundRefreshDone() || this.backgroundRefreshRunning) {
+      return;
+    }
+
+    // Fire-and-forget — don't await, don't block the UI
+    this.performBackgroundRefresh().catch(err => {
+      console.warn('🔇 Background refresh failed (non-blocking):', err?.message || err);
+    });
   }
 
   /**
-   * Force refresh levels for a section (bypass cache)
+   * Silently fetch fresh data from the API and write to AsyncStorage.
+   * Does NOT touch Redux, so the user keeps their current session data.
+   * Next time the app opens, it rehydrates from the updated AsyncStorage.
    */
-  async refreshLevels(sectionId: string): Promise<BackendLevel[]> {
-    console.log(`🔄 Force refreshing levels for ${sectionId}`);
-    this.sessionFetchedLevels.delete(sectionId);
-    await cacheService.invalidateLevels(sectionId);
-    const levels = await backendApi.getSectionLevels(sectionId);
-    store.dispatch(setLevels({ sectionId, levels }));
-    await cacheService.saveLevels(sectionId, levels);
-    this.sessionFetchedLevels.add(sectionId);
-    return levels;
-  }
+  private async performBackgroundRefresh(): Promise<void> {
+    this.backgroundRefreshRunning = true;
 
-  /**
-   * Force refresh questions for a level (bypass cache)
-   */
-  async refreshQuestions(levelId: string, numQuestions: number = 10, difficulty: 'easy' | 'medium' | 'hard' | 'mixed' = 'mixed'): Promise<any[]> {
-    console.log(`🔄 Force refreshing questions for ${levelId}`);
-    this.sessionFetchedQuestions.delete(levelId);
-    await cacheService.invalidateQuestions(levelId);
-    const response = await backendApi.getLevelQuestions(
-      levelId,
-      numQuestions,
-      'mixed', // Explicitly request all question types
-      true
-    );
-    const questions = response.questions || [];
-    store.dispatch(setQuestions({ levelId, questions }));
-    await cacheService.saveQuestions(levelId, questions);
-    this.sessionFetchedQuestions.add(levelId);
-    return questions;
-  }
+    try {
+      // Check if sections cache is stale
+      const sectionsStale = await cacheService.isSectionsCacheStale();
+      if (!sectionsStale) {
+        console.log('🟢 Cache is fresh (<7 days), skipping background refresh');
+        cacheService.markBackgroundRefreshDone();
+        this.backgroundRefreshRunning = false;
+        return;
+      }
 
-  /**
-   * Clear all cached data, reset session tracking, and clear Redux store
-   */
-  async clearAllCache(): Promise<void> {
-    console.log('🗑️ Clearing all cached data');
-    this.resetSessionTracking();
-    this.cacheInitialized = false;
-    await cacheService.forceResetAllCaches();
-    store.dispatch(clearLearningCache());
+      console.log('🔄 Cache is stale (>7 days), starting silent background refresh...');
+
+      // 1. Fetch fresh sections
+      const freshSections = await backendApi.getSections();
+      if (freshSections && freshSections.length > 0) {
+        await cacheService.saveSections(freshSections);
+        console.log(`🔇 Background: saved ${freshSections.length} fresh sections`);
+
+        // 2. Fetch fresh levels for each section
+        for (const section of freshSections) {
+          try {
+            const freshLevels = await backendApi.getSectionLevels(section.section_id);
+            if (freshLevels && freshLevels.length > 0) {
+              await cacheService.saveLevels(section.section_id, freshLevels);
+              console.log(`🔇 Background: saved ${freshLevels.length} levels for ${section.section_id}`);
+            }
+          } catch (err) {
+            // Don't let one section's failure block the rest
+            console.warn(`🔇 Background: failed to refresh levels for ${section.section_id}`);
+          }
+        }
+      }
+
+      console.log('✅ Background refresh complete — fresh data ready for next session');
+      cacheService.markBackgroundRefreshDone();
+    } catch (error) {
+      console.warn('🔇 Background refresh error:', error);
+    } finally {
+      this.backgroundRefreshRunning = false;
+    }
   }
 }
 

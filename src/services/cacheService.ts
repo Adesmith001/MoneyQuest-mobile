@@ -1,15 +1,9 @@
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { BackendSection, BackendLevel } from '../types';
 
-// ⚠️ INCREMENT THIS VERSION whenever you want to invalidate CONTENT caches (not user data!)
-// This forces fresh data fetch when users update the app
-const CACHE_VERSION = 4;
-
-// User preference keys (should never be cleared during cache updates)
 const SOUND_ENABLED_KEY = '@sound_enabled';
 
 const CACHE_KEYS = {
-  CACHE_VERSION: '@moneyquest_cache_version',
   COMPLETED_LEVELS: '@moneyquest_completed_levels',
   SECTIONS: '@moneyquest_sections',
   SECTIONS_TIMESTAMP: '@moneyquest_sections_timestamp',
@@ -19,42 +13,23 @@ const CACHE_KEYS = {
   QUESTIONS_TIMESTAMP_PREFIX: '@moneyquest_questions_timestamp_',
   LEVEL_DATA_PREFIX: '@moneyquest_level_data_',
   LEVEL_DATA_TIMESTAMP_PREFIX: '@moneyquest_level_data_timestamp_',
+  BACKGROUND_REFRESH_DONE: '@moneyquest_bg_refresh_done',
 };
 
-// Cache duration: 7 days in milliseconds
-const CACHE_DURATION = 7 * 24 * 60 * 60 * 1000;
+// Refresh interval: 7 days in milliseconds
+const REFRESH_INTERVAL = 7 * 24 * 60 * 60 * 1000;
 
 class CacheService {
   private initialized = false;
 
   /**
-   * Initialize cache service and check version
+   * Initialize cache service
    * Call this on app startup before any cache operations
-   * If cache version is outdated, all caches will be cleared
    */
   async initialize(): Promise<void> {
     if (this.initialized) return;
-
-    try {
-      const storedVersion = await AsyncStorage.getItem(CACHE_KEYS.CACHE_VERSION);
-      const currentVersion = storedVersion ? parseInt(storedVersion, 10) : 0;
-
-      if (currentVersion < CACHE_VERSION) {
-        console.log(`🔄 Cache version mismatch (stored: ${currentVersion}, required: ${CACHE_VERSION})`);
-        console.log('🗑️ Clearing all old caches...');
-        await this.clearAllMoneyQuestCaches();
-        await AsyncStorage.setItem(CACHE_KEYS.CACHE_VERSION, CACHE_VERSION.toString());
-        console.log(`✅ Cache cleared and version updated to ${CACHE_VERSION}`);
-      } else {
-        console.log(`✅ Cache version ${CACHE_VERSION} is current`);
-      }
-
-      this.initialized = true;
-    } catch (error) {
-      console.error('Failed to initialize cache service:', error);
-      // Still mark as initialized to prevent blocking the app
-      this.initialized = true;
-    }
+    this.initialized = true;
+    console.log('✅ Cache service initialized');
   }
 
   /**
@@ -62,62 +37,6 @@ class CacheService {
    */
   isInitialized(): boolean {
     return this.initialized;
-  }
-
-  /**
-   * Clear ALL MoneyQuest cached data (used when cache version changes)
-   * IMPORTANT: Preserves user progress data (completed levels, user stats)
-   */
-  private async clearAllMoneyQuestCaches(): Promise<void> {
-    try {
-      const allKeys = await AsyncStorage.getAllKeys();
-      
-      // Keys to PRESERVE - user progress data that should NEVER be cleared
-      const preservedKeyPatterns = [
-        CACHE_KEYS.CACHE_VERSION,
-        CACHE_KEYS.COMPLETED_LEVELS, // User's completed levels - CRITICAL USER DATA
-        'persist:root', // Redux persist data - contains auth, game state, streak, etc.
-        'persist:auth',
-        'persist:game',
-        'persist:streak',
-        'persist:learning',
-        'userId', // User ID for OAuth
-        'lastAppOpenTime', // App usage tracking
-        'user_streak_data', // Legacy streak data
-        'streak_migration_complete', // Streak migration status
-        SOUND_ENABLED_KEY, // User preferences
-      ];
-      
-      // Filter only MoneyQuest content cache keys (NOT user progress)
-      // Also check if key starts with any preserved pattern
-      const cacheKeys = allKeys.filter(key => {
-        if (!key.startsWith('@moneyquest_')) return false;
-        
-        // Check if this key matches any preserved pattern
-        const isPreserved = preservedKeyPatterns.some(pattern => 
-          key === pattern || key.startsWith(pattern)
-        );
-        
-        return !isPreserved;
-      });
-      
-      if (cacheKeys.length > 0) {
-        await AsyncStorage.multiRemove(cacheKeys);
-        console.log(`🗑️ Cleared ${cacheKeys.length} content cache entries (user progress preserved)`);
-      }
-    } catch (error) {
-      console.error('Failed to clear all caches:', error);
-    }
-  }
-
-  /**
-   * Force reset all caches and update version (for manual refresh)
-   */
-  async forceResetAllCaches(): Promise<void> {
-    await this.clearAllMoneyQuestCaches();
-    await AsyncStorage.setItem(CACHE_KEYS.CACHE_VERSION, CACHE_VERSION.toString());
-    this.initialized = false;
-    console.log('🔄 All caches force reset');
   }
 
   /**
@@ -170,63 +89,19 @@ class CacheService {
     }
   }
 
-  /**
-   * Clear all cached data (sections, levels, questions)
-   * IMPORTANT: Does NOT clear user progress or completed levels
-   */
-  async clearCache(): Promise<void> {
-    try {
-      console.log('🗑️ Clearing content caches (user progress preserved)');
-      // Only remove content cache keys, not user data
-      const allKeys = await AsyncStorage.getAllKeys();
-      const contentCacheKeys = allKeys.filter(
-        key => (key.startsWith(CACHE_KEYS.SECTIONS) ||
-                key.startsWith(CACHE_KEYS.LEVELS_PREFIX) ||
-                key.startsWith(CACHE_KEYS.QUESTIONS_PREFIX) ||
-                key.startsWith(CACHE_KEYS.LEVEL_DATA_PREFIX)) &&
-               key !== CACHE_KEYS.COMPLETED_LEVELS
-      );
-      
-      if (contentCacheKeys.length > 0) {
-        await AsyncStorage.multiRemove(contentCacheKeys);
-        console.log(`✅ Cleared ${contentCacheKeys.length} content cache entries`);
-      }
-    } catch (error) {
-      console.error('Failed to clear cache:', error);
-    }
-  }
-
   // ===== SECTIONS CACHE =====
 
   /**
-   * Check if cached data is still valid (within 30 days)
-   */
-  private isCacheValid(timestamp: number): boolean {
-    const age = Date.now() - timestamp;
-    return age < CACHE_DURATION;
-  }
-
-  /**
    * Get sections from cache
-   * @returns Cached sections or null if expired/not found
+   * @returns Cached sections or null if not found
    */
   async getSections(): Promise<BackendSection[] | null> {
     try {
-      const [cached, timestampStr] = await Promise.all([
-        AsyncStorage.getItem(CACHE_KEYS.SECTIONS),
-        AsyncStorage.getItem(CACHE_KEYS.SECTIONS_TIMESTAMP),
-      ]);
+      const cached = await AsyncStorage.getItem(CACHE_KEYS.SECTIONS);
 
-      if (cached && timestampStr) {
-        const timestamp = parseInt(timestampStr, 10);
-        if (this.isCacheValid(timestamp)) {
-          const age = Date.now() - timestamp;
-          const daysOld = Math.floor(age / (24 * 60 * 60 * 1000));
-          console.log(`✅ Using cached sections (${daysOld} days old)`);
-          return JSON.parse(cached);
-        } else {
-          console.log('❌ Sections cache expired (>7 days)');
-        }
+      if (cached) {
+        console.log('✅ Using cached sections');
+        return JSON.parse(cached);
       }
       return null;
     } catch (error) {
@@ -236,7 +111,7 @@ class CacheService {
   }
 
   /**
-   * Save sections to cache
+   * Save sections to cache (with timestamp)
    */
   async saveSections(sections: BackendSection[]): Promise<void> {
     try {
@@ -251,17 +126,16 @@ class CacheService {
   }
 
   /**
-   * Invalidate sections cache (force refetch on next request)
+   * Check if sections cache is older than 7 days
    */
-  async invalidateSections(): Promise<void> {
+  async isSectionsCacheStale(): Promise<boolean> {
     try {
-      await Promise.all([
-        AsyncStorage.removeItem(CACHE_KEYS.SECTIONS),
-        AsyncStorage.removeItem(CACHE_KEYS.SECTIONS_TIMESTAMP),
-      ]);
-      console.log('🗑️ Sections cache invalidated');
-    } catch (error) {
-      console.error('Failed to invalidate sections cache:', error);
+      const timestampStr = await AsyncStorage.getItem(CACHE_KEYS.SECTIONS_TIMESTAMP);
+      if (!timestampStr) return true;
+      const age = Date.now() - parseInt(timestampStr, 10);
+      return age > REFRESH_INTERVAL;
+    } catch {
+      return true;
     }
   }
 
@@ -272,21 +146,11 @@ class CacheService {
    */
   async getLevels(sectionId: string): Promise<BackendLevel[] | null> {
     try {
-      const [cached, timestampStr] = await Promise.all([
-        AsyncStorage.getItem(CACHE_KEYS.LEVELS_PREFIX + sectionId),
-        AsyncStorage.getItem(CACHE_KEYS.LEVELS_TIMESTAMP_PREFIX + sectionId),
-      ]);
+      const cached = await AsyncStorage.getItem(CACHE_KEYS.LEVELS_PREFIX + sectionId);
 
-      if (cached && timestampStr) {
-        const timestamp = parseInt(timestampStr, 10);
-        if (this.isCacheValid(timestamp)) {
-          const age = Date.now() - timestamp;
-          const daysOld = Math.floor(age / (24 * 60 * 60 * 1000));
-          console.log(`✅ Using cached levels for ${sectionId} (${daysOld} days old)`);
-          return JSON.parse(cached);
-        } else {
-          console.log(`❌ Levels cache for ${sectionId} expired (>7 days)`);
-        }
+      if (cached) {
+        console.log(`✅ Using cached levels for ${sectionId}`);
+        return JSON.parse(cached);
       }
       return null;
     } catch (error) {
@@ -296,7 +160,7 @@ class CacheService {
   }
 
   /**
-   * Save levels to cache
+   * Save levels to cache (with timestamp)
    */
   async saveLevels(sectionId: string, levels: BackendLevel[]): Promise<void> {
     try {
@@ -311,17 +175,16 @@ class CacheService {
   }
 
   /**
-   * Invalidate levels cache for a specific section
+   * Check if levels cache for a section is older than 7 days
    */
-  async invalidateLevels(sectionId: string): Promise<void> {
+  async isLevelsCacheStale(sectionId: string): Promise<boolean> {
     try {
-      await Promise.all([
-        AsyncStorage.removeItem(CACHE_KEYS.LEVELS_PREFIX + sectionId),
-        AsyncStorage.removeItem(CACHE_KEYS.LEVELS_TIMESTAMP_PREFIX + sectionId),
-      ]);
-      console.log(`🗑️ Levels cache for ${sectionId} invalidated`);
-    } catch (error) {
-      console.error('Failed to invalidate levels cache:', error);
+      const timestampStr = await AsyncStorage.getItem(CACHE_KEYS.LEVELS_TIMESTAMP_PREFIX + sectionId);
+      if (!timestampStr) return true;
+      const age = Date.now() - parseInt(timestampStr, 10);
+      return age > REFRESH_INTERVAL;
+    } catch {
+      return true;
     }
   }
 
@@ -332,21 +195,11 @@ class CacheService {
    */
   async getQuestions(levelId: string): Promise<any[] | null> {
     try {
-      const [cached, timestampStr] = await Promise.all([
-        AsyncStorage.getItem(CACHE_KEYS.QUESTIONS_PREFIX + levelId),
-        AsyncStorage.getItem(CACHE_KEYS.QUESTIONS_TIMESTAMP_PREFIX + levelId),
-      ]);
+      const cached = await AsyncStorage.getItem(CACHE_KEYS.QUESTIONS_PREFIX + levelId);
 
-      if (cached && timestampStr) {
-        const timestamp = parseInt(timestampStr, 10);
-        if (this.isCacheValid(timestamp)) {
-          const age = Date.now() - timestamp;
-          const daysOld = Math.floor(age / (24 * 60 * 60 * 1000));
-          console.log(`✅ Using cached questions for ${levelId} (${daysOld} days old)`);
-          return JSON.parse(cached);
-        } else {
-          console.log(`❌ Questions cache for ${levelId} expired (>7 days)`);
-        }
+      if (cached) {
+        console.log(`✅ Using cached questions for ${levelId}`);
+        return JSON.parse(cached);
       }
       return null;
     } catch (error) {
@@ -356,7 +209,7 @@ class CacheService {
   }
 
   /**
-   * Save questions to cache
+   * Save questions to cache (with timestamp)
    */
   async saveQuestions(levelId: string, questions: any[]): Promise<void> {
     try {
@@ -371,17 +224,16 @@ class CacheService {
   }
 
   /**
-   * Invalidate questions cache for a specific level
+   * Check if questions cache for a level is older than 7 days
    */
-  async invalidateQuestions(levelId: string): Promise<void> {
+  async isQuestionsCacheStale(levelId: string): Promise<boolean> {
     try {
-      await Promise.all([
-        AsyncStorage.removeItem(CACHE_KEYS.QUESTIONS_PREFIX + levelId),
-        AsyncStorage.removeItem(CACHE_KEYS.QUESTIONS_TIMESTAMP_PREFIX + levelId),
-      ]);
-      console.log(`🗑️ Questions cache for ${levelId} invalidated`);
-    } catch (error) {
-      console.error('Failed to invalidate questions cache:', error);
+      const timestampStr = await AsyncStorage.getItem(CACHE_KEYS.QUESTIONS_TIMESTAMP_PREFIX + levelId);
+      if (!timestampStr) return true;
+      const age = Date.now() - parseInt(timestampStr, 10);
+      return age > REFRESH_INTERVAL;
+    } catch {
+      return true;
     }
   }
 
@@ -392,21 +244,11 @@ class CacheService {
    */
   async getLevelData(levelId: string): Promise<any | null> {
     try {
-      const [cached, timestampStr] = await Promise.all([
-        AsyncStorage.getItem(CACHE_KEYS.LEVEL_DATA_PREFIX + levelId),
-        AsyncStorage.getItem(CACHE_KEYS.LEVEL_DATA_TIMESTAMP_PREFIX + levelId),
-      ]);
+      const cached = await AsyncStorage.getItem(CACHE_KEYS.LEVEL_DATA_PREFIX + levelId);
 
-      if (cached && timestampStr) {
-        const timestamp = parseInt(timestampStr, 10);
-        if (this.isCacheValid(timestamp)) {
-          const age = Date.now() - timestamp;
-          const daysOld = Math.floor(age / (24 * 60 * 60 * 1000));
-          console.log(`✅ Using cached level data for ${levelId} (${daysOld} days old)`);
-          return JSON.parse(cached);
-        } else {
-          console.log(`❌ Level data cache for ${levelId} expired (>7 days)`);
-        }
+      if (cached) {
+        console.log(`✅ Using cached level data for ${levelId}`);
+        return JSON.parse(cached);
       }
       return null;
     } catch (error) {
@@ -416,7 +258,7 @@ class CacheService {
   }
 
   /**
-   * Save level data (article/description) to cache
+   * Save level data (article/description) to cache (with timestamp)
    */
   async saveLevelData(levelId: string, levelData: any): Promise<void> {
     try {
@@ -430,42 +272,20 @@ class CacheService {
     }
   }
 
-  /**
-   * Invalidate level data cache for a specific level
-   */
-  async invalidateLevelData(levelId: string): Promise<void> {
-    try {
-      await Promise.all([
-        AsyncStorage.removeItem(CACHE_KEYS.LEVEL_DATA_PREFIX + levelId),
-        AsyncStorage.removeItem(CACHE_KEYS.LEVEL_DATA_TIMESTAMP_PREFIX + levelId),
-      ]);
-      console.log(`🗑️ Level data cache for ${levelId} invalidated`);
-    } catch (error) {
-      console.error('Failed to invalidate level data cache:', error);
-    }
-  }
+  // ===== BACKGROUND REFRESH TRACKING =====
 
   /**
-   * Clear all learning content caches (sections, levels, questions, level data)
+   * Check if a background refresh has already been done this session.
+   * We use a session-scoped flag so it only fires once per app open.
    */
-  async clearLearningCache(): Promise<void> {
-    try {
-      const allKeys = await AsyncStorage.getAllKeys();
-      const learningKeys = allKeys.filter(
-        key =>
-          key.startsWith(CACHE_KEYS.SECTIONS) ||
-          key.startsWith(CACHE_KEYS.LEVELS_PREFIX) ||
-          key.startsWith(CACHE_KEYS.QUESTIONS_PREFIX) ||
-          key.startsWith(CACHE_KEYS.LEVEL_DATA_PREFIX)
-      );
-      
-      if (learningKeys.length > 0) {
-        await AsyncStorage.multiRemove(learningKeys);
-        console.log(`🗑️ Cleared ${learningKeys.length} learning cache items`);
-      }
-    } catch (error) {
-      console.error('Failed to clear learning cache:', error);
-    }
+  private backgroundRefreshDone = false;
+
+  isBackgroundRefreshDone(): boolean {
+    return this.backgroundRefreshDone;
+  }
+
+  markBackgroundRefreshDone(): void {
+    this.backgroundRefreshDone = true;
   }
 }
 
