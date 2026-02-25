@@ -9,7 +9,7 @@ export const config = {
     schoolCodes: 'school_codes',
     schoolStudents: 'school_students',
     schoolPayments: 'school_payments',
-    users: 'users', // MoneyQuest users collection
+    users: 'users', 
   },
   korapay: {
     publicKey: import.meta.env.VITE_KORAPAY_PUBLIC_KEY || '',
