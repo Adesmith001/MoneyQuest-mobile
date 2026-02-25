@@ -9,6 +9,7 @@ import {
   Alert,
   Linking,
   Image,
+  Switch,
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { useNavigation } from "@react-navigation/native";
@@ -37,6 +38,7 @@ const PremiumScreen: React.FC = () => {
   const { user } = useSelector((state: RootState) => state.auth);
   const [selectedPlan, setSelectedPlan] = useState<PlanType>("annual");
   const [isLoading, setIsLoading] = useState(false);
+  const [autoRenew, setAutoRenew] = useState(true);
 
   const handleStartTrial = async () => {
     if (!user) {
@@ -108,6 +110,11 @@ const PremiumScreen: React.FC = () => {
       if (!existingSubscription) {
         // Create trial subscription first only if user doesn't have one
         await subscriptionService.createTrialSubscription(user.$id);
+      }
+
+      // Update auto-renew preference
+      if (existingSubscription) {
+        await subscriptionService.toggleAutoRenew(user.$id, autoRenew);
       }
 
       // Initialize payment with KoraPay for after trial period
@@ -187,10 +194,8 @@ const PremiumScreen: React.FC = () => {
         {/* Close Button */}
         <TouchableOpacity
           style={styles.closeButton}
-          onPress={() => navigation.reset({
-            index: 0,
-            routes: [{ name: "MainTabs" }],
-          })}
+          onPress={handleStartTrial}
+          disabled={isLoading}
         >
           <Ionicons name="close" size={28} color="#FFF" />
         </TouchableOpacity>
@@ -214,6 +219,24 @@ const PremiumScreen: React.FC = () => {
         <View style={styles.plansContainer}>
           {renderPlanCard("monthly")}
           {renderPlanCard("annual")}
+        </View>
+
+        {/* Auto-Renew Toggle */}
+        <View style={styles.autoRenewContainer}>
+          <View style={styles.autoRenewTextContainer}>
+            <Text style={styles.autoRenewLabel}>Auto-renew subscription</Text>
+            <Text style={styles.autoRenewDesc}>
+              {autoRenew
+                ? "You'll be charged automatically when your plan expires"
+                : "You'll need to manually renew when your plan expires"}
+            </Text>
+          </View>
+          <Switch
+            value={autoRenew}
+            onValueChange={setAutoRenew}
+            trackColor={{ false: "rgba(255,255,255,0.3)", true: "#4ECDC4" }}
+            thumbColor={autoRenew ? "#FFF" : "#f4f3f4"}
+          />
         </View>
 
         {/* CTA Button */}
@@ -240,6 +263,34 @@ const PremiumScreen: React.FC = () => {
           <Text style={styles.schoolCodeText}>Have a school code?</Text>
           <Ionicons name="chevron-forward" size={16} color="#FFF" />
         </TouchableOpacity>
+
+        {/* Privacy Policy & Terms */}
+        <View style={styles.legalContainer}>
+          <Text style={styles.legalText}>
+            By continuing, you agree to our{" "}
+            <Text
+              style={styles.legalLink}
+              onPress={() =>
+                Linking.openURL(
+                  "https://www.nurtureehaven.com/termsandcondition"
+                )
+              }
+            >
+              Terms & Conditions
+            </Text>{" "}
+            and{" "}
+            <Text
+              style={styles.legalLink}
+              onPress={() =>
+                Linking.openURL(
+                  "https://www.nurtureehaven.com/privacy-policy"
+                )
+              }
+            >
+              Privacy Policy
+            </Text>
+          </Text>
+        </View>
       </ScrollView>
     </SafeAreaView>
   );
@@ -378,6 +429,48 @@ const styles = StyleSheet.create({
     fontSize: 15,
     fontWeight: "600",
     color: "#FFF",
+  },
+  autoRenewContainer: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    backgroundColor: "rgba(255, 255, 255, 0.12)",
+    borderRadius: 12,
+    paddingVertical: 14,
+    paddingHorizontal: 16,
+    marginBottom: 20,
+  },
+  autoRenewTextContainer: {
+    flex: 1,
+    marginRight: 12,
+  },
+  autoRenewLabel: {
+    fontSize: 15,
+    fontWeight: "600",
+    color: "#FFF",
+  },
+  autoRenewDesc: {
+    fontSize: 12,
+    color: "#FFF",
+    opacity: 0.7,
+    marginTop: 2,
+  },
+  legalContainer: {
+    marginTop: 20,
+    paddingHorizontal: 10,
+    marginBottom: 10,
+  },
+  legalText: {
+    fontSize: 12,
+    color: "#FFF",
+    textAlign: "center",
+    lineHeight: 18,
+    opacity: 0.8,
+  },
+  legalLink: {
+    color: "#FFD93D",
+    fontWeight: "600",
+    textDecorationLine: "underline",
   },
 });
 

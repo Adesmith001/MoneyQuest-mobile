@@ -25,16 +25,24 @@ const goalOptions = [
 ];
 
 const GoalSelectionScreen: React.FC<Props> = ({ navigation, route }) => {
-  const [selectedGoal, setSelectedGoal] = useState<string>("");
+  const [selectedGoals, setSelectedGoals] = useState<string[]>([]);
+
+  const toggleGoal = (goalId: string) => {
+    setSelectedGoals((prev) =>
+      prev.includes(goalId)
+        ? prev.filter((id) => id !== goalId)
+        : [...prev, goalId]
+    );
+  };
 
   const handleContinue = () => {
-    if (!selectedGoal) return;
+    if (selectedGoals.length === 0) return;
 
     navigation.navigate("ReferralSource", {
       registrationData: route.params.registrationData,
       age: route.params.age,
       learningLimit: route.params.learningLimit,
-      mainGoal: selectedGoal,
+      mainGoal: selectedGoals.join(", "),
     });
   };
 
@@ -50,7 +58,8 @@ const GoalSelectionScreen: React.FC<Props> = ({ navigation, route }) => {
 
         {/* Main Title */}
         <View style={styles.mainHeader}>
-          <Text style={styles.mainTitle}>What's your main goal?</Text>
+          <Text style={styles.mainTitle}>What are your main goals?</Text>
+          <Text style={styles.subtitle}>Select one or more</Text>
         </View>
 
         {/* Options */}
@@ -59,8 +68,8 @@ const GoalSelectionScreen: React.FC<Props> = ({ navigation, route }) => {
             <SelectionButton
               key={option.id}
               label={option.label}
-              isSelected={selectedGoal === option.id}
-              onPress={() => setSelectedGoal(option.id)}
+              isSelected={selectedGoals.includes(option.id)}
+              onPress={() => toggleGoal(option.id)}
             />
           ))}
         </View>
@@ -71,7 +80,7 @@ const GoalSelectionScreen: React.FC<Props> = ({ navigation, route }) => {
         <CustomButton
           title={"Continue"}
           onPress={handleContinue}
-          disabled={!selectedGoal}
+          disabled={selectedGoals.length === 0}
         />
       </View>
       </ScrollView>
@@ -111,6 +120,11 @@ const styles = StyleSheet.create({
     fontWeight: "bold",
     color: "#212121",
     textAlign: "center",
+  },
+  subtitle: {
+    fontSize: 14,
+    color: "#757575",
+    marginTop: 8,
   },
   optionsContainer: {
     marginBottom: 40,

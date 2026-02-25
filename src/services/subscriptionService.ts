@@ -224,6 +224,34 @@ class SubscriptionService {
   }
 
   /**
+   * Toggle auto-renew for a user's subscription
+   */
+  async toggleAutoRenew(userId: string, autoRenew: boolean): Promise<Subscription> {
+    try {
+      const subscription = await this.getUserSubscription(userId);
+
+      if (!subscription) {
+        throw new Error('Subscription not found');
+      }
+
+      const response = await databases.updateDocument(
+        APPWRITE_DATABASE_ID,
+        APPWRITE_SUBSCRIPTIONS_COLLECTION_ID,
+        subscription.$id!,
+        {
+          autoRenew,
+          updatedAt: new Date().toISOString(),
+        }
+      );
+
+      return response as unknown as Subscription;
+    } catch (error: any) {
+      console.error('Error toggling auto-renew:', error);
+      throw new Error(error.message || 'Failed to update auto-renew');
+    }
+  }
+
+  /**
    * Update subscription status when expired
    */
   async updateExpiredSubscription(subscriptionId: string): Promise<void> {

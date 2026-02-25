@@ -309,6 +309,7 @@ class CachedBackendApiService {
         // 2. Fetch fresh levels for each section
         for (const section of freshSections) {
           try {
+            if (!section.section_id) continue;
             const freshLevels = await backendApi.getSectionLevels(section.section_id);
             if (freshLevels && freshLevels.length > 0) {
               await cacheService.saveLevels(section.section_id, freshLevels);

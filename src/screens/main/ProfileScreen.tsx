@@ -9,6 +9,9 @@ import {
   Dimensions,
   Image,
   Linking,
+  Switch,
+  Alert,
+  ActivityIndicator,
 } from "react-native";
 import { useSelector, useDispatch } from "react-redux";
 import { useFocusEffect } from "@react-navigation/native";
@@ -22,6 +25,8 @@ import { loadStreakData } from "../../store/slices/streakSlice";
 import { livesService } from "../../services/lives";
 import { levelProgressService } from "../../services/levelProgress";
 import { updateUser } from "../../store/slices/authSlice";
+import { subscriptionService } from "../../services/subscriptionService";
+import { Subscription } from "../../types/subscription";
 import CoachMark from "../../components/tutorial/CoachMark";
 import { PROFILE_COACH_STEPS } from "../../config/coachMarkSteps";
 import { markProfileGuideSeen } from "../../store/slices/tutorialSlice";
@@ -41,6 +46,8 @@ const ProfileScreen: React.FC<Props> = ({ navigation }) => {
   const { hasSeenProfileGuide } = useSelector((state: RootState) => state.tutorial);
   const [isInviteModalVisible, setInviteModalVisible] = useState(false);
   const [lifeRegenTime, setLifeRegenTime] = useState('');
+  const [subscription, setSubscription] = useState<Subscription | null>(null);
+  const [isTogglingAutoRenew, setIsTogglingAutoRenew] = useState(false);
 
   // Coach marks
   const [coachStep, setCoachStep] = useState(0);
@@ -68,7 +75,18 @@ const ProfileScreen: React.FC<Props> = ({ navigation }) => {
         }
       };
 
+      const fetchSubscription = async () => {
+        if (!user?.$id) return;
+        try {
+          const sub = await subscriptionService.getUserSubscription(user.$id);
+          setSubscription(sub);
+        } catch (error) {
+          console.error('Failed to fetch subscription:', error);
+        }
+      };
+
       refreshUserLives();
+      fetchSubscription();
     }, [user?.$id, user?.lives, user?.lastLifeRegenTime, dispatch])
   );
 
@@ -133,6 +151,80 @@ const ProfileScreen: React.FC<Props> = ({ navigation }) => {
 
   const handleEditProfile = () => {
     navigation.navigate("EditProfile");
+  };
+
+  const handleToggleAutoRenew = async (value: boolean) => {
+    if (!user?.$id) return;
+    setIsTogglingAutoRenew(true);
+    try {
+      const updated = await subscriptionService.toggleAutoRenew(user.$id, value);
+      setSubscription(updated);
+      Alert.alert(
+        value ? "Auto-Renew Enabled" : "Auto-Renew Disabled",
+        value
+          ? "Your subscription will automatically renew when it expires."
+          : "Your subscription will not auto-renew. You'll need to manually renew when it expires."
+      );
+    } catch (error: any) {
+      Alert.alert("Error", error.message || "Failed to update auto-renew preference.");
+    } finally {
+      setIsTogglingAutoRenew(false);
+    }
+  };
+
+  const handleCancelSubscription = () => {
+    Alert.alert(
+      "Cancel Subscription",
+      "Are you sure you want to cancel? You'll still have access until your current period ends.",
+      [
+        { text: "Keep Subscription", style: "cancel" },
+        {
+          text: "Cancel",
+          style: "destructive",
+          onPress: async () => {
+            try {
+              const updated = await subscriptionService.cancelSubscription(user.$id);
+              setSubscription(updated);
+              Alert.alert("Subscription Cancelled", "Your subscription has been cancelled. You'll still have access until the current period ends.");
+            } catch (error: any) {
+              Alert.alert("Error", error.message || "Failed to cancel subscription.");
+            }
+          },
+        },
+      ]
+    );
+  };
+
+  const getSubscriptionStatusLabel = () => {
+    if (!subscription) return "No subscription";
+    switch (subscription.status) {
+      case "trial":
+        const daysLeft = subscriptionService.getRemainingTrialDays(subscription);
+        return `Free Trial • ${daysLeft} days left`;
+      case "active":
+        return "Active";
+      case "expired":
+        return "Expired";
+      case "cancelled":
+        return "Cancelled";
+      default:
+        return subscription.status;
+    }
+  };
+
+  const getStatusColor = () => {
+    if (!subscription) return "#999";
+    switch (subscription.status) {
+      case "trial":
+        return "#4ECDC4";
+      case "active":
+        return "#4CAF50";
+      case "expired":
+      case "cancelled":
+        return "#F44336";
+      default:
+        return "#999";
+    }
   };
 
   const inviteLink = `https://www.nurtureehaven.com/`;
@@ -223,6 +315,76 @@ const ProfileScreen: React.FC<Props> = ({ navigation }) => {
             </View>
           </View>
         </View>
+
+        {/* Subscription Management */}
+        {subscription && (
+          <View style={styles.subscriptionSection}>
+            <Text style={styles.sectionTitle}>Subscription</Text>
+            <View style={styles.subscriptionCard}>
+              {/* Status Row */}
+              <View style={styles.subscriptionRow}>
+                <Text style={styles.subscriptionLabel}>Status</Text>
+                <View style={[styles.statusBadge, { backgroundColor: getStatusColor() }]}>  
+                  <Text style={styles.statusBadgeText}>
+                    {getSubscriptionStatusLabel()}
+                  </Text>
+                </View>
+              </View>
+
+              {/* Plan Row */}
+              <View style={styles.subscriptionRow}>
+                <Text style={styles.subscriptionLabel}>Plan</Text>
+                <Text style={styles.subscriptionValue}>
+                  {subscription.planType === "annual" ? "Annual" : "Monthly"}
+                </Text>
+              </View>
+
+              {/* Auto-Renew Toggle */}
+              {(subscription.status === "trial" || subscription.status === "active") && (
+                <View style={styles.subscriptionRow}>
+                  <View style={{ flex: 1 }}>
+                    <Text style={styles.subscriptionLabel}>Auto-renew</Text>
+                    <Text style={styles.autoRenewHint}>
+                      {subscription.autoRenew
+                        ? "Payment will be charged automatically"
+                        : "You'll need to renew manually"}
+                    </Text>
+                  </View>
+                  {isTogglingAutoRenew ? (
+                    <ActivityIndicator size="small" color="#FF5722" />
+                  ) : (
+                    <Switch
+                      value={subscription.autoRenew}
+                      onValueChange={handleToggleAutoRenew}
+                      trackColor={{ false: "#E0E0E0", true: "#4ECDC4" }}
+                      thumbColor={subscription.autoRenew ? "#FFF" : "#f4f3f4"}
+                    />
+                  )}
+                </View>
+              )}
+
+              {/* Cancel Button */}
+              {subscription.status === "active" && (
+                <TouchableOpacity
+                  style={styles.cancelSubscriptionButton}
+                  onPress={handleCancelSubscription}
+                >
+                  <Text style={styles.cancelSubscriptionText}>Cancel Subscription</Text>
+                </TouchableOpacity>
+              )}
+
+              {/* Renew Button (for expired/cancelled) */}
+              {(subscription.status === "expired" || subscription.status === "cancelled") && (
+                <TouchableOpacity
+                  style={styles.renewButton}
+                  onPress={() => navigation.navigate("Premium" as any)}
+                >
+                  <Text style={styles.renewButtonText}>Renew Subscription</Text>
+                </TouchableOpacity>
+              )}
+            </View>
+          </View>
+        )}
 
         {/* Invite Friends Button */}
         <CustomButton
@@ -455,6 +617,80 @@ const styles = StyleSheet.create({
     fontWeight: '600',
     color: '#333',
     marginLeft: 12,
+  },
+  subscriptionSection: {
+    paddingHorizontal: 20,
+    marginBottom: 20,
+  },
+  subscriptionCard: {
+    backgroundColor: '#FFFFFF',
+    borderRadius: 16,
+    padding: 16,
+    borderWidth: 1,
+    borderColor: '#F0F0F0',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.06,
+    shadowRadius: 4,
+    elevation: 1,
+  },
+  subscriptionRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    paddingVertical: 12,
+    borderBottomWidth: 1,
+    borderBottomColor: '#F5F5F5',
+  },
+  subscriptionLabel: {
+    fontSize: 14,
+    fontWeight: '600',
+    color: '#555',
+  },
+  subscriptionValue: {
+    fontSize: 14,
+    fontWeight: '600',
+    color: '#333',
+  },
+  statusBadge: {
+    paddingHorizontal: 10,
+    paddingVertical: 4,
+    borderRadius: 10,
+  },
+  statusBadgeText: {
+    fontSize: 12,
+    fontWeight: '700',
+    color: '#FFF',
+  },
+  autoRenewHint: {
+    fontSize: 11,
+    color: '#999',
+    marginTop: 2,
+  },
+  cancelSubscriptionButton: {
+    marginTop: 14,
+    paddingVertical: 12,
+    alignItems: 'center',
+    borderRadius: 10,
+    borderWidth: 1,
+    borderColor: '#F44336',
+  },
+  cancelSubscriptionText: {
+    fontSize: 14,
+    fontWeight: '600',
+    color: '#F44336',
+  },
+  renewButton: {
+    marginTop: 14,
+    paddingVertical: 12,
+    alignItems: 'center',
+    borderRadius: 10,
+    backgroundColor: '#FF5722',
+  },
+  renewButtonText: {
+    fontSize: 14,
+    fontWeight: '600',
+    color: '#FFF',
   },
 });
 

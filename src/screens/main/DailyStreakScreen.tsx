@@ -139,7 +139,8 @@ const DailyStreakScreen: React.FC = () => {
           dispatch(markStreakGuideSeen());
           setCoachStep(0);
         }}
-      />    </SafeAreaView>
+      />    
+    </SafeAreaView>
   );
 };
 
