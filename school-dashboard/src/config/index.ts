@@ -17,7 +17,7 @@ export const config = {
   },
 };
 
-// School pricing configuration
+// School pricing
 export const SCHOOL_PRICING = {
   monthly: {
     id: 'monthly' as const,
