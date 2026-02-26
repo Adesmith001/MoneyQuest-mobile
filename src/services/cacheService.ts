@@ -29,7 +29,6 @@ class CacheService {
   async initialize(): Promise<void> {
     if (this.initialized) return;
     this.initialized = true;
-    console.log('✅ Cache service initialized');
   }
 
   /**
@@ -100,7 +99,6 @@ class CacheService {
       const cached = await AsyncStorage.getItem(CACHE_KEYS.SECTIONS);
 
       if (cached) {
-        console.log('✅ Using cached sections');
         return JSON.parse(cached);
       }
       return null;
@@ -119,7 +117,6 @@ class CacheService {
         AsyncStorage.setItem(CACHE_KEYS.SECTIONS, JSON.stringify(sections)),
         AsyncStorage.setItem(CACHE_KEYS.SECTIONS_TIMESTAMP, Date.now().toString()),
       ]);
-      console.log('💾 Sections saved to cache');
     } catch (error) {
       console.error('Failed to save sections to cache:', error);
     }
@@ -149,7 +146,6 @@ class CacheService {
       const cached = await AsyncStorage.getItem(CACHE_KEYS.LEVELS_PREFIX + sectionId);
 
       if (cached) {
-        console.log(`✅ Using cached levels for ${sectionId}`);
         return JSON.parse(cached);
       }
       return null;
@@ -168,7 +164,6 @@ class CacheService {
         AsyncStorage.setItem(CACHE_KEYS.LEVELS_PREFIX + sectionId, JSON.stringify(levels)),
         AsyncStorage.setItem(CACHE_KEYS.LEVELS_TIMESTAMP_PREFIX + sectionId, Date.now().toString()),
       ]);
-      console.log(`💾 Levels for ${sectionId} saved to cache`);
     } catch (error) {
       console.error('Failed to save levels to cache:', error);
     }
@@ -198,7 +193,6 @@ class CacheService {
       const cached = await AsyncStorage.getItem(CACHE_KEYS.QUESTIONS_PREFIX + levelId);
 
       if (cached) {
-        console.log(`✅ Using cached questions for ${levelId}`);
         return JSON.parse(cached);
       }
       return null;
@@ -217,7 +211,6 @@ class CacheService {
         AsyncStorage.setItem(CACHE_KEYS.QUESTIONS_PREFIX + levelId, JSON.stringify(questions)),
         AsyncStorage.setItem(CACHE_KEYS.QUESTIONS_TIMESTAMP_PREFIX + levelId, Date.now().toString()),
       ]);
-      console.log(`💾 Questions for ${levelId} saved to cache`);
     } catch (error) {
       console.error('Failed to save questions to cache:', error);
     }
@@ -247,7 +240,6 @@ class CacheService {
       const cached = await AsyncStorage.getItem(CACHE_KEYS.LEVEL_DATA_PREFIX + levelId);
 
       if (cached) {
-        console.log(`✅ Using cached level data for ${levelId}`);
         return JSON.parse(cached);
       }
       return null;
@@ -266,7 +258,6 @@ class CacheService {
         AsyncStorage.setItem(CACHE_KEYS.LEVEL_DATA_PREFIX + levelId, JSON.stringify(levelData)),
         AsyncStorage.setItem(CACHE_KEYS.LEVEL_DATA_TIMESTAMP_PREFIX + levelId, Date.now().toString()),
       ]);
-      console.log(`💾 Level data for ${levelId} saved to cache`);
     } catch (error) {
       console.error('Failed to save level data to cache:', error);
     }

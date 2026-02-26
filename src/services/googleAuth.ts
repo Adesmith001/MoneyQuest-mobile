@@ -33,8 +33,6 @@ class GoogleAuthService {
    */
   async signInWithGoogle(): Promise<{ success: boolean; user?: User; error?: string }> {
     try {
-      console.log('Starting Google OAuth sign-in...');
-      
       const successUrl = this.getRedirectUrl('oauth/success');
       const failureUrl = this.getRedirectUrl('oauth/failure');
 
@@ -49,9 +47,6 @@ class GoogleAuthService {
       if (!oauthUrl) {
         throw new Error('Failed to generate OAuth URL');
       }
-
-      console.log('Opening WebBrowser with URL:', oauthUrl);
-
       // 2. Open the browser
       const result = await WebBrowser.openAuthSessionAsync(
         oauthUrl.toString(), // Convert URL object to string
@@ -81,15 +76,12 @@ class GoogleAuthService {
   async handleOAuthCallback(url: string): Promise<{ success: boolean; user?: User; error?: string }> {
     // Prevent duplicate processing
     if (this.processingCallback) {
-      console.log('Already processing callback, skipping...');
       return { success: false, error: 'Already processing authentication' };
     }
 
     this.processingCallback = true;
 
     try {
-      console.log('Processing callback URL:', url);
-      
       // Parse the URL
       const urlObj = new URL(url);
       const params = new URLSearchParams(urlObj.search); // Params are usually in search, not hash, for Token flow
@@ -102,13 +94,8 @@ class GoogleAuthService {
         console.error('Missing secret or userId in callback URL');
         return { success: false, error: 'Authentication failed: Missing credentials.' };
       }
-
-      console.log('Credentials received. Creating session...');
-
       // 4. Create the session in the App Client
       await account.createSession(userId, secret);
-      console.log('Session established.');
-
       // 5. Get User and Sync with Database
       const userAccount = await account.get();
       const userDoc = await this.findOrCreateUserDocument(userAccount);

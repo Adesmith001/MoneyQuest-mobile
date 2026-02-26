@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from 'react';
-import { View, Text, StyleSheet, ActivityIndicator, TouchableOpacity, Alert, Animated } from 'react-native';
+import { View, Text, StyleSheet, TouchableOpacity } from 'react-native';
 import { useNavigation } from '@react-navigation/native';
 import { useSelector } from 'react-redux';
 import { RootState } from '../store';
@@ -16,10 +16,14 @@ interface SubscriptionGuardProps {
 
 /**
  * SubscriptionGuard Component
- * 
- * Checks if user has active subscription (trial, paid, or school)
- * Blocks access if subscription expired
- * Redirects to Premium screen when access denied
+ *
+ * Offline-first subscription check:
+ *  1. Reads locally cached subscription (AsyncStorage) → instant, no network
+ *  2. Evaluates access via pure date-math → works fully offline
+ *  3. Silently refreshes cache from Appwrite in the background when online
+ *
+ * The user never sees a loading screen; the cached expiry date is the
+ * authoritative counter until the next online sync overwrites it.
  */
 const SubscriptionGuard: React.FC<SubscriptionGuardProps> = ({ 
   children, 
@@ -27,8 +31,8 @@ const SubscriptionGuard: React.FC<SubscriptionGuardProps> = ({
 }) => {
   const navigation = useNavigation();
   const { user } = useSelector((state: RootState) => state.auth);
-  const [isChecking, setIsChecking] = useState(true);
-  const [hasAccess, setHasAccess] = useState(true); // Default to true for better UX - show content while checking
+  // Default to true so content renders immediately; cache check resolves quickly
+  const [hasAccess, setHasAccess] = useState(true);
   const [subscription, setSubscription] = useState<Subscription | null>(null);
   const [schoolEnrollment, setSchoolEnrollment] = useState<SchoolStudent | null>(null);
   const [trialDaysRemaining, setTrialDaysRemaining] = useState(0);
@@ -42,58 +46,77 @@ const SubscriptionGuard: React.FC<SubscriptionGuardProps> = ({
 
   const checkSubscription = async () => {
     if (!user) {
-      setIsChecking(false);
       setHasAccess(false);
       return;
     }
 
+    // ── Step 1: school subscription (still needs network; gracefully skips if offline) ──
     try {
-      // First, check for school subscription
       const schoolResult = await schoolService.hasActiveSchoolSubscription(user.$id);
-      
       if (schoolResult.hasAccess) {
         setHasAccess(true);
         setSchoolEnrollment(schoolResult.enrollment);
         setSchoolDaysRemaining(schoolResult.daysRemaining);
         setSubscriptionType('school');
-        setIsChecking(false);
+        // Background-refresh individual cache too, fire-and-forget
+        subscriptionService.refreshSubscriptionCache(user.$id);
         return;
       }
-
-      // If no school subscription, check individual subscription
-      const result = await subscriptionService.checkAndUpdateSubscriptionAccess(user.$id);
-      
-      setHasAccess(result.hasAccess);
-      setSubscription(result.subscription);
-      setSubscriptionType(result.hasAccess ? 'individual' : null);
-
-      if (result.subscription?.status === 'trial') {
-        const remaining = subscriptionService.getRemainingTrialDays(result.subscription);
-        setTrialDaysRemaining(remaining);
-      }
-
-      // If no access, redirect to premium screen
-      if (!result.hasAccess) {
-        setTimeout(() => {
-          navigation.navigate('Premium' as never);
-        }, 500);
-      }
-    } catch (error) {
-      console.error('Subscription check error:', error);
-      setHasAccess(false);
-    } finally {
-      setIsChecking(false);
+    } catch (_) {
+      // Offline — skip school check, fall through to individual cache
     }
+
+    // ── Step 2: individual subscription via local cache (offline-first) ──
+    const { hasAccess: localAccess, subscription: localSub, trialDaysRemaining: localDays } =
+      await subscriptionService.checkLocalSubscriptionAccess(user.$id);
+
+    setHasAccess(localAccess);
+    setSubscription(localSub);
+    setSubscriptionType(localAccess ? 'individual' : null);
+    setTrialDaysRemaining(localDays);
+
+    if (!localAccess && localSub === null) {
+      // No local cache at all — user may be new or just logged in on a new device.
+      // Try a one-off network fetch to seed the cache, then re-evaluate.
+      try {
+        await subscriptionService.refreshSubscriptionCache(user.$id);
+        const { hasAccess: fresh, subscription: freshSub, trialDaysRemaining: freshDays } =
+          await subscriptionService.checkLocalSubscriptionAccess(user.$id);
+        setHasAccess(fresh);
+        setSubscription(freshSub);
+        setSubscriptionType(fresh ? 'individual' : null);
+        setTrialDaysRemaining(freshDays);
+        if (!fresh) {
+          setTimeout(() => navigation.navigate('Premium' as never), 500);
+        }
+      } catch (_) {
+        // Still offline and no cache — grant a short grace window rather than blocking
+        setHasAccess(true);
+      }
+      return;
+    }
+
+    if (!localAccess) {
+      setTimeout(() => navigation.navigate('Premium' as never), 500);
+    }
+
+    // ── Step 3: background network refresh (fire-and-forget) ──
+    // Keeps the local cache up-to-date for future offline sessions.
+    subscriptionService.refreshSubscriptionCache(user.$id).then(async () => {
+      // Re-read updated cache and silently update UI state
+      const { hasAccess: updated, subscription: updatedSub, trialDaysRemaining: updatedDays } =
+        await subscriptionService.checkLocalSubscriptionAccess(user.$id);
+      setHasAccess(updated);
+      setSubscription(updatedSub);
+      setTrialDaysRemaining(updatedDays);
+    }).catch(() => { /* offline — keep current state */ });
   };
 
   const handleUpgradePress = () => {
     navigation.navigate('Premium' as never);
   };
 
-  // No longer show loading screen - content is shown immediately while checking in background
-  // If check fails and no access, redirect to Premium screen (handled in checkSubscription)
-
-  if (!hasAccess && !isChecking) {
+  if (!hasAccess) {
     return (
       <View style={styles.blockedContainer}>
         <View style={styles.lockIconWrapper}>

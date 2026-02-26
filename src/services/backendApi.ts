@@ -24,7 +24,6 @@ class BackendApiService {
 
   constructor() {
     this.baseUrl = ENV.MONEYQUEST_API_BASE_URL;
-    console.log('📡 BackendApiService initialized with URL:', this.baseUrl);
   }
 
   /**
@@ -36,8 +35,6 @@ class BackendApiService {
   ): Promise<T> {
     try {
       const url = `${this.baseUrl}${endpoint}`;
-      console.log(`API Request: ${options?.method || 'GET'} ${url}`);
-
       const response = await fetch(url, {
         ...options,
         headers: {
@@ -69,7 +66,6 @@ class BackendApiService {
     
     // If request is already in flight, return the existing promise
     if (this.pendingRequests.has(key)) {
-      console.log('⏳ Reusing pending sections request');
       return this.pendingRequests.get(key)!;
     }
 
@@ -97,7 +93,6 @@ class BackendApiService {
     
     // If request is already in flight, return the existing promise
     if (this.pendingRequests.has(key)) {
-      console.log(`⏳ Reusing pending levels request for ${sectionId}`);
       return this.pendingRequests.get(key)!;
     }
 
@@ -175,8 +170,6 @@ class BackendApiService {
     
     // If questionType is 'mixed' or undefined, fetch from all endpoints
     if (!questionType || questionType === 'mixed') {
-      console.log(`🔄 Fetching all question types for level ${levelId}`);
-      
       const allQuestions: any[] = [];
       let levelInfo = { level_id: levelId, level_title: '', section_title: '' };
       
@@ -205,10 +198,8 @@ class BackendApiService {
             },
           }));
           allQuestions.push(...mcqQuestions);
-          console.log(`✅ Fetched ${mcqQuestions.length} MCQ questions`);
         }
       } catch (e) {
-        console.log('ℹ️ No MCQ questions found for this level');
       }
       
       // Fetch Scenario questions
@@ -238,10 +229,8 @@ class BackendApiService {
             },
           }));
           allQuestions.push(...scenarioQuestions);
-          console.log(`✅ Fetched ${scenarioQuestions.length} Scenario questions`);
         }
       } catch (e) {
-        console.log('ℹ️ No Scenario questions found for this level');
       }
       
       // Fetch Matching questions and group them into sets of 5 pairs
@@ -305,10 +294,8 @@ class BackendApiService {
           }
           
           allQuestions.push(...groupedMatchingQuestions);
-          console.log(`✅ Grouped ${pairs.length} matching pairs into ${groupedMatchingQuestions.length} matching questions`);
         }
       } catch (e) {
-        console.log('ℹ️ No Matching questions found for this level');
       }
       
       // Shuffle all questions together if randomize is true
@@ -318,9 +305,6 @@ class BackendApiService {
           [allQuestions[i], allQuestions[j]] = [allQuestions[j], allQuestions[i]];
         }
       }
-      
-      console.log(`📦 Total questions fetched: ${allQuestions.length} (MCQ + Scenario + Matching)`);
-      
       return {
         level_id: levelId,
         level_title: levelInfo.level_title,
@@ -496,9 +480,6 @@ class BackendApiService {
       if (request.speed) formData.append('speed', request.speed.toString());
 
       const url = `${this.baseUrl}/api/tts/generate`;
-      console.log('TTS Stream Request URL:', url);
-      console.log('TTS Stream Request Body:', formData.toString());
-
       const response = await fetch(url, {
         method: 'POST',
         headers: {
@@ -506,9 +487,6 @@ class BackendApiService {
         },
         body: formData.toString(),
       });
-
-      console.log('TTS Stream Response Status:', response.status);
-
       if (!response.ok) {
         const errorText = await response.text();
         console.error('TTS Stream Error Response:', errorText);
@@ -563,9 +541,6 @@ class BackendApiService {
       if (request.speed) formData.append('speed', request.speed.toString());
 
       const url = `${this.baseUrl}/api/tts/generate-json`;
-      console.log('TTS Request URL:', url);
-      console.log('TTS Request Body:', formData.toString());
-
       const response = await fetch(url, {
         method: 'POST',
         headers: {
@@ -573,9 +548,6 @@ class BackendApiService {
         },
         body: formData.toString(),
       });
-
-      console.log('TTS Response Status:', response.status);
-
       if (!response.ok) {
         const errorText = await response.text();
         console.error('TTS Error Response:', errorText);
@@ -593,7 +565,6 @@ class BackendApiService {
       }
 
       const data = await response.json();
-      console.log('TTS Response Success:', data.success);
       return data as BackendTTSJsonResponse;
     } catch (error) {
       console.error('TTS JSON Generation Error:', error);

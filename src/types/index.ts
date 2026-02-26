@@ -184,6 +184,7 @@ export interface BackendSection {
   created_at?: string;
   updated_at?: string;
   section_id?: string;
+  image_url?: string;
 }
 
 export interface BackendLevelDetail {

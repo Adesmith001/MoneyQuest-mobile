@@ -68,7 +68,6 @@ const RegisterScreen: React.FC<Props> = ({ navigation }) => {
       if (signInWithGoogle.fulfilled.match(result)) {
         // OAuth flow started successfully
         // The callback will be handled in AppNavigator
-        console.log('Google OAuth flow initiated');
       } else {
         const errorMessage = result.payload as string;
         Alert.alert('Google Signup Failed', errorMessage || 'Failed to signup with Google');

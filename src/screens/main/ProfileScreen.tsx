@@ -102,15 +102,6 @@ const ProfileScreen: React.FC<Props> = ({ navigation }) => {
     }
 
     // Log Appwrite data
-    console.log('=== APPWRITE USER DATA ===');
-    console.log('Monthly XP from Appwrite:', user?.monthlyXP);
-    console.log('Lives from Appwrite:', user?.lives);
-    console.log('Total XP from Appwrite:', user?.totalXP);
-    console.log('XP from Appwrite:', user?.xp);
-    console.log('Current Streak from Redux:', currentStreak);
-    console.log('Weekly Streak from Redux:', weeklyStreak);
-    console.log('Full User Object:', JSON.stringify(user, null, 2));
-    console.log('========================');
   }, [user?.$id, user?.monthlyXP, user?.lives, user?.totalXP, user?.xp, currentStreak, weeklyStreak, dispatch]);
 
   // Update lives and regeneration timer

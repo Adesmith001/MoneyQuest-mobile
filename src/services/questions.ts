@@ -28,8 +28,6 @@ class QuestionService {
     randomize: boolean = true
   ): Promise<AnyQuestion[]> {
     try {
-      console.log(`Fetching questions for level ${levelId}, type: ${questionType}`);
-      
       // If requesting specific types, try specialized endpoints first
       if (questionType === 'scenario') {
         return await this.getScenarioQuestions(levelId, numQuestions, randomize);
@@ -48,7 +46,6 @@ class QuestionService {
       }
 
       // If no questions available, return empty array
-      console.log(`No questions available for level ${levelId}`);
       return [];
     } catch (error) {
       console.error('Get questions for level error:', error);
@@ -174,14 +171,9 @@ class QuestionService {
       const endpoint = `/levels/${levelId}/matching-questions${params.toString() ? '?' + params.toString() : ''}`;
       const response = await backendApi['fetchApi'](endpoint) as any;
       
-      console.log('Matching questions response:', response);
-      console.log('Number of pairs received:', response?.questions?.length);
-      
       if (response && response.questions && response.questions.length > 0) {
         const allPairs = response.questions;
         const matchingQuestions: MatchingQuestion[] = [];
-        
-        console.log('Total pairs received:', allPairs.length);
         
         // Split pairs into chunks of maximum 5
         const MAX_PAIRS_PER_QUESTION = 5;
@@ -191,8 +183,6 @@ class QuestionService {
           const startIdx = i * MAX_PAIRS_PER_QUESTION;
           const endIdx = Math.min(startIdx + MAX_PAIRS_PER_QUESTION, allPairs.length);
           const pairs = allPairs.slice(startIdx, endIdx);
-          
-          console.log(`Creating matching question ${i + 1} with ${pairs.length} pairs`);
           
           // Create left items with sequential IDs
           const leftItems = pairs.map((p: any, idx: number) => ({
@@ -234,7 +224,6 @@ class QuestionService {
           } as MatchingQuestion);
         }
         
-        console.log(`Split into ${matchingQuestions.length} matching questions`);
         return matchingQuestions;
       }
       return [];
@@ -267,8 +256,6 @@ class QuestionService {
         distribution.fillInGap = numQuestions - (distribution.mcq + distribution.scenario + distribution.matching);
       }
 
-      console.log('Fetching balanced questions with distribution:', distribution);
-
       // Fetch all question types in parallel
       const [mcqQuestions, scenarioQuestions, matchingQuestions, fillInGapQuestions] = await Promise.all([
         this.getMCQQuestions(levelId, distribution.mcq, randomize),
@@ -277,12 +264,7 @@ class QuestionService {
         this.getFillInGapQuestions(levelId, distribution.fillInGap, randomize),
       ]);
 
-      console.log('Questions fetched:', {
-        mcq: mcqQuestions.length,
-        scenario: scenarioQuestions.length,
-        matching: matchingQuestions.length,
-        fillInGap: fillInGapQuestions.length
-      });
+  
 
       // Combine all questions
       const allQuestions: AnyQuestion[] = [

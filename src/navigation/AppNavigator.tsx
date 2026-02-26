@@ -177,8 +177,6 @@ const AppNavigator: React.FC = () => {
     const handleDeepLink = async (event: { url: string }) => {
       try {
         const url = event.url;
-        console.log('Deep link received:', url);
-
         // Handle OAuth callback
         if (url.includes('oauth/success') || url.includes('oauth/failure')) {
           const result = await googleAuthService.handleOAuthCallback(url);

@@ -28,7 +28,6 @@ export const signIn = createAsyncThunk(
           dispatch(updateStreakOnLogin(userDocument.$id));
         } catch (error) {
           // Silently fail - streak is not critical for login
-          console.log('Streak update skipped');
         }
       }
       
@@ -126,7 +125,6 @@ export const getCurrentUser = createAsyncThunk(
             dispatch(updateStreakOnLogin(userDocument.$id));
           } catch (error) {
             // Silently fail - streak is not critical
-            console.log('Streak update skipped');
           }
         }
         
@@ -153,7 +151,6 @@ export const checkAuthStatus = createAsyncThunk(
             dispatch(updateStreakOnLogin(userDocument.$id));
           } catch (error) {
             // Silently fail - streak is not critical
-            console.log('Streak update skipped');
           }
         }
         

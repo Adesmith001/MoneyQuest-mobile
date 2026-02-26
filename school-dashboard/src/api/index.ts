@@ -29,7 +29,6 @@ export const schoolsApi = {
 export const codesApi = {
   // Get all codes for a school
   async getAll(schoolId: string): Promise<SchoolCode[]> {
-    console.log('Fetching codes for schoolId:', schoolId);
     const response = await databases.listDocuments(
       config.appwrite.databaseId,
       config.collections.schoolCodes,
@@ -39,7 +38,6 @@ export const codesApi = {
         Query.limit(100),
       ]
     );
-    console.log('Found codes:', response.documents);
     return response.documents as unknown as SchoolCode[];
   },
 
@@ -69,7 +67,6 @@ export const codesApi = {
     );
 
     if (existingCodes.documents.length > 0) {
-      console.log('Code already exists for this payment reference:', paymentReference);
       return existingCodes.documents[0] as unknown as SchoolCode;
     }
 
@@ -102,8 +99,6 @@ export const codesApi = {
       pricePerSeat: pricing.pricePerSeat,
       currency: 'NGN',
     };
-
-    console.log('Creating code with data:', codeData);
 
     const response = await databases.createDocument(
       config.appwrite.databaseId,

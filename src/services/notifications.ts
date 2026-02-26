@@ -30,7 +30,6 @@ class NotificationService {
     try {
       // Check if it's a physical device
       if (!Device.isDevice) {
-        console.log('⚠️ Push notifications only work on physical devices');
         return false;
       }
 
@@ -43,7 +42,6 @@ class NotificationService {
       }
 
       if (finalStatus !== 'granted') {
-        console.log('❌ Notification permission denied');
         return false;
       }
 
@@ -53,7 +51,6 @@ class NotificationService {
         await this.setupAndroidChannels();
       }
 
-      console.log('✅ Notification permission granted');
       return true;
     } catch (error) {
       console.error('Failed to request permissions:', error);
@@ -116,7 +113,6 @@ class NotificationService {
         showBadge: true,
       });
 
-      console.log('✅ Android notification channels created');
     } catch (error) {
       console.error('Failed to setup Android channels:', error);
     }
@@ -142,11 +138,9 @@ class NotificationService {
     try {
       // Set up notification listeners
       this.notificationListener = Notifications.addNotificationReceivedListener(notification => {
-        console.log('📬 Notification received:', notification);
       });
 
       this.responseListener = Notifications.addNotificationResponseReceivedListener(response => {
-        console.log('👆 Notification tapped:', response);
       });
 
       // Track last app open time
@@ -155,7 +149,6 @@ class NotificationService {
       // Set up app state listener for engagement tracking
       this.appStateSubscription = AppState.addEventListener('change', this.handleAppStateChange);
 
-      console.log('✅ Notification service initialized');
     } catch (error) {
       console.error('Failed to initialize notification service:', error);
     }
@@ -255,15 +248,11 @@ class NotificationService {
         scheduledCount++;
         const timeStr = `${peak.hour}:${peak.minute.toString().padStart(2, '0')}`;
         const nextFireTime = scheduledDate.toLocaleString();
-        console.log(`✅ Scheduled reminder #${notificationId} for ${timeStr} (fires at: ${nextFireTime})`);
       }
 
-      console.log(`✅ Successfully scheduled ${scheduledCount} daily reminders (10am, 2pm, 7pm)`);
-      
       // Verify scheduled notifications
       const allScheduled = await Notifications.getAllScheduledNotificationsAsync();
       const reminderCount = allScheduled.filter(n => n.content.data?.type === 'learning-reminder').length;
-      console.log(`📋 Learning reminders in queue: ${reminderCount}/${scheduledCount}`);
     } catch (error) {
       console.error('❌ Failed to schedule daily reminders:', error);
     }
@@ -284,7 +273,6 @@ class NotificationService {
 
       // Only schedule if there's a meaningful wait time (at least 1 minute)
       if (minutesUntilFull < 1) {
-        console.log('⏭️ Lives already full, skipping notification');
         return;
       }
 
@@ -305,7 +293,6 @@ class NotificationService {
         },
       });
 
-      console.log(`✅ Lives-full notification scheduled for ${minutesUntilFull} minutes (ID: ${notificationId})`);
     } catch (error) {
       console.error('Failed to schedule life notification:', error);
     }
@@ -373,7 +360,6 @@ class NotificationService {
           },
         });
 
-        console.log('✅ Engagement notifications scheduled');
       }
     } catch (error) {
       console.error('Failed to schedule engagement notifications:', error);
@@ -403,7 +389,7 @@ class NotificationService {
         trigger: null, // Send immediately
       });
 
-      console.log('✅ Immediate notification sent');
+
     } catch (error) {
       console.error('Failed to send notification:', error);
     }
@@ -415,7 +401,6 @@ class NotificationService {
   async cancelAllNotifications() {
     try {
       await Notifications.cancelAllScheduledNotificationsAsync();
-      console.log('✅ All notifications cancelled');
     } catch (error) {
       console.error('Failed to cancel notifications:', error);
     }
@@ -432,7 +417,6 @@ class NotificationService {
           await Notifications.cancelScheduledNotificationAsync(notification.identifier);
         }
       }
-      console.log(`✅ Cancelled all ${type} notifications`);
     } catch (error) {
       console.error(`Failed to cancel ${type} notifications:`, error);
     }
@@ -444,9 +428,7 @@ class NotificationService {
   async getScheduledNotifications() {
     try {
       const notifications = await Notifications.getAllScheduledNotificationsAsync();
-      console.log('📅 Scheduled notifications:', notifications.length);
       notifications.forEach((notif, index) => {
-        console.log(`  ${index + 1}. ${notif.content.title} - Type: ${notif.content.data?.type || 'unknown'}`);
       });
       return notifications;
     } catch (error) {
@@ -466,10 +448,8 @@ class NotificationService {
       if (hasPermission) {
         await this.scheduleDailyReminder();
         await this.scheduleEngagementNotifications();
-        console.log('✅ All notifications set up successfully');
         return true;
       } else {
-        console.log('⚠️ Notification permissions not granted');
         return false;
       }
     } catch (error) {
@@ -491,7 +471,6 @@ class NotificationService {
     if (this.appStateSubscription) {
       this.appStateSubscription.remove();
     }
-    console.log('✅ Notification service cleaned up');
   }
 }
 

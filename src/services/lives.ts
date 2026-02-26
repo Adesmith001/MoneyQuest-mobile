@@ -210,11 +210,9 @@ class LivesService {
 
     if (shouldUpdate) {
       await this.updateUserLives(userId, lives, lastLifeRegenTime);
-      console.log(`✅ Lives synced to Appwrite: ${lives}/${MAX_LIVES}`);
 
       // 🔔 Schedule notification when lives reach max (wrap in try-catch for iOS safety)
       if (lives === MAX_LIVES && currentLives < MAX_LIVES) {
-        console.log('🎉 Lives are full! User can resume learning.');
         // Optionally notify immediately that lives are full
         try {
           await notificationService.sendImmediateNotification(

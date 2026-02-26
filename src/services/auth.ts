@@ -29,11 +29,6 @@ class AuthService {
     let newAccount: any = null;
 
     try {
-      console.log('Creating Appwrite account for:', { email, name });
-      console.log('Password length:', password.length);
-      console.log('Appwrite endpoint:', client.config.endpoint);
-      console.log('Appwrite project ID:', client.config.project);
-
       // Validate inputs
       if (!email || !password || !name) {
         throw new Error('Email, password, and name are required');
@@ -51,7 +46,6 @@ class AuthService {
           password,
           name
         );
-        console.log('Appwrite account created successfully:', newAccount.$id);
       } catch (accountError: any) {
         console.error('Account creation failed:', accountError);
 
@@ -68,16 +62,13 @@ class AuthService {
       }
 
       // Create user document in database
-      console.log('Now creating user document in database...');
       try {
         await this.createUserDocument(newAccount.$id, email, name, phoneNumber, username);
-        console.log('User document created successfully');
       } catch (docError: any) {
         console.error('User document creation failed:', docError);
 
         // If user document creation fails, we should delete the account to maintain consistency
         try {
-          console.log('Attempting to clean up account due to document creation failure...');
           await account.deleteSession('current').catch(() => { }); // Clean up any session
           // Note: We can't delete the account directly, but we can warn the user
         } catch (cleanupError) {
@@ -259,11 +250,6 @@ class AuthService {
     try {
       const currentDate = new Date().toISOString();
 
-      console.log('Creating user document with configuration:');
-      console.log('DB_ID:', DB_ID);
-      console.log('COLLECTIONS.USERS:', COLLECTIONS.USERS);
-      console.log('userId:', userId);
-
       if (!DB_ID) {
         throw new Error('Database ID is not configured');
       }
@@ -302,8 +288,6 @@ class AuthService {
         userData.username = username;
       }
 
-      console.log('User data to be created:', JSON.stringify(userData, null, 2));
-
       // Use the Appwrite user ID as the document ID to maintain consistency
       const document = await databases.createDocument(
         DB_ID,
@@ -312,7 +296,6 @@ class AuthService {
         userData
       );
 
-      console.log('User document created successfully with ID:', document.$id);
     } catch (error: any) {
       console.error("Create user document error:", error);
       console.error("DB_ID:", DB_ID);
@@ -440,8 +423,6 @@ class AuthService {
     let newAccount: any = null;
 
     try {
-      console.log('Creating Appwrite account with onboarding data for:', { email, name });
-
       // Step 1: Create the account
       newAccount = await account.create(
         ID.unique(),
@@ -450,8 +431,6 @@ class AuthService {
         name
       );
 
-      console.log('Appwrite account created successfully:', newAccount.$id);
-
       // Step 2: Immediately sign in the user after account creation
       await account.createEmailPasswordSession(email, password);
 
@@ -459,7 +438,6 @@ class AuthService {
       const user = await account.get();
 
       // Step 4: Create user document with ALL data including onboarding
-      console.log('Creating user document with onboarding data...');
       const userDocument = await databases.createDocument(
         DB_ID,
         COLLECTIONS.USERS,
@@ -487,11 +465,8 @@ class AuthService {
         }
       );
 
-      console.log('User document created successfully with onboarding data');
-
       // Initialize progress with first level from backend
       try {
-        console.log('Initializing user progress...');
         const sections = await cachedBackendApi.getSections();
         if (sections.length > 0) {
           const firstSection = sections[0];
@@ -501,8 +476,6 @@ class AuthService {
             
             if (levels.length > 0) {
               const firstLevel = levels[0];
-              console.log(`Setting initial progress: Section ${firstSection.section_id}, Level ${firstLevel.level_id}`);
-              
               await databases.updateDocument(
                 DB_ID,
                 COLLECTIONS.USERS,
@@ -559,7 +532,6 @@ class AuthService {
       // Clean up any created session if document creation failed
       if (newAccount && newAccount.$id) {
         try {
-          console.log('Attempting to clean up session due to document creation failure...');
           // Only delete the session, not the account (account deletion requires different permissions)
           await account.deleteSession('current').catch(() => {
             // Ignore session deletion errors - session might not exist
@@ -687,15 +659,10 @@ class AuthService {
   // OAuth sign-in methods
   async signInWithGoogle(): Promise<User> {
     try {
-      console.log('Starting Google OAuth...');
-      
       // Create the OAuth2 session with proper success/failure URLs
       const redirectUrl = 'moneyquest://oauth-callback';
       const successUrl = `${redirectUrl}/success`;
       const failureUrl = `${redirectUrl}/failure`;
-      
-      console.log('Success URL:', successUrl);
-      console.log('Failure URL:', failureUrl);
       
       // This will open Google sign-in in browser
       await account.createOAuth2Session(
@@ -709,11 +676,9 @@ class AuthService {
       
       // Get the current session
       const session = await account.getSession('current');
-      console.log('OAuth Session created:', session);
       
       // Get user details
       const userAccount = await account.get();
-      console.log('User account retrieved:', userAccount);
 
       // Check if user exists in our database
       let userDoc;
@@ -726,10 +691,8 @@ class AuthService {
 
         if (existingUsers.documents.length > 0) {
           userDoc = existingUsers.documents[0];
-          console.log('Existing user found:', userDoc);
         } else {
           // Create new user document
-          console.log('Creating new user document...');
           userDoc = await databases.createDocument(
             DB_ID,
             COLLECTIONS.USERS,
@@ -743,7 +706,6 @@ class AuthService {
               createdAt: new Date().toISOString(),
             }
           );
-          console.log('New user created:', userDoc);
         }
       } catch (dbError) {
         console.error('Database error:', dbError);
@@ -880,6 +842,82 @@ class AuthService {
     } catch (error) {
       console.error('Signup error:', error);
       throw error;
+    }
+  }
+
+  /**
+   * Delete the current user's account and all associated data.
+   * 1. Deletes user progress documents
+   * 2. Deletes streak documents
+   * 3. Deletes the user document
+   * 4. Deletes profile picture from storage (if any)
+   * 5. Disables the Appwrite auth account via updateStatus()
+   */
+  async deleteAccount(userId: string): Promise<void> {
+    try {
+      // 1. Delete user progress documents
+      try {
+        const progressDocs = await databases.listDocuments(
+          DB_ID,
+          COLLECTIONS.USER_PROGRESS,
+          [Query.equal('userId', userId), Query.limit(100)]
+        );
+        for (const doc of progressDocs.documents) {
+          await databases.deleteDocument(DB_ID, COLLECTIONS.USER_PROGRESS, doc.$id);
+        }
+      } catch (err) {
+        console.warn('Could not delete progress records:', err);
+      }
+
+      // 2. Delete streak documents
+      try {
+        const streakDocs = await databases.listDocuments(
+          DB_ID,
+          COLLECTIONS.STREAKS,
+          [Query.equal('userId', userId), Query.limit(10)]
+        );
+        for (const doc of streakDocs.documents) {
+          await databases.deleteDocument(DB_ID, COLLECTIONS.STREAKS, doc.$id);
+        }
+      } catch (err) {
+        console.warn('Could not delete streak records:', err);
+      }
+
+      // 3. Delete profile picture from storage (if any)
+      try {
+        const userDoc = await databases.getDocument(DB_ID, COLLECTIONS.USERS, userId);
+        if (userDoc?.profilePictureId) {
+          await storage.deleteFile(STORAGE_BUCKET, userDoc.profilePictureId);
+        }
+      } catch (err) {
+        console.warn('Could not delete profile picture:', err);
+      }
+
+      // 4. Delete the user document
+      try {
+        await databases.deleteDocument(DB_ID, COLLECTIONS.USERS, userId);
+      } catch (err) {
+        console.warn('Could not delete user document:', err);
+      }
+
+      // 5. Disable the Appwrite auth account (self-block)
+      // This makes the account unusable — the user can no longer sign in
+      try {
+        await account.updateStatus();
+      } catch (err) {
+        console.warn('Could not disable auth account:', err);
+      }
+
+      // 6. Delete current session
+      try {
+        await account.deleteSession('current');
+      } catch (err) {
+        // Session may already be invalid after account disable
+      }
+
+    } catch (error) {
+      console.error('Account deletion failed:', error);
+      throw new Error('Failed to delete account. Please try again or contact support.');
     }
   }
 }

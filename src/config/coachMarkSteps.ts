@@ -48,7 +48,7 @@ export const QUESTION_COACH_STEPS: CoachMarkStep[] = [
     icon: '❤️',
     title: 'Watch Your Lives',
     description:
-      'See the hearts at the top? Each wrong answer costs 1 life. You have 5 lives max, and they regenerate 1 per hour.',
+      'See the hearts at the top? Each wrong answer costs 1 life. You have 5 lives max, and they regenerate 1 per 2 hours.',
     mascotMessage: "Be careful with those hearts!",
     tooltipPosition: 'top',
   },

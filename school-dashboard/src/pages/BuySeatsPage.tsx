@@ -66,7 +66,6 @@ export default function BuySeatsPage() {
         onSuccess: async (data) => {
           // Prevent duplicate code creation if already processing
           if (isCreatingCode.current) {
-            console.log('Already creating code, skipping duplicate call');
             return;
           }
 

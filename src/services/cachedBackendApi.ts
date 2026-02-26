@@ -3,10 +3,8 @@ import {
   setSections,
   setSectionsLoading,
   setLevels,
-  setQuestions,
   selectSections,
   selectLevels,
-  selectQuestions,
 } from '../store/slices/learningSlice';
 import backendApi from './backendApi';
 import cacheService from './cacheService';
@@ -49,7 +47,6 @@ class CachedBackendApiService {
       // Initialize cache service
       await cacheService.initialize();
       this.cacheInitialized = true;
-      console.log('✅ CachedBackendApi cache initialized');
     } catch (error) {
       console.error('Failed to initialize cache:', error);
       this.cacheInitialized = true; // Continue anyway
@@ -63,7 +60,6 @@ class CachedBackendApiService {
     this.sessionFetchedSections = false;
     this.sessionFetchedLevels.clear();
     this.sessionFetchedQuestions.clear();
-    console.log('🔄 Session tracking reset');
   }
 
   /**
@@ -81,7 +77,6 @@ class CachedBackendApiService {
     // 1. Try Redux store first (fastest, already rehydrated from persistence)
     const reduxCached = selectSections(state);
     if (reduxCached && reduxCached.length > 0) {
-      console.log('✅ Sections from Redux cache (persisted)');
       // Kick off silent background refresh if stale (fire-and-forget)
       this.triggerBackgroundRefreshIfNeeded();
       return reduxCached;
@@ -90,7 +85,6 @@ class CachedBackendApiService {
     // 2. Try AsyncStorage cache (backup)
     const asyncCached = await cacheService.getSections();
     if (asyncCached && asyncCached.length > 0) {
-      console.log('✅ Sections from AsyncStorage cache');
       // Sync to Redux store for faster access
       store.dispatch(setSections(asyncCached));
       // Kick off silent background refresh if stale
@@ -101,11 +95,8 @@ class CachedBackendApiService {
     // 3. Only fetch from API if we don't have any cached data
     // Also check if we've already fetched this session to prevent duplicate calls
     if (this.sessionFetchedSections) {
-      console.log('⏳ Sections already being fetched this session, returning empty');
       return [];
     }
-
-    console.log('🌐 Fetching sections from API (no cache found)');
     this.sessionFetchedSections = true;
     store.dispatch(setSectionsLoading(true));
     
@@ -115,8 +106,6 @@ class CachedBackendApiService {
       // Save to both caches for persistence
       store.dispatch(setSections(sections));
       await cacheService.saveSections(sections);
-      
-      console.log(`💾 Saved ${sections.length} sections to cache`);
       return sections;
     } catch (error) {
       store.dispatch(setSectionsLoading(false));
@@ -139,14 +128,12 @@ class CachedBackendApiService {
     // 1. Try Redux store first (fastest, already rehydrated from persistence)
     const reduxCached = selectLevels(sectionId)(state);
     if (reduxCached && reduxCached.length > 0) {
-      console.log(`✅ Levels for ${sectionId} from Redux cache (persisted)`);
       return reduxCached;
     }
 
     // 2. Try AsyncStorage cache (backup)
     const asyncCached = await cacheService.getLevels(sectionId);
     if (asyncCached && asyncCached.length > 0) {
-      console.log(`✅ Levels for ${sectionId} from AsyncStorage cache`);
       // Sync to Redux store for faster access
       store.dispatch(setLevels({ sectionId, levels: asyncCached }));
       return asyncCached;
@@ -154,11 +141,8 @@ class CachedBackendApiService {
 
     // 3. Only fetch from API if we don't have any cached data
     if (this.sessionFetchedLevels.has(sectionId)) {
-      console.log(`⏳ Levels for ${sectionId} already being fetched this session`);
       return [];
     }
-
-    console.log(`🌐 Fetching levels for ${sectionId} from API (no cache found)`);
     this.sessionFetchedLevels.add(sectionId);
     
     try {
@@ -167,8 +151,6 @@ class CachedBackendApiService {
       // Save to both caches for persistence
       store.dispatch(setLevels({ sectionId, levels }));
       await cacheService.saveLevels(sectionId, levels);
-      
-      console.log(`💾 Saved ${levels.length} levels for ${sectionId} to cache`);
       return levels;
     } catch (error) {
       this.sessionFetchedLevels.delete(sectionId); // Allow retry on error
@@ -181,37 +163,15 @@ class CachedBackendApiService {
    * Priority: Redux (persisted) -> AsyncStorage -> API
    * Will NOT call API if valid cache exists
    */
-  async getQuestions(levelId: string, numQuestions: number = 10, difficulty: 'easy' | 'medium' | 'hard' | 'mixed' = 'mixed'): Promise<any[]> {
-    // Ensure cache is initialized first
-    await this.initializeCache();
-
-    const state = store.getState();
-    
-    // 1. Try Redux store first (fastest, already rehydrated from persistence)
-    const reduxCached = selectQuestions(levelId)(state);
-    if (reduxCached && reduxCached.length > 0) {
-      console.log(`✅ Questions for ${levelId} from Redux cache (persisted)`);
-      return reduxCached;
-    }
-
-    // 2. Try AsyncStorage cache (backup)
-    const asyncCached = await cacheService.getQuestions(levelId);
-    if (asyncCached && asyncCached.length > 0) {
-      console.log(`✅ Questions for ${levelId} from AsyncStorage cache`);
-      // Sync to Redux store for faster access
-      store.dispatch(setQuestions({ levelId, questions: asyncCached }));
-      return asyncCached;
-    }
-
-    // 3. Only fetch from API if we don't have any cached data
+  async getQuestions(levelId: string, numQuestions: number = 10, _difficulty: 'easy' | 'medium' | 'hard' | 'mixed' = 'mixed'): Promise<any[]> {
+    // Prevent two simultaneous fetches for the same level (e.g. React double-render).
+    // Guard is always cleared after the request settles so next call retries fresh.
     if (this.sessionFetchedQuestions.has(levelId)) {
-      console.log(`⏳ Questions for ${levelId} already being fetched this session`);
-      return [];
+      await new Promise(resolve => setTimeout(resolve, 800));
+      this.sessionFetchedQuestions.delete(levelId);
     }
 
-    console.log(`🌐 Fetching questions for ${levelId} from API (no cache found)`);
     this.sessionFetchedQuestions.add(levelId);
-    
     try {
       const response = await backendApi.getLevelQuestions(
         levelId,
@@ -219,18 +179,12 @@ class CachedBackendApiService {
         'mixed',
         true
       );
-      
+
       const questions = response.questions || [];
-      
-      // Save to both caches for persistence
-      store.dispatch(setQuestions({ levelId, questions }));
-      await cacheService.saveQuestions(levelId, questions);
-      
-      console.log(`💾 Saved ${questions.length} questions for ${levelId} to cache`);
       return questions;
-    } catch (error) {
-      this.sessionFetchedQuestions.delete(levelId); // Allow retry on error
-      throw error;
+    } finally {
+      // Always clear so the next navigation retries normally
+      this.sessionFetchedQuestions.delete(levelId);
     }
   }
 
@@ -253,12 +207,10 @@ class CachedBackendApiService {
   }
 
   /**
-   * Check if questions are cached for a level (without fetching)
+   * Questions are always fetched real-time — never cached.
    */
-  hasCachedQuestions(levelId: string): boolean {
-    const state = store.getState();
-    const reduxCached = selectQuestions(levelId)(state);
-    return !!(reduxCached && reduxCached.length > 0);
+  hasCachedQuestions(_levelId: string): boolean {
+    return false;
   }
 
   // ===== SILENT BACKGROUND REFRESH =====
@@ -292,20 +244,14 @@ class CachedBackendApiService {
       // Check if sections cache is stale
       const sectionsStale = await cacheService.isSectionsCacheStale();
       if (!sectionsStale) {
-        console.log('🟢 Cache is fresh (<7 days), skipping background refresh');
         cacheService.markBackgroundRefreshDone();
         this.backgroundRefreshRunning = false;
         return;
       }
-
-      console.log('🔄 Cache is stale (>7 days), starting silent background refresh...');
-
       // 1. Fetch fresh sections
       const freshSections = await backendApi.getSections();
       if (freshSections && freshSections.length > 0) {
         await cacheService.saveSections(freshSections);
-        console.log(`🔇 Background: saved ${freshSections.length} fresh sections`);
-
         // 2. Fetch fresh levels for each section
         for (const section of freshSections) {
           try {
@@ -313,7 +259,6 @@ class CachedBackendApiService {
             const freshLevels = await backendApi.getSectionLevels(section.section_id);
             if (freshLevels && freshLevels.length > 0) {
               await cacheService.saveLevels(section.section_id, freshLevels);
-              console.log(`🔇 Background: saved ${freshLevels.length} levels for ${section.section_id}`);
             }
           } catch (err) {
             // Don't let one section's failure block the rest
@@ -321,8 +266,6 @@ class CachedBackendApiService {
           }
         }
       }
-
-      console.log('✅ Background refresh complete — fresh data ready for next session');
       cacheService.markBackgroundRefreshDone();
     } catch (error) {
       console.warn('🔇 Background refresh error:', error);

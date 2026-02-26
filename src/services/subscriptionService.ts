@@ -1,4 +1,5 @@
 import { ID, Query, Permission, Role } from 'react-native-appwrite';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 import { databases } from './appwrite';
 import { ENV } from '../config/environment';
 
@@ -12,6 +13,65 @@ import {
 } from '../types/subscription';
 
 class SubscriptionService {
+  // ─── Offline-first local cache ─────────────────────────────────────────────
+  private localCacheKey(userId: string) {
+    return `subscription_cache_${userId}`;
+  }
+
+  /** Persist subscription to AsyncStorage so access checks work offline. */
+  async saveSubscriptionLocally(sub: Subscription): Promise<void> {
+    try {
+      await AsyncStorage.setItem(
+        this.localCacheKey(sub.userId),
+        JSON.stringify(sub)
+      );
+    } catch (_) {}
+  }
+
+  /** Read the locally cached subscription (no network). Returns null if absent. */
+  async getLocalSubscription(userId: string): Promise<Subscription | null> {
+    try {
+      const raw = await AsyncStorage.getItem(this.localCacheKey(userId));
+      return raw ? (JSON.parse(raw) as Subscription) : null;
+    } catch (_) {
+      return null;
+    }
+  }
+
+  /** Remove local cache (call on logout). */
+  async clearLocalSubscription(userId: string): Promise<void> {
+    try {
+      await AsyncStorage.removeItem(this.localCacheKey(userId));
+    } catch (_) {}
+  }
+
+  /**
+   * Offline-first access check.
+   * Reads from AsyncStorage, does pure date-math — no network required.
+   * Call refreshSubscriptionCache() in the background to keep it fresh.
+   */
+  async checkLocalSubscriptionAccess(
+    userId: string
+  ): Promise<{ hasAccess: boolean; subscription: Subscription | null; trialDaysRemaining: number }> {
+    const sub = await this.getLocalSubscription(userId);
+    if (!sub) return { hasAccess: false, subscription: null, trialDaysRemaining: 0 };
+    const hasAccess = this.hasActiveSubscription(sub);
+    const trialDaysRemaining = sub.status === 'trial' ? this.getRemainingTrialDays(sub) : 0;
+    return { hasAccess, subscription: sub, trialDaysRemaining };
+  }
+
+  /**
+   * Silently fetch the latest subscription from Appwrite and update local cache.
+   * Fire-and-forget — never await this in the UI path.
+   */
+  async refreshSubscriptionCache(userId: string): Promise<void> {
+    try {
+      const sub = await this.getUserSubscription(userId);
+      if (sub) await this.saveSubscriptionLocally(sub);
+    } catch (_) {} // Offline is fine — stale cache is still used
+  }
+
+  // ───────────────────────────────────────────────────────────────────────────
   /**
    * Create a new trial subscription for a user
    */
@@ -46,7 +106,10 @@ class SubscriptionService {
         ]
       );
 
-      return response as unknown as Subscription;
+      const created = response as unknown as Subscription;
+      // Persist locally so next check works offline
+      await this.saveSubscriptionLocally(created);
+      return created;
     } catch (error: any) {
       console.error('Error creating trial subscription:', error);
       throw new Error(error.message || 'Failed to create trial subscription');
@@ -185,7 +248,9 @@ class SubscriptionService {
         updatedData
       );
 
-      return response as unknown as Subscription;
+      const activated = response as unknown as Subscription;
+      await this.saveSubscriptionLocally(activated);
+      return activated;
     } catch (error: any) {
       console.error('Error activating subscription:', error);
       throw new Error(error.message || 'Failed to activate subscription');
@@ -216,7 +281,9 @@ class SubscriptionService {
         updatedData
       );
 
-      return response as unknown as Subscription;
+      const cancelled = response as unknown as Subscription;
+      await this.saveSubscriptionLocally(cancelled);
+      return cancelled;
     } catch (error: any) {
       console.error('Error cancelling subscription:', error);
       throw new Error(error.message || 'Failed to cancel subscription');

@@ -137,7 +137,6 @@ const HomeScreen: React.FC<Props> = ({ navigation }) => {
               // Update Redux store if lives changed
               if (lives !== user.lives || lastLifeRegenTime !== user.lastLifeRegenTime) {
                 dispatch(updateUser({ lives, lastLifeRegenTime }));
-                console.log(`✅ Lives refreshed on HomeScreen: ${lives}/5`);
               }
             } catch (error) {
               console.error('Failed to refresh lives on HomeScreen (non-fatal):', error);
@@ -150,7 +149,6 @@ const HomeScreen: React.FC<Props> = ({ navigation }) => {
           // 🚀 STEP 1: Load cached completed levels FIRST (instant!)
           const cachedCompletedLevels = await cacheService.getCompletedLevels();
           if (cachedCompletedLevels.length > 0) {
-            console.log('📦 Loaded from cache:', cachedCompletedLevels);
             latestCompletedLevels = new Set(cachedCompletedLevels);
           }
 
@@ -165,15 +163,11 @@ const HomeScreen: React.FC<Props> = ({ navigation }) => {
                 [Query.equal('userId', user.$id), Query.equal('isCompleted', true)]
               );
               const appwriteCompletedLevels = progressDocs.documents.map(doc => doc.level);
-              console.log('🌐 Fetched from Appwrite:', appwriteCompletedLevels);
-
               // MERGE Appwrite data with cache data - don't replace!
               // This ensures recently completed levels from cache aren't lost
               appwriteCompletedLevels.forEach(levelId => {
                 latestCompletedLevels.add(levelId);
               });
-              console.log('📊 Merged completed levels:', Array.from(latestCompletedLevels));
-
               // 💾 Save merged data to cache for next time
               await cacheService.saveCompletedLevels(Array.from(latestCompletedLevels));
 
@@ -204,8 +198,6 @@ const HomeScreen: React.FC<Props> = ({ navigation }) => {
 
           // Get all sections (documents) from backend with caching
           const backendSections = await cachedBackendApi.getSections();
-          console.log('Fetched sections:', backendSections);
-
           // Find the first valid section ID for the "default unlock" logic
           const firstValidSectionId = backendSections.find(s => s.section_id)?.section_id;
 
@@ -224,8 +216,6 @@ const HomeScreen: React.FC<Props> = ({ navigation }) => {
 
               // Fetch levels for this section using section_id with caching
               const levels = await cachedBackendApi.getLevels(section.section_id);
-              console.log(`Levels for ${section.title}:`, levels);
-
               if (levels.length === 0) continue;
 
               const levelNodes: LevelNode[] = levels.map((level, levelIndex) => {
@@ -277,8 +267,6 @@ const HomeScreen: React.FC<Props> = ({ navigation }) => {
                   // Calculate the recap section number (10, 20, 30, etc.)
                   // This aligns with backend which expects recap sections at 10, 20, 30
                   const recapSectionNumber = Math.floor(currentSectionCount / 9) * 10;
-                  console.log(`Fetching recap section ${recapSectionNumber} after ${currentSectionCount} regular sections...`);
-
                   const recapData = await backendApi.getRecapSection(recapSectionNumber, 10, true);
 
                   // Create level nodes for recap section
@@ -303,8 +291,6 @@ const HomeScreen: React.FC<Props> = ({ navigation }) => {
                     title: recapData.recap_section_title,
                     levels: recapLevelNodes,
                   });
-
-                  console.log(`✅ Added recap section ${recapSectionNumber} with ${recapLevelNodes.length} levels`);
                 } catch (recapError: any) {
                   // If recap section doesn't exist or fails, just log and continue
                   // This is expected for section 10 if only 3 sections exist

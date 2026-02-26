@@ -60,10 +60,7 @@ class KoraPayService {
       };
 
       const url = `${this.apiUrl}/charges/initialize`;
-      console.log('KoraPay API URL:', url);
-      console.log('KoraPay Payload:', JSON.stringify(payload, null, 2));
-      console.log('Using Secret Key:', this.secretKey ? `${this.secretKey.substring(0, 10)}...` : 'NOT SET');
-
+      
       const response = await axios.post<KoraPayInitializeResponse>(
         url,
         payload,

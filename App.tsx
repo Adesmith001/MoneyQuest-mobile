@@ -9,6 +9,7 @@ import { Alert, Platform, ErrorUtils, View, Text, StyleSheet, LogBox } from 'rea
 import * as Font from 'expo-font';
 import LoadingScreen from './src/components/LoadingScreen';
 import notificationService from './src/services/notifications';
+import soundService from './src/services/soundService';
 
 // Ignore specific warnings that don't affect functionality
 LogBox.ignoreLogs([
@@ -101,9 +102,13 @@ function AppContent() {
   useEffect(() => {
     async function prepare() {
       try {
-        console.log('🚀 App initializing...');
 
         // Only load fonts - skip other services that might cause issues on iOS
+        // Initialize sound service (non-blocking)
+        soundService.initialize().catch(err => {
+          console.warn('⚠️ Sound service init failed (non-blocking):', err);
+        });
+
         try {
           const fontPromise = Font.loadAsync({
             'Arial-Rounded-MT-Bold': require('./assets/fonts/ArialRoundedMTBold.ttf'),
@@ -111,18 +116,15 @@ function AppContent() {
           // 5 second timeout for fonts
           const timeoutPromise = new Promise<void>((resolve) => 
             setTimeout(() => {
-              console.log('⚠️ Font loading timeout, continuing anyway');
               resolve();
             }, 5000)
           );
           await Promise.race([fontPromise, timeoutPromise]);
-          console.log('✅ Fonts loaded');
         } catch (error) {
           console.error('❌ Font loading error:', error);
           // Continue anyway - use system fonts
         }
 
-        console.log('✅ App initialization complete');
       } catch (error) {
         console.error('❌ Critical initialization error:', error);
         setInitError(error instanceof Error ? error : new Error(String(error)));
@@ -142,7 +144,6 @@ function AppContent() {
     // Failsafe: Force app ready after 5 seconds no matter what
     const failsafe = setTimeout(() => {
       if (!isAppReady) {
-        console.log('⚠️ Failsafe triggered - forcing app ready');
         setIsAppReady(true);
       }
     }, 5000);
@@ -153,13 +154,9 @@ function AppContent() {
   useEffect(() => {
     const handleDeepLink = async (event: { url: string }) => {
       try {
-        console.log('Deep link received:', event.url);
-        
         if (event.url.includes('oauth-callback/success')) {
-          console.log('OAuth success callback received');
           // The session should already be created by Appwrite
         } else if (event.url.includes('oauth-callback/failure')) {
-          console.log('OAuth failure callback received');
           Alert.alert('Authentication Failed', 'Could not sign in with Google');
         }
       } catch (error) {

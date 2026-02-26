@@ -24,17 +24,11 @@ const client = new Client();
 
 try {
   // Log configuration for debugging
-  console.log('🔧 Appwrite Configuration:');
-  console.log('  - Endpoint:', FINAL_ENDPOINT);
-  console.log('  - Project ID:', FINAL_PROJECT_ID);
-  console.log('  - Using fallback:', !APPWRITE_ENDPOINT || !APPWRITE_PROJECT_ID ? 'YES' : 'NO');
-
   client
     .setEndpoint(FINAL_ENDPOINT)
     .setProject(FINAL_PROJECT_ID)
     .setPlatform('com.expo.moneyquest');
 
-  console.log('✅ Appwrite client initialized successfully');
 } catch (error) {
   console.error('❌ Failed to initialize Appwrite client:', error);
   // Try one more time with hardcoded fallbacks
@@ -43,7 +37,6 @@ try {
       .setEndpoint(FALLBACK_ENDPOINT)
       .setProject(FALLBACK_PROJECT_ID)
       .setPlatform('com.expo.moneyquest');
-    console.log('✅ Appwrite client initialized with fallback values');
   } catch (fallbackError) {
     console.error('❌ Even fallback initialization failed:', fallbackError);
   }
@@ -54,8 +47,6 @@ export const account = new Account(client);
 
 // Add this temporary logging to debug
 export const testOAuthConfig = () => {
-  console.log('Appwrite Endpoint:', APPWRITE_ENDPOINT);
-  console.log('Appwrite Project ID:', APPWRITE_PROJECT_ID);
 };
 
 export const databases = new Databases(client);

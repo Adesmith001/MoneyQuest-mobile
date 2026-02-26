@@ -54,16 +54,6 @@ const DailyStreakScreen: React.FC = () => {
   const activeDays = new Set(loginHistory || []);
   const week = getPastSevenDays();
 
-  // Debug information (can be removed in production)
-  console.log("DailyStreakScreen Debug:", {
-    currentStreak,
-    weeklyStreak,
-    loginHistory,
-    activeDaysArray: Array.from(activeDays),
-    weekDates: week.map((d) => d.date),
-    isLoading,
-  });
-
   return (
     <SafeAreaView style={styles.container}>
       <ScrollView 

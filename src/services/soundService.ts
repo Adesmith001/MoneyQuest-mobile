@@ -29,7 +29,6 @@ class SoundService {
       await this.loadSounds();
       
       this.isInitialized = true;
-      console.log('✅ Sound service initialized');
     } catch (error) {
       console.error('Failed to initialize sound service:', error);
       // Don't throw - allow app to continue without sound
@@ -59,29 +58,32 @@ class SoundService {
         }
       }
 
-      console.log('✅ Sound effects loaded');
     } catch (error) {
       console.error('Failed to load sounds:', error);
     }
   }
 
   async playSound(soundName: string) {
-    if (!this.isSoundEnabled || !this.isInitialized) return;
+    if (!this.isSoundEnabled) return;
+
+    // Auto-initialize if not yet done
+    if (!this.isInitialized) {
+      await this.initialize();
+    }
 
     try {
       const sound = this.sounds[soundName];
       if (sound) {
-        // Stop if already playing and replay from start
         const status = await sound.getStatusAsync();
         if (status.isLoaded) {
-          await sound.setPositionAsync(0);
-          await sound.playAsync();
+          // replayAsync resets position and plays — reliable for short SFX
+          await sound.replayAsync();
         }
       } else {
-        console.warn(`Sound ${soundName} not found`);
+        console.warn(`Sound '${soundName}' not found. Available: ${Object.keys(this.sounds).join(', ')}`);
       }
     } catch (error) {
-      console.error(`Failed to play sound ${soundName}:`, error);
+      console.error(`Failed to play sound '${soundName}':`, error);
     }
   }
 
@@ -89,7 +91,6 @@ class SoundService {
     this.isSoundEnabled = enabled;
     try {
       await AsyncStorage.setItem(SOUND_ENABLED_KEY, enabled.toString());
-      console.log(`✅ Sound ${enabled ? 'enabled' : 'disabled'}`);
     } catch (error) {
       console.error('Failed to save sound preference:', error);
     }
@@ -106,7 +107,6 @@ class SoundService {
       }
       this.sounds = {};
       this.isInitialized = false;
-      console.log('✅ Sound service cleaned up');
     } catch (error) {
       console.error('Failed to cleanup sounds:', error);
     }

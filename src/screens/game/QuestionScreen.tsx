@@ -25,12 +25,14 @@ import {
 import { refreshUserData, updateUser } from "../../store/slices/authSlice";
 import CorrectAnswerModal from "../../components/modals/CorrectAnswerModal";
 import IncorrectAnswerModal from "../../components/modals/IncorrectAnswerModal";
+import FlagQuestionModal from "../../components/modals/FlagQuestionModal";
 import { RootState } from "../../store";
 import ProgressBar from "../../components/progressBar";
 import CustomButton from "../../components/CustomButton";
 import questionService from "../../services/questions";
 import { backendApi } from "../../services/backendApi";
 import cachedBackendApi from "../../services/cachedBackendApi";
+import learningService from "../../services/learningService";
 import { databases, DB_ID, COLLECTIONS, Query } from "../../services/appwrite";
 import {
   AnyQuestion,
@@ -238,6 +240,9 @@ const QuestionScreen: React.FC<Props> = ({ navigation, route }) => {
     incorrect: string[];
   }>({ correct: [], incorrect: [] });
 
+  // Section image URL (displayed in article view)
+  const [sectionImageUrl, setSectionImageUrl] = useState<string | null>(null);
+
   // Track if this level was already completed (for retakes - no life deduction)
   const [isRetake, setIsRetake] = useState(false);
   
@@ -248,6 +253,7 @@ const QuestionScreen: React.FC<Props> = ({ navigation, route }) => {
 
   // Flag question state
   const [isFlagged, setIsFlagged] = useState(false);
+  const [isFlagModalVisible, setIsFlagModalVisible] = useState(false);
 
   // Refresh lives from Appwrite when screen is focused
   // Also sync progress when screen loses focus (user navigates away)
@@ -272,8 +278,6 @@ const QuestionScreen: React.FC<Props> = ({ navigation, route }) => {
           // Update Redux store with new lives
           dispatch(setHealth(lives));
           dispatch(updateUser({ lives, lastLifeRegenTime }));
-          
-          console.log(`✅ Lives refreshed from Appwrite: ${lives}/5`);
         } catch (error) {
           console.error('Failed to refresh lives (non-fatal):', error);
           // Continue with cached lives - don't block the game
@@ -286,8 +290,6 @@ const QuestionScreen: React.FC<Props> = ({ navigation, route }) => {
       return () => {
         // Sync progress to Appwrite when leaving the screen
         if (user?.$id && viewMode === "quiz" && currentQuestionIndex > 0) {
-          console.log("☁️ Screen unfocused - syncing progress to Appwrite...");
-          
           // Fire and forget - don't await
           databases.updateDocument(
             DB_ID,
@@ -299,7 +301,6 @@ const QuestionScreen: React.FC<Props> = ({ navigation, route }) => {
               updatedAt: new Date().toISOString(),
             }
           ).then(() => {
-            console.log("☁️ Background sync completed on screen exit");
           }).catch((error) => {
             console.error("☁️ Background sync failed on screen exit:", error);
           });
@@ -416,16 +417,13 @@ const QuestionScreen: React.FC<Props> = ({ navigation, route }) => {
             });
           });
           
-          console.log(`✅ Loaded ${allQuestions.length} recap questions from ${sourceSection.section_title}`);
           const mixedQuestions = mixAndLimitQuestions(allQuestions);
-          console.log(`🎲 Mixed and limited to ${mixedQuestions.length} questions`);
           setQuestions(mixedQuestions);
         } else {
           // Regular level - Check cache for level data first
           let cachedLevelData = await cacheService.getLevelData(levelId);
           
           if (cachedLevelData) {
-            console.log(`✅ Using cached level data (article) for ${levelId}`);
             setLevelData(cachedLevelData);
           } else {
             // Fetch from API if not cached
@@ -445,7 +443,18 @@ const QuestionScreen: React.FC<Props> = ({ navigation, route }) => {
             
             // Cache the level data for future use
             await cacheService.saveLevelData(levelId, mergedLevelData);
-            console.log(`💾 Cached level data (article) for ${levelId}`);
+          }
+
+          // Fetch section image for article view
+          if (sectionId) {
+            try {
+              const section = await learningService.getSectionById(sectionId);
+              if (section?.image_url) {
+                setSectionImageUrl(section.image_url);
+              }
+            } catch (imgErr) {
+              console.warn('Could not load section image:', imgErr);
+            }
           }
 
           // Get questions for this level with caching
@@ -460,11 +469,8 @@ const QuestionScreen: React.FC<Props> = ({ navigation, route }) => {
             .map(q => normalizeQuestion(q))
             .filter((q): q is AnyQuestion => q !== null);
           
-          console.log(`✅ Loaded ${normalizedQuestions.length} normalized questions for level ${levelId}`);
-          
           // Mix and limit to exactly 10 questions with proper distribution
           const mixedQuestions = mixAndLimitQuestions(normalizedQuestions);
-          console.log(`🎲 Mixed and limited to ${mixedQuestions.length} questions`);
           setQuestions(mixedQuestions);
         }
 
@@ -485,7 +491,6 @@ const QuestionScreen: React.FC<Props> = ({ navigation, route }) => {
             if (completedDocs.documents.length > 0) {
               // This is a retake - user won't lose lives or gain XP
               setIsRetake(true);
-              console.log("🔄 This is a retake of a completed level - no life deduction");
             }
 
             // Then check for in-progress saves
@@ -599,7 +604,6 @@ const QuestionScreen: React.FC<Props> = ({ navigation, route }) => {
           updatedAt: new Date().toISOString(),
         }
       );
-      console.log("☁️ Background sync: User progress saved to Appwrite");
     } catch (error) {
       console.error("☁️ Background sync failed:", error);
       // Don't throw - this is a background operation
@@ -681,10 +685,6 @@ const QuestionScreen: React.FC<Props> = ({ navigation, route }) => {
         Object.keys(matchingQ.correct_matches).length === Object.keys(matchingAnswers).length;
 
       userAnswer = JSON.stringify(matchingAnswers);
-      console.log("User Matching Answers:", matchingAnswers);
-      console.log("MatchingQ:", matchingQ);
-      console.log("Correct Matches:", correctAnswers);
-      console.log("Incorrect Matches:", incorrectAnswers);
 
     } else if (currentQuestion.question_type === "fill_in_gap") {
       const fillGapQ = currentQuestion as FillInGapQuestion;
@@ -701,8 +701,6 @@ const QuestionScreen: React.FC<Props> = ({ navigation, route }) => {
 
       isCorrect = incorrectAnswers.length === 0;
       userAnswer = JSON.stringify(fillInGapAnswers);
-      console.log("Fill in Gap Answers:", fillInGapAnswers);
-      console.log("Incorrect Blanks:", incorrectAnswers);
 
     } else {
       // MCQ or Scenario questions
@@ -717,12 +715,8 @@ const QuestionScreen: React.FC<Props> = ({ navigation, route }) => {
         const options = mcqQ.options || { A: '', B: '', C: '', D: '' };
         const selectedOption = options[selectedAnswer as "A" | "B" | "C" | "D"] || '';
         incorrectAnswers.push(`Selected: ${selectedAnswer}. ${selectedOption}`);
-        console.log("Incorrect MCQ Answer:", incorrectAnswers);
       }
     }
-
-    console.log("Is Correct:", isCorrect);
-    console.log("All Incorrect Answers:", incorrectAnswers);
 
     // Always increment total attempts for accuracy calculation
     setTotalAttempts(totalAttempts + 1);
@@ -733,8 +727,6 @@ const QuestionScreen: React.FC<Props> = ({ navigation, route }) => {
       soundService.playSound("incorrect"); // Play incorrect sound immediately
 
       // Deduct life IMMEDIATELY using livesService and update Appwrite
-      console.log(`❤️ Before deduction - User lives: ${user.lives}, lastLifeRegenTime: ${user.lastLifeRegenTime}`);
-      
       try {
         const { lives, lastLifeRegenTime, canContinue } =
           await livesService.deductLife(
@@ -742,8 +734,6 @@ const QuestionScreen: React.FC<Props> = ({ navigation, route }) => {
             user.lives !== undefined && user.lives !== null ? user.lives : 5,
             user.lastLifeRegenTime || new Date().toISOString()
           );
-
-        console.log(`💔 After deduction - Lives: ${lives}, canContinue: ${canContinue}`);
 
         // Update Redux with new lives immediately
         dispatch(setHealth(lives));
@@ -780,7 +770,6 @@ const QuestionScreen: React.FC<Props> = ({ navigation, route }) => {
     } else if (!isCorrect && isRetake) {
       // Retake mode - just play sound, no life deduction
       soundService.playSound("incorrect");
-      console.log("🔄 Retake mode - incorrect answer but no life deducted");
     }
 
     try {
@@ -819,7 +808,6 @@ const QuestionScreen: React.FC<Props> = ({ navigation, route }) => {
           dispatch(refreshUserData(user.$id) as any);
         } catch (error) {
           // Silently fail - not critical
-          console.log('Failed to refresh user data');
         }
       }
     } catch (error) {
@@ -838,9 +826,9 @@ const QuestionScreen: React.FC<Props> = ({ navigation, route }) => {
     setIncorrectModalVisible(false);
     setSelectedAnswer("");
     setMatchingAnswers({});
-    console.log("this is the matching questions", matchingAnswers);
     setFillInGapAnswers({});
     setIsFlagged(false); // Reset flag state for next question
+    setIsFlagModalVisible(false); // Ensure flag modal is closed
     setIsWaitingForNext(false); // Re-enable the button for next question
 
     // Get current lives from user (Appwrite source of truth)
@@ -953,7 +941,6 @@ const QuestionScreen: React.FC<Props> = ({ navigation, route }) => {
           }
         }
         await cacheService.addCompletedLevel(levelId);
-        console.log('✅ Saved to cache:', levelId);
 
         // Determine next level: check if this was the last level in the section
         let nextLevelToUnlock = result.next_level_id;
@@ -961,8 +948,6 @@ const QuestionScreen: React.FC<Props> = ({ navigation, route }) => {
 
         if (result.passed && !result.next_level_id) {
           // No next level returned means we're at the end of the current section
-          console.log('🎉 Section completed! Finding next section...');
-          
           try {
             // Get all sections with caching
             const allSections = await cachedBackendApi.getSections();
@@ -971,8 +956,6 @@ const QuestionScreen: React.FC<Props> = ({ navigation, route }) => {
             if (currentSectionIndex !== -1 && currentSectionIndex < allSections.length - 1) {
               // There is a next section
               const nextSection = allSections[currentSectionIndex + 1];
-              console.log('📚 Next section found:', nextSection.title);
-              
               // Get the first level of the next section with caching
               if (nextSection.section_id) {
                 const nextSectionLevels = await cachedBackendApi.getLevels(nextSection.section_id);
@@ -980,11 +963,9 @@ const QuestionScreen: React.FC<Props> = ({ navigation, route }) => {
                 if (nextSectionLevels.length > 0) {
                   nextLevelToUnlock = nextSectionLevels[0].level_id;
                   nextSectionId = nextSection.section_id;
-                  console.log('🔓 Unlocking first level of next section:', nextSectionLevels[0].title);
                 }
               }
             } else {
-              console.log('🎓 All sections completed!');
             }
           } catch (error) {
             console.error('Failed to find next section:', error);
@@ -1015,9 +996,6 @@ const QuestionScreen: React.FC<Props> = ({ navigation, route }) => {
               lastLifeRegenTime: newLastLifeRegenTime,
             })
           );
-          
-          console.log(`✅ Level completed! Lives increased to ${newLives}/5`);
-          console.log(`✅ Next level unlocked: ${nextLevelToUnlock} in section: ${nextSectionId}`);
         } else if (result.passed && !nextLevelToUnlock) {
           // Level completed but no next level (end of all sections/course)
           // Keep current level ID so progress is maintained
@@ -1043,8 +1021,6 @@ const QuestionScreen: React.FC<Props> = ({ navigation, route }) => {
             })
           );
           
-          console.log(`✅ Level completed! Lives increased to ${newLives}/5`);
-          console.log('🎓 All content completed!');
         }
 
         await databases.updateDocument(
@@ -1110,6 +1086,17 @@ const QuestionScreen: React.FC<Props> = ({ navigation, route }) => {
             }
             textStyle={styles.articleContent}
           />
+
+          {/* Section image (if uploaded for this section) */}
+          {sectionImageUrl ? (
+            <View style={styles.sectionImageContainer}>
+              <Image
+                source={{ uri: sectionImageUrl }}
+                style={styles.sectionImage}
+                resizeMode="cover"
+              />
+            </View>
+          ) : null}
         </ScrollView>
 
         <View style={styles.footer}>
@@ -1197,69 +1184,64 @@ const QuestionScreen: React.FC<Props> = ({ navigation, route }) => {
     }
   };
 
-  const handleFlagQuestion = async () => {
+  const handleFlagQuestion = () => {
     const currentQuestion = questions[currentQuestionIndex];
     if (!currentQuestion) return;
 
-    // If already flagged, just unflag locally (toggle off)
+    // If already flagged, toggle off
     if (isFlagged) {
       setIsFlagged(false);
-      console.log('🏴 Question unflagged');
       return;
     }
 
-    // Flag the question
+    // Open the flag modal so the user can choose a reason
+    setIsFlagModalVisible(true);
+  };
+
+  const handleFlagSubmit = async (reason: string, flaggedBy: string) => {
+    setIsFlagModalVisible(false);
+
+    const currentQuestion = questions[currentQuestionIndex];
+    if (!currentQuestion) return;
+
     try {
       // Determine question type and ID
       let questionType: 'quiz' | 'scenario' | 'matching' = 'quiz';
       let questionId = '';
-      
-      // Try to find the actual database ID
+
       const questionData = currentQuestion as any;
 
       if (currentQuestion.question_type === 'scenario') {
         questionType = 'scenario';
-        // For scenario questions: scenario_id is the primary key in the database
         questionId = String(questionData.scenario_id);
       } else if (currentQuestion.question_type === 'matching') {
         questionType = 'matching';
-        // For matching questions: pair_id is the primary key in the database
         questionId = String(questionData.pair_id);
       } else if (currentQuestion.question_type === 'fill_in_gap') {
         questionType = 'quiz'; // Fill-in-gap treated as quiz type
-        // For fill-gap questions: gap_id is the primary key in the database
         questionId = String(questionData.gap_id);
       } else {
         questionType = 'quiz';
-        // For quiz questions: question_id is the primary key in the database
         questionId = String(questionData.question_id);
       }
 
       // Validate that we have a proper numeric ID
       if (!questionId || questionId === 'undefined' || questionId === 'null') {
         console.warn('⚠️ Question ID not found, cannot flag question');
-        console.log('Question data:', questionData);
         return;
       }
-
-      console.log('🏴 Flagging question:', {
-        type: questionType,
-        id: questionId,
-        questionText: currentQuestion.question.substring(0, 50) + '...'
-      });
 
       await backendApi.flagQuestion(
         questionId,
         questionType,
-        "Question flagged by user",
-        user?.$id
+        reason,
+        flaggedBy || user?.$id
       );
 
       setIsFlagged(true);
-      console.log('✅ Question flagged successfully');
     } catch (error) {
       console.error("Error flagging question:", error);
-      // Still set as flagged even if API fails to prevent multiple attempts
+      // Still mark as flagged even if API call fails
       setIsFlagged(true);
     }
   };
@@ -1435,6 +1417,13 @@ const QuestionScreen: React.FC<Props> = ({ navigation, route }) => {
             ? matchingResults.correct
             : undefined
         }
+      />
+
+      <FlagQuestionModal
+        visible={isFlagModalVisible}
+        defaultFlaggedBy={user?.name || ''}
+        onSubmit={handleFlagSubmit}
+        onClose={() => setIsFlagModalVisible(false)}
       />
 
       {/* Coach marks for first-time question experience */}
@@ -1664,6 +1653,17 @@ const styles = StyleSheet.create({
     fontSize: FONT_SIZES.lg + 1,
     lineHeight: 30,
     color: COLORS.text,
+  },
+  sectionImageContainer: {
+    marginTop: SPACING.xl,
+    borderRadius: 16,
+    overflow: 'hidden',
+    borderWidth: 1,
+    borderColor: COLORS.border || '#E0E0E0',
+  },
+  sectionImage: {
+    width: '100%',
+    height: 220,
   },
 });
 

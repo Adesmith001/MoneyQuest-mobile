@@ -23,7 +23,6 @@ class LearningService {
   async getAllSections(): Promise<BackendSection[]> {
     try {
       const sections = await cachedBackendApi.getSections();
-      console.log('Fetched sections:', sections);
       return sections;
     } catch (error) {
       console.error('Error fetching sections:', error);
@@ -60,7 +59,6 @@ class LearningService {
   async getLevelsForSection(sectionId: string): Promise<BackendLevel[]> {
     try {
       const levels = await cachedBackendApi.getLevels(sectionId);
-      console.log(`Fetched ${levels.length} levels for section ${sectionId}`);
       return levels;
     } catch (error) {
       console.error(`Error fetching levels for section ${sectionId}:`, error);
@@ -76,7 +74,6 @@ class LearningService {
   async getLevelDetails(levelId: string): Promise<BackendLevelDetail> {
     try {
       const levelDetail = await backendApi.getLevelDetails(levelId);
-      console.log('Fetched level details:', levelDetail);
       return levelDetail;
     } catch (error) {
       console.error(`Error fetching level details ${levelId}:`, error);
@@ -96,7 +93,6 @@ class LearningService {
   }> {
     try {
       const description = await backendApi.getLevelDescription(levelId);
-      console.log('Fetched level description:', description);
       return description;
     } catch (error) {
       console.error(`Error fetching level description ${levelId}:`, error);
@@ -116,7 +112,6 @@ class LearningService {
   async getQuestionsForLevel(levelId: string): Promise<BackendQuestionResponse> {
     try {
       const response = await backendApi.getLevelQuestions(levelId);
-      console.log(`Fetched ${response.questions.length} questions for level ${levelId}`);
       
       return response;
     } catch (error) {
@@ -152,7 +147,6 @@ class LearningService {
           }
         })
       );
-      console.log('Fetched complete learning path');
       return learningPath;
     } catch (error) {
       console.error('Error fetching learning path:', error);

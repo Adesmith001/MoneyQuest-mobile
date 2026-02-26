@@ -33,8 +33,6 @@ const ProgressBar: React.FC<ProgressBarProps> = ({
       // Use the lower of calculated lives or gameHealth (for immediate UI updates)
       const currentLives = gameHealth !== undefined ? Math.min(lives, gameHealth) : lives;
       setDisplayLives(Math.max(0, Math.min(5, currentLives)));
-      
-      console.log(`❤️ ProgressBar - Lives display updated: ${currentLives}`);
     }
   }, [user?.lives, user?.lastLifeRegenTime, gameHealth]);
 

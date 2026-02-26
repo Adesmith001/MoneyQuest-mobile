@@ -28,7 +28,6 @@ class AudioService {
         playThroughEarpieceAndroid: false,
       });
       this.isInitialized = true;
-      console.log('✅ Audio service initialized');
     } catch (error) {
       console.error('Failed to initialize audio:', error);
       // Don't throw - allow app to continue without audio
@@ -60,21 +59,12 @@ class AudioService {
       await this.stopAudio();
 
       // Call the JSON endpoint to get base64 audio
-      console.log('🎵 Generating TTS audio...');
-      console.log('Text:', text.substring(0, 50) + '...');
-      console.log('Voice:', voice);
-      
       const response = await backendApi.generateTTSJson({
         text,
         voice,
         speed,
         output_format: format,
       });
-
-      console.log('✅ TTS Response received');
-      console.log('Success:', response.success);
-      console.log('Voice used:', response.voice);
-      console.log('Format:', response.output_format);
 
       if (!response.success || !response.audio_base64) {
         throw new Error('Failed to generate audio - no base64 data received');
@@ -84,20 +74,17 @@ class AudioService {
       // expo-av can play audio directly from data URI
       const audioUri = `data:audio/${response.output_format};base64,${response.audio_base64}`;
       
-      console.log('🔊 Creating audio player...');
       const { sound } = await Audio.Sound.createAsync(
         { uri: audioUri },
         { shouldPlay: true }
       );
 
       this.currentSound = sound;
-      console.log('▶️ Audio playing...');
 
       // Clean up when audio finishes
       sound.setOnPlaybackStatusUpdate((status) => {
         if (status.isLoaded) {
           if (status.didJustFinish) {
-            console.log('✅ Audio finished playing');
             this.cleanup();
           }
         } else if (status.error) {
