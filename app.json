@@ -50,8 +50,7 @@
         "RECEIVE_BOOT_COMPLETED",
         "VIBRATE",
         "POST_NOTIFICATIONS",
-        "SCHEDULE_EXACT_ALARM",
-        "USE_EXACT_ALARM"
+        "com.android.vending.BILLING"
       ],
       "intentFilters": [
         {
@@ -93,6 +92,7 @@
     "owner": "adesmith",
     "privacyPolicyUrl": "https://www.nurtureehaven.com/privacy-policy",
     "plugins": [
+      "react-native-iap",
       [
         "expo-build-properties",
         {

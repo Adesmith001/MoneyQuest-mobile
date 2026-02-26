@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import {
   View,
   Text,
@@ -10,6 +10,7 @@ import {
   Linking,
   Image,
   Switch,
+  Platform,
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { useNavigation } from "@react-navigation/native";
@@ -18,8 +19,8 @@ import { Ionicons } from "@expo/vector-icons";
 import { useSelector } from "react-redux";
 import { RootState } from "../../store";
 import { PlanType, SUBSCRIPTION_PLANS } from "../../types/subscription";
-import { koraPayService } from "../../services/korapayService";
 import { subscriptionService } from "../../services/subscriptionService";
+import { iapService } from "../../services/iapService";
 
 type RootStackParamList = {
   Premium: undefined;
@@ -39,6 +40,18 @@ const PremiumScreen: React.FC = () => {
   const [selectedPlan, setSelectedPlan] = useState<PlanType>("annual");
   const [isLoading, setIsLoading] = useState(false);
   const [autoRenew, setAutoRenew] = useState(true);
+
+  // Connect to store billing (Google Play / App Store) when screen mounts
+  useEffect(() => {
+    if (iapService.isAvailable) {
+      iapService.connect().catch(() => {});
+    }
+    return () => {
+      if (iapService.isAvailable) {
+        iapService.disconnect();
+      }
+    };
+  }, []);
 
   const handleStartTrial = async () => {
     if (!user) {
@@ -117,39 +130,105 @@ const PremiumScreen: React.FC = () => {
         await subscriptionService.toggleAutoRenew(user.$id, autoRenew);
       }
 
-      // Initialize payment with KoraPay for after trial period
-      const paymentResponse = await koraPayService.initializePayment(
-        user.$id,
-        selectedPlan,
-        user.email,
-        user.name
-      );
-
-      if (paymentResponse.status && paymentResponse.data.checkout_url) {
-        // Open KoraPay checkout URL
-        const supported = await Linking.canOpenURL(
-          paymentResponse.data.checkout_url
-        );
-
-        if (supported) {
-          await Linking.openURL(paymentResponse.data.checkout_url);
-
-          // Navigate to payment pending screen
-          navigation.navigate("PaymentPending", {
-            reference: paymentResponse.data.reference,
-            planType: selectedPlan,
-          });
-        } else {
-          throw new Error("Cannot open payment URL");
-        }
-      } else {
-        throw new Error("Failed to initialize payment");
-      }
+      // ─── Use native store billing (Google Play / App Store) ───────
+      await handleStorePurchase();
     } catch (error: any) {
       Alert.alert(
         "Payment Error",
         error.message || "Failed to initialize payment. Please try again."
       );
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  /** Handle purchase through native store (Google Play / App Store) */
+  const handleStorePurchase = async () => {
+    try {
+      const purchase = await iapService.purchaseSubscription(
+        selectedPlan,
+        user!.$id
+      );
+
+      // Activate subscription in our Appwrite backend
+      await iapService.activateSubscription(
+        purchase,
+        user!.$id,
+        selectedPlan
+      );
+
+      Alert.alert(
+        "Subscription Active! 🎉",
+        "Your premium subscription is now active. Enjoy unlimited access!",
+        [
+          {
+            text: "Continue",
+            onPress: () => {
+              navigation.reset({
+                index: 0,
+                routes: [{ name: "MainTabs" }],
+              });
+            },
+          },
+        ]
+      );
+    } catch (error: any) {
+      // User cancelled — silently return
+      if (
+        error.code === "E_USER_CANCELLED" ||
+        error.message?.includes("cancelled") ||
+        error.message?.includes("canceled")
+      ) {
+        return;
+      }
+      throw error; // Re-throw to be caught by handleSubscribe's catch
+    }
+  };
+
+  /** Restore previous purchases — required by Apple (Guideline 3.1.2) */
+  const handleRestorePurchases = async () => {
+    if (!user) {
+      Alert.alert("Error", "Please log in first.");
+      return;
+    }
+
+    try {
+      setIsLoading(true);
+
+      const purchases = await iapService.restorePurchases();
+
+      if (purchases.length > 0) {
+        const latestPurchase = purchases[0];
+        const planType = iapService.getPlanTypeFromProductId(latestPurchase.productId);
+
+        if (planType) {
+          await iapService.activateSubscription(latestPurchase, user.$id, planType);
+
+          Alert.alert(
+            "Subscription Restored!",
+            "Your premium subscription has been restored.",
+            [
+              {
+                text: "Continue",
+                onPress: () => {
+                  navigation.reset({
+                    index: 0,
+                    routes: [{ name: "MainTabs" }],
+                  });
+                },
+              },
+            ]
+          );
+          return;
+        }
+      }
+
+      Alert.alert(
+        "No Subscription Found",
+        `We couldn't find an active subscription on your ${iapService.platformName} account.`
+      );
+    } catch (error: any) {
+      Alert.alert("Error", error.message || "Failed to restore purchases.");
     } finally {
       setIsLoading(false);
     }
@@ -251,6 +330,16 @@ const PremiumScreen: React.FC = () => {
           ) : (
             <Text style={styles.ctaButtonText}>Start 30-day free trial</Text>
           )}
+        </TouchableOpacity>
+        
+        <TouchableOpacity
+          style={styles.restoreButton}
+          onPress={handleRestorePurchases}
+          disabled={isLoading}
+          activeOpacity={0.7}
+        >
+          <Ionicons name="refresh-outline" size={16} color="#FFF" />
+          <Text style={styles.restoreText}>Restore Purchases</Text>
         </TouchableOpacity>
 
         {/* School Code Option */}
@@ -424,6 +513,20 @@ const styles = StyleSheet.create({
     backgroundColor: "rgba(255, 255, 255, 0.15)",
     borderRadius: 12,
     gap: 8,
+  },
+  restoreButton: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    paddingVertical: 10,
+    gap: 6,
+    marginBottom: 4,
+  },
+  restoreText: {
+    fontSize: 14,
+    color: "#FFF",
+    opacity: 0.8,
+    textDecorationLine: "underline",
   },
   schoolCodeText: {
     fontSize: 15,

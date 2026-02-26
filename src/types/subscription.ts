@@ -2,6 +2,8 @@ export type SubscriptionStatus = 'trial' | 'active' | 'expired' | 'cancelled' | 
 
 export type PlanType = 'monthly' | 'annual';
 
+export type PaymentProvider = 'korapay' | 'google_play' | 'school' | 'none';
+
 export interface SubscriptionPlan {
   id: PlanType;
   name: string;
