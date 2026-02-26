@@ -21,15 +21,7 @@ declare module '@env' {
   export const GOOGLE_CLIENT_ID: string;
   export const FACEBOOK_APP_ID: string;
   export const TWITTER_CLIENT_ID: string;
-  export const OPENAI_API_KEY: string;
-  export const AI_API_KEY: string;
-  export const AI_API_ENDPOINT: string;
-  export const API_BASE_URL_DEV: string;
-  export const API_BASE_URL_PROD: string;
   export const MONEYQUEST_API_BASE_URL: string;
   export const KORAPAY_PUBLIC_KEY: string;
-  export const KORAPAY_SECRET_KEY: string;
-  export const KORAPAY_MERCHANT_ID: string;
-  export const KORAPAY_WEBHOOK_SECRET: string;
   export const KORAPAY_API_URL: string;
 }
