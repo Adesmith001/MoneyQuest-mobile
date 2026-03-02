@@ -67,7 +67,7 @@ export default function SubscribePage() {
           setIsLoading(false);
         },
         onSuccess: () => {
-          navigate(`/subscribe/success?plan=${selectedPlan}`);
+          navigate(`/subscribe/success?plan=${selectedPlan}&reference=${encodeURIComponent(reference)}&userId=${encodeURIComponent(userId)}`);
         },
         onFailed: (data) => {
           setIsLoading(false);

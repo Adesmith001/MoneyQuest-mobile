@@ -374,6 +374,150 @@ class SubscriptionService {
       return { hasAccess: false, subscription: null };
     }
   }
+
+  /**
+   * Redeem a premium activation code (e.g. MQP-XXXXXX) to activate subscription.
+   * The code is created by the webhook after a successful KoraPay payment.
+   */
+  async redeemPremiumCode(
+    userId: string,
+    code: string
+  ): Promise<{ success: boolean; message: string; subscription?: Subscription }> {
+    try {
+      const trimmedCode = code.trim().toUpperCase();
+
+      // Look up the code in premium_codes collection
+      const codesResult = await databases.listDocuments(
+        APPWRITE_DATABASE_ID,
+        'premium_codes',
+        [Query.equal('code', trimmedCode), Query.limit(1)]
+      );
+
+      if (codesResult.documents.length === 0) {
+        return { success: false, message: 'Invalid code. Please check and try again.' };
+      }
+
+      const premiumCode = codesResult.documents[0] as any;
+
+      // Check if the code has already been redeemed
+      if (premiumCode.status === 'redeemed') {
+        return { success: false, message: 'This code has already been used.' };
+      }
+
+      // Check if the code belongs to this user
+      if (premiumCode.userId && premiumCode.userId !== userId) {
+        return { success: false, message: 'This code is not associated with your account.' };
+      }
+
+      // Check if the code has expired
+      if (premiumCode.expirationDate) {
+        const expDate = new Date(premiumCode.expirationDate);
+        if (new Date() > expDate) {
+          return { success: false, message: 'This code has expired.' };
+        }
+      }
+
+      const planType = premiumCode.planType as PlanType;
+      const plan = SUBSCRIPTION_PLANS[planType];
+      if (!plan) {
+        return { success: false, message: 'Invalid plan type in code.' };
+      }
+
+      // Calculate subscription dates
+      const now = new Date();
+      const endDate = new Date(now);
+      if (plan.billingCycle === 'month') {
+        endDate.setMonth(endDate.getMonth() + 1);
+      } else {
+        endDate.setFullYear(endDate.getFullYear() + 1);
+      }
+
+      // Get or create subscription
+      let subscription = await this.getUserSubscription(userId);
+      let activated: Subscription;
+
+      if (subscription) {
+        const response = await databases.updateDocument(
+          APPWRITE_DATABASE_ID,
+          APPWRITE_SUBSCRIPTIONS_COLLECTION_ID,
+          subscription.$id!,
+          {
+            planType,
+            status: 'active' as SubscriptionStatus,
+            subscriptionStartDate: now.toISOString(),
+            subscriptionEndDate: endDate.toISOString(),
+            lastPaymentDate: now.toISOString(),
+            nextBillingDate: endDate.toISOString(),
+            korapayTransactionReference: premiumCode.paymentReference || '',
+            amount: premiumCode.amount || plan.price,
+            updatedAt: now.toISOString(),
+          }
+        );
+        activated = response as unknown as Subscription;
+      } else {
+        const response = await databases.createDocument(
+          APPWRITE_DATABASE_ID,
+          APPWRITE_SUBSCRIPTIONS_COLLECTION_ID,
+          ID.unique(),
+          {
+            userId,
+            planType,
+            status: 'active' as SubscriptionStatus,
+            trialStartDate: now.toISOString(),
+            trialEndDate: now.toISOString(),
+            subscriptionStartDate: now.toISOString(),
+            subscriptionEndDate: endDate.toISOString(),
+            lastPaymentDate: now.toISOString(),
+            nextBillingDate: endDate.toISOString(),
+            autoRenew: false,
+            korapayTransactionReference: premiumCode.paymentReference || '',
+            amount: premiumCode.amount || plan.price,
+            currency: 'NGN',
+            createdAt: now.toISOString(),
+            updatedAt: now.toISOString(),
+          },
+          [
+            Permission.read(Role.user(userId)),
+            Permission.update(Role.user(userId)),
+            Permission.delete(Role.user(userId)),
+          ]
+        );
+        activated = response as unknown as Subscription;
+      }
+
+      // Mark the code as redeemed
+      try {
+        await databases.updateDocument(
+          APPWRITE_DATABASE_ID,
+          'premium_codes',
+          premiumCode.$id,
+          {
+            status: 'redeemed',
+            redeemedAt: now.toISOString(),
+            redeemedBy: userId,
+          }
+        );
+      } catch {
+        // Non-critical — subscription is activated regardless
+        console.warn('Could not update premium code status');
+      }
+
+      // Save locally for offline access
+      await this.saveSubscriptionLocally(activated);
+
+      return {
+        success: true,
+        message: 'Premium activated successfully!',
+        subscription: activated,
+      };
+    } catch (error: any) {
+      console.error('Error redeeming premium code:', error);
+      return {
+        success: false,
+        message: error.message || 'Failed to redeem code. Please try again.',
+      };
+    }
+  }
 }
 
 export const subscriptionService = new SubscriptionService();

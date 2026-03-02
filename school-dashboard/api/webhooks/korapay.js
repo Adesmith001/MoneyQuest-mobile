@@ -81,49 +81,94 @@ export default async function handler(req, res) {
         endDate.setFullYear(endDate.getFullYear() + 1);
       }
 
-      // Try to find existing subscription
-      const subscriptions = await databases.listDocuments(dbId, collectionId, [
-        Query.equal('userId', userId),
-        Query.orderDesc('$createdAt'),
-        Query.limit(1),
-      ]);
+      // Generate a premium activation code for the user
+      let premiumCode = '';
+      try {
+        // Check if a code already exists for this payment reference
+        const existingCodes = await databases.listDocuments(dbId, 'premium_codes', [
+          Query.equal('paymentReference', reference),
+          Query.limit(1),
+        ]);
 
-      if (subscriptions.documents.length > 0) {
-        // Update existing subscription
-        await databases.updateDocument(dbId, collectionId, subscriptions.documents[0].$id, {
-          planType,
-          status: 'active',
-          subscriptionStartDate: now.toISOString(),
-          subscriptionEndDate: endDate.toISOString(),
-          lastPaymentDate: now.toISOString(),
-          nextBillingDate: endDate.toISOString(),
-          korapayTransactionReference: reference,
-          amount: plan.price,
-          updatedAt: now.toISOString(),
-        });
-      } else {
-        // Create new subscription (web payment — no prior trial)
-        await databases.createDocument(dbId, collectionId, 'unique()', {
-          userId,
-          planType,
-          status: 'active',
-          trialStartDate: now.toISOString(),
-          trialEndDate: now.toISOString(),
-          subscriptionStartDate: now.toISOString(),
-          subscriptionEndDate: endDate.toISOString(),
-          lastPaymentDate: now.toISOString(),
-          nextBillingDate: endDate.toISOString(),
-          autoRenew: true,
-          korapayTransactionReference: reference,
-          amount: plan.price,
-          currency: 'NGN',
-          createdAt: now.toISOString(),
-          updatedAt: now.toISOString(),
-        });
+        if (existingCodes.documents.length > 0) {
+          premiumCode = existingCodes.documents[0].code;
+        } else {
+          // Generate unique premium code: MQP-XXXXXX
+          const chars = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789';
+          premiumCode = 'MQP-';
+          for (let i = 0; i < 6; i++) {
+            premiumCode += chars.charAt(Math.floor(Math.random() * chars.length));
+          }
+
+          await databases.createDocument(dbId, 'premium_codes', 'unique()', {
+            code: premiumCode,
+            userId,
+            planType,
+            status: 'unused',
+            paymentReference: reference,
+            amount: plan.price,
+            currency: 'NGN',
+            expirationDate: endDate.toISOString(),
+            createdAt: now.toISOString(),
+          });
+
+          console.log(`Premium code created: ${premiumCode} for user ${userId}`);
+        }
+      } catch (codeErr) {
+        console.error('Error creating premium code:', codeErr);
+        // Continue — the subscription activation below is the fallback
       }
 
-      console.log(`Subscription activated for user ${userId} (${planType})`);
-      return res.status(200).json({ success: true, message: 'Subscription activated' });
+      // Also try to activate subscription directly (webhook backup)
+      try {
+        const subscriptions = await databases.listDocuments(dbId, collectionId, [
+          Query.equal('userId', userId),
+          Query.orderDesc('$createdAt'),
+          Query.limit(1),
+        ]);
+
+        if (subscriptions.documents.length > 0) {
+          await databases.updateDocument(dbId, collectionId, subscriptions.documents[0].$id, {
+            planType,
+            status: 'active',
+            subscriptionStartDate: now.toISOString(),
+            subscriptionEndDate: endDate.toISOString(),
+            lastPaymentDate: now.toISOString(),
+            nextBillingDate: endDate.toISOString(),
+            korapayTransactionReference: reference,
+            amount: plan.price,
+            updatedAt: now.toISOString(),
+          });
+        } else {
+          await databases.createDocument(dbId, collectionId, 'unique()', {
+            userId,
+            planType,
+            status: 'active',
+            trialStartDate: now.toISOString(),
+            trialEndDate: now.toISOString(),
+            subscriptionStartDate: now.toISOString(),
+            subscriptionEndDate: endDate.toISOString(),
+            lastPaymentDate: now.toISOString(),
+            nextBillingDate: endDate.toISOString(),
+            autoRenew: true,
+            korapayTransactionReference: reference,
+            amount: plan.price,
+            currency: 'NGN',
+            createdAt: now.toISOString(),
+            updatedAt: now.toISOString(),
+          });
+        }
+        console.log(`Subscription activated for user ${userId} (${planType})`);
+      } catch (subErr) {
+        console.error('Error activating subscription directly:', subErr);
+        // Not critical — user can use the premium code instead
+      }
+
+      return res.status(200).json({
+        success: true,
+        message: 'Payment processed',
+        premiumCode: premiumCode || null,
+      });
     }
 
     // Handle payment failure

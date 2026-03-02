@@ -23,6 +23,7 @@ import { subscriptionService } from "../../services/subscriptionService";
 
 type RootStackParamList = {
   Premium: undefined;
+  PremiumCodeEntry: undefined;
   SchoolCodeEntry: undefined;
   MainTabs: undefined;
 };
@@ -196,15 +197,26 @@ const PremiumScreen: React.FC = () => {
           )}
         </TouchableOpacity>
 
-        {/* Manage Subscription */}
+        {/* Subscribe Now — opens payment page in browser */}
         <TouchableOpacity
-          style={styles.manageButton}
+          style={styles.subscribeButton}
           onPress={handleManageSubscription}
           disabled={isLoading}
+          activeOpacity={0.8}
+        >
+          <Ionicons name="card-outline" size={20} color="#1A1A1A" />
+          <Text style={styles.subscribeButtonText}>Manage your Subscription</Text>
+        </TouchableOpacity>
+
+        {/* Premium Code Option */}
+        <TouchableOpacity
+          style={styles.premiumCodeButton}
+          onPress={() => navigation.navigate("PremiumCodeEntry")}
           activeOpacity={0.7}
         >
-          <Ionicons name="settings-outline" size={18} color="#FFF" />
-          <Text style={styles.manageText}>Manage your subscription</Text>
+          <Ionicons name="key-outline" size={20} color="#FFD93D" />
+          <Text style={styles.premiumCodeText}>Have a premium code?</Text>
+          <Ionicons name="chevron-forward" size={16} color="#FFD93D" />
         </TouchableOpacity>
 
         {/* School Code Option */}
@@ -323,21 +335,25 @@ const styles = StyleSheet.create({
     fontWeight: "bold",
     color: "#FF6B35",
   },
-  manageButton: {
+  subscribeButton: {
     flexDirection: "row",
     alignItems: "center",
     justifyContent: "center",
-    paddingVertical: 14,
-    paddingHorizontal: 20,
-    backgroundColor: "rgba(255, 255, 255, 0.2)",
-    borderRadius: 12,
+    backgroundColor: "#4ECDC4",
+    borderRadius: 16,
+    paddingVertical: 16,
+    marginBottom: 14,
     gap: 8,
-    marginBottom: 12,
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.2,
+    shadowRadius: 4,
+    elevation: 4,
   },
-  manageText: {
-    fontSize: 15,
-    fontWeight: "600",
-    color: "#FFF",
+  subscribeButtonText: {
+    fontSize: 17,
+    fontWeight: "bold",
+    color: "#1A1A1A",
   },
   schoolCodeButton: {
     flexDirection: "row",
@@ -353,6 +369,24 @@ const styles = StyleSheet.create({
     fontSize: 15,
     fontWeight: "600",
     color: "#FFF",
+  },
+  premiumCodeButton: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    paddingVertical: 14,
+    paddingHorizontal: 20,
+    backgroundColor: "rgba(255, 215, 61, 0.15)",
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: "rgba(255, 215, 61, 0.3)",
+    gap: 8,
+    marginTop: 10,
+  },
+  premiumCodeText: {
+    fontSize: 15,
+    fontWeight: "600",
+    color: "#FFD93D",
   },
   legalContainer: {
     marginTop: 20,
