@@ -1,64 +1,73 @@
 import { useSearchParams } from 'react-router-dom';
 import { useState, useEffect } from 'react';
-import { databases, Query } from '../lib/appwrite';
-import { config } from '../config';
 
 export default function SubscribeSuccessPage() {
   const [searchParams] = useSearchParams();
   const plan = searchParams.get('plan') || 'monthly';
   const reference = searchParams.get('reference') || '';
+  const userId = searchParams.get('userId') || '';
 
   const [premiumCode, setPremiumCode] = useState('');
   const [isLoading, setIsLoading] = useState(true);
   const [copied, setCopied] = useState(false);
+  const [error, setError] = useState('');
 
   const planLabel = plan === 'annual' ? 'Annual' : 'Monthly';
 
-  // Poll for the premium code (webhook may take a few seconds)
+  // Call our API to generate/fetch the premium code
   useEffect(() => {
-    if (!reference) {
+    if (!reference || !userId) {
+      setError('Missing payment information. Please contact support.');
       setIsLoading(false);
       return;
     }
 
-    let attempts = 0;
-    const maxAttempts = 15;
+    let cancelled = false;
 
-    const poll = async () => {
+    const fetchCode = async () => {
       try {
-        const result = await databases.listDocuments(
-          config.appwrite.databaseId,
-          'premium_codes',
-          [
-            Query.equal('paymentReference', reference),
-            Query.limit(1),
-          ]
-        );
+        const res = await fetch('/api/generate-premium-code', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ reference, userId, planType: plan }),
+        });
 
-        if (result.documents.length > 0) {
-          setPremiumCode(result.documents[0].code);
+        const data = await res.json();
+
+        if (!cancelled && data.code) {
+          setPremiumCode(data.code);
           setIsLoading(false);
           return;
         }
 
-        attempts++;
-        if (attempts < maxAttempts) {
-          setTimeout(poll, 2000);
-        } else {
-          setIsLoading(false);
+        // If the API didn't return a code, retry a few times
+        if (!cancelled) {
+          retryCount++;
+          if (retryCount < 5) {
+            setTimeout(fetchCode, 3000);
+          } else {
+            setError('Could not generate your code. Please contact support with your payment reference: ' + reference);
+            setIsLoading(false);
+          }
         }
       } catch {
-        attempts++;
-        if (attempts < maxAttempts) {
-          setTimeout(poll, 2000);
-        } else {
-          setIsLoading(false);
+        if (!cancelled) {
+          retryCount++;
+          if (retryCount < 5) {
+            setTimeout(fetchCode, 3000);
+          } else {
+            setError('Could not generate your code. Please contact support with your payment reference: ' + reference);
+            setIsLoading(false);
+          }
         }
       }
     };
 
-    poll();
-  }, [reference]);
+    let retryCount = 0;
+    fetchCode();
+
+    return () => { cancelled = true; };
+  }, [reference, userId, plan]);
 
   const handleCopy = async () => {
     try {
@@ -128,9 +137,8 @@ export default function SubscribeSuccessPage() {
           </div>
         ) : (
           <div className="bg-[#444444]/90 rounded-2xl p-6 mb-8">
-            <p className="text-white/70 text-sm">
-              Your premium access is being activated automatically.
-              If it doesn't activate within a few minutes, please contact support.
+            <p className="text-red-300 text-sm">
+              {error || 'Something went wrong. Please contact support.'}
             </p>
           </div>
         )}
