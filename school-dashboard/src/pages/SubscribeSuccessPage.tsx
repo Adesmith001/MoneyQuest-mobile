@@ -7,7 +7,6 @@ export default function SubscribeSuccessPage() {
   const [searchParams] = useSearchParams();
   const plan = searchParams.get('plan') || 'monthly';
   const reference = searchParams.get('reference') || '';
-  const userId = searchParams.get('userId') || '';
 
   const [premiumCode, setPremiumCode] = useState('');
   const [isLoading, setIsLoading] = useState(true);
