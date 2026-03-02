@@ -110,7 +110,13 @@ export default function SubscribePage() {
 
         {/* Fox Mascot */}
         <div className="flex justify-center mb-8">
-          <div className="text-8xl">🦊</div>
+          <img
+            src="/assets/fox.png"
+            alt="MoneyQuest Fox Mascot"
+            width={200}
+            height={200}
+            className="animate-bounce"
+          />
         </div>
 
         {/* Plan Cards */}

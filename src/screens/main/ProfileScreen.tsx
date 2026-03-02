@@ -12,6 +12,7 @@ import {
   Switch,
   Alert,
   ActivityIndicator,
+  Platform,
 } from "react-native";
 import { useSelector, useDispatch } from "react-redux";
 import { useFocusEffect } from "@react-navigation/native";
@@ -630,6 +631,7 @@ const styles = StyleSheet.create({
     justifyContent: 'space-between',
     alignItems: 'center',
     paddingVertical: 12,
+    paddingRight: Platform.OS === 'ios' ? 4 : 0,
     borderBottomWidth: 1,
     borderBottomColor: '#F5F5F5',
   },

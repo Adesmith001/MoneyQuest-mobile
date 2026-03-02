@@ -385,7 +385,6 @@ const styles = StyleSheet.create({
   container: {
     flex: 1,
     backgroundColor: "#FFFFFF",
-    overflow: "hidden",
   },
   header: {
     flexDirection: "row",
@@ -477,16 +476,14 @@ const styles = StyleSheet.create({
     paddingHorizontal: 20,
     marginBottom: 25,
     backgroundColor: "#FFFFFF",
-    zIndex: 5,
-    position: "relative",
   },
   settingRow: {
     flexDirection: "row",
     alignItems: "center",
     justifyContent: "space-between",
     paddingVertical: 10,
+    paddingRight: Platform.OS === 'ios' ? 4 : 0,
     backgroundColor: "#FFFFFF",
-    zIndex: 5,
   },
   settingLabel: {
     fontSize: 16,
@@ -498,8 +495,6 @@ const styles = StyleSheet.create({
     alignItems: "center",
     fontWeight: "700",
     backgroundColor: "#FFFFFF",
-    zIndex: 5,
-    position: "relative",
   },
   saveButton: {
     backgroundColor: "#FF4500", // Orange color

@@ -47,14 +47,35 @@ const MainTabNavigator: React.FC = () => {
         }}
       />
       {/* <Tab.Screen
-        name="Leaderboard"
-        component={LeaderboardScreen}
+        name="Treasure"
+        component={HomeScreen}
         options={{
-          tabBarIcon: ({ color, size, focused }) => (
-            <Ionicons name={focused ? 'trophy' : 'trophy-outline'} size={size} color={color} />
+          tabBarIcon: ({ focused }) => (
+            <View style={[styles.iconContainer, focused && styles.focusedIconContainer]}>
+              <Image
+                source={require("../../assets/leaderboardIcon.png")}
+                style={styles.tabIcon}
+                resizeMode="contain"
+              />
+            </View>
           ),
         }}
       /> */}
+      <Tab.Screen
+        name="Leaderboard"
+        component={LeaderboardScreen}
+        options={{
+          tabBarIcon: ({ focused }) => (
+            <View style={[styles.iconContainer, focused && styles.focusedIconContainer]}>
+              <Image
+                source={require("../../assets/crown.png")}
+                style={styles.tabIcon}
+                resizeMode="contain"
+              />
+            </View>
+          ),
+        }}
+      />
       <Tab.Screen
         name="Streak"
         component={DailyStreakScreen}

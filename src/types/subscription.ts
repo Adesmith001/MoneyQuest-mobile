@@ -79,7 +79,7 @@ export const SUBSCRIPTION_PLANS: Record<PlanType, SubscriptionPlan> = {
   monthly: {
     id: 'monthly',
     name: 'Monthly',
-    price: 5000,
+    price: 3500,
     duration: 'Month',
     features: [
       'Unlimited access to all lessons',
@@ -93,7 +93,7 @@ export const SUBSCRIPTION_PLANS: Record<PlanType, SubscriptionPlan> = {
   annual: {
     id: 'annual',
     name: 'Annual',
-    price: 60000,
+    price: 42000,
     duration: 'Year',
     features: [
       'Everything in Monthly',

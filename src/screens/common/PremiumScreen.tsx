@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useRef } from "react";
 import {
   View,
   Text,
@@ -9,8 +9,9 @@ import {
   Alert,
   Linking,
   Image,
-  Switch,
   Platform,
+  AppState,
+  AppStateStatus,
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { useNavigation } from "@react-navigation/native";
@@ -18,17 +19,11 @@ import { StackNavigationProp } from "@react-navigation/stack";
 import { Ionicons } from "@expo/vector-icons";
 import { useSelector } from "react-redux";
 import { RootState } from "../../store";
-import { PlanType, SUBSCRIPTION_PLANS } from "../../types/subscription";
 import { subscriptionService } from "../../services/subscriptionService";
-import { iapService } from "../../services/iapService";
 
 type RootStackParamList = {
   Premium: undefined;
   SchoolCodeEntry: undefined;
-  PaymentPending: {
-    reference: string;
-    planType: "monthly" | "annual";
-  };
   MainTabs: undefined;
 };
 
@@ -37,21 +32,46 @@ type NavigationProp = StackNavigationProp<RootStackParamList>;
 const PremiumScreen: React.FC = () => {
   const navigation = useNavigation<NavigationProp>();
   const { user } = useSelector((state: RootState) => state.auth);
-  const [selectedPlan, setSelectedPlan] = useState<PlanType>("annual");
   const [isLoading, setIsLoading] = useState(false);
-  const [autoRenew, setAutoRenew] = useState(true);
+  const appState = useRef(AppState.currentState);
 
-  // Connect to store billing (Google Play / App Store) when screen mounts
+  // Re-check subscription when user returns to app
   useEffect(() => {
-    if (iapService.isAvailable) {
-      iapService.connect().catch(() => {});
-    }
-    return () => {
-      if (iapService.isAvailable) {
-        iapService.disconnect();
+    const handleAppStateChange = async (nextState: AppStateStatus) => {
+      if (
+        appState.current.match(/inactive|background/) &&
+        nextState === "active" &&
+        user?.$id
+      ) {
+        try {
+          const sub = await subscriptionService.getUserSubscription(user.$id);
+          if (sub && sub.status === "active") {
+            Alert.alert(
+              "Welcome Back! 🎉",
+              "Your premium access is active. Enjoy unlimited learning!",
+              [
+                {
+                  text: "Continue",
+                  onPress: () => {
+                    navigation.reset({
+                      index: 0,
+                      routes: [{ name: "MainTabs" }],
+                    });
+                  },
+                },
+              ]
+            );
+          }
+        } catch (_) {
+          // Silently fail
+        }
       }
+      appState.current = nextState;
     };
-  }, []);
+
+    const subscription = AppState.addEventListener("change", handleAppStateChange);
+    return () => subscription.remove();
+  }, [user?.$id]);
 
   const handleStartTrial = async () => {
     if (!user) {
@@ -62,11 +82,10 @@ const PremiumScreen: React.FC = () => {
     try {
       setIsLoading(true);
 
-      // Check if user already has a subscription (including trial)
-      const existingSubscription = await subscriptionService.getUserSubscription(user.$id);
-      
+      const existingSubscription =
+        await subscriptionService.getUserSubscription(user.$id);
+
       if (existingSubscription) {
-        // User already has a subscription/trial - just navigate to app
         navigation.reset({
           index: 0,
           routes: [{ name: "MainTabs" }],
@@ -74,7 +93,6 @@ const PremiumScreen: React.FC = () => {
         return;
       }
 
-      // Create trial subscription only if user doesn't have one
       await subscriptionService.createTrialSubscription(user.$id);
 
       Alert.alert(
@@ -84,7 +102,6 @@ const PremiumScreen: React.FC = () => {
           {
             text: "Get Started",
             onPress: () => {
-              // Navigate to main app
               navigation.reset({
                 index: 0,
                 routes: [{ name: "MainTabs" }],
@@ -100,171 +117,27 @@ const PremiumScreen: React.FC = () => {
     }
   };
 
-  const handleSubscribe = async () => {
+  /** Opens the subscription management page in the browser */
+  const handleManageSubscription = async () => {
     if (!user) {
       Alert.alert("Error", "User not found. Please log in again.");
       return;
     }
 
-    if (!user.email || !user.name) {
-      Alert.alert(
-        "Error",
-        "User information incomplete. Please update your profile."
-      );
-      return;
-    }
+    const baseUrl = "https://moneyquestschooldashboard.vercel.app/subscribe";
+    const params = new URLSearchParams({
+      userId: user.$id,
+      email: user.email || "",
+      name: user.name || "",
+    });
+
+    const url = `${baseUrl}?${params.toString()}`;
 
     try {
-      setIsLoading(true);
-
-      // Check if user already has a subscription
-      const existingSubscription = await subscriptionService.getUserSubscription(user.$id);
-      
-      if (!existingSubscription) {
-        // Create trial subscription first only if user doesn't have one
-        await subscriptionService.createTrialSubscription(user.$id);
-      }
-
-      // Update auto-renew preference
-      if (existingSubscription) {
-        await subscriptionService.toggleAutoRenew(user.$id, autoRenew);
-      }
-
-      // ─── Use native store billing (Google Play / App Store) ───────
-      await handleStorePurchase();
-    } catch (error: any) {
-      Alert.alert(
-        "Payment Error",
-        error.message || "Failed to initialize payment. Please try again."
-      );
-    } finally {
-      setIsLoading(false);
+      await Linking.openURL(url);
+    } catch {
+      Alert.alert("Error", "Could not open the browser. Please try again.");
     }
-  };
-
-  /** Handle purchase through native store (Google Play / App Store) */
-  const handleStorePurchase = async () => {
-    try {
-      const purchase = await iapService.purchaseSubscription(
-        selectedPlan,
-        user!.$id
-      );
-
-      // Activate subscription in our Appwrite backend
-      await iapService.activateSubscription(
-        purchase,
-        user!.$id,
-        selectedPlan
-      );
-
-      Alert.alert(
-        "Subscription Active! 🎉",
-        "Your premium subscription is now active. Enjoy unlimited access!",
-        [
-          {
-            text: "Continue",
-            onPress: () => {
-              navigation.reset({
-                index: 0,
-                routes: [{ name: "MainTabs" }],
-              });
-            },
-          },
-        ]
-      );
-    } catch (error: any) {
-      // User cancelled — silently return
-      if (
-        error.code === "E_USER_CANCELLED" ||
-        error.message?.includes("cancelled") ||
-        error.message?.includes("canceled")
-      ) {
-        return;
-      }
-      throw error; // Re-throw to be caught by handleSubscribe's catch
-    }
-  };
-
-  /** Restore previous purchases — required by Apple (Guideline 3.1.2) */
-  const handleRestorePurchases = async () => {
-    if (!user) {
-      Alert.alert("Error", "Please log in first.");
-      return;
-    }
-
-    try {
-      setIsLoading(true);
-
-      const purchases = await iapService.restorePurchases();
-
-      if (purchases.length > 0) {
-        const latestPurchase = purchases[0];
-        const planType = iapService.getPlanTypeFromProductId(latestPurchase.productId);
-
-        if (planType) {
-          await iapService.activateSubscription(latestPurchase, user.$id, planType);
-
-          Alert.alert(
-            "Subscription Restored!",
-            "Your premium subscription has been restored.",
-            [
-              {
-                text: "Continue",
-                onPress: () => {
-                  navigation.reset({
-                    index: 0,
-                    routes: [{ name: "MainTabs" }],
-                  });
-                },
-              },
-            ]
-          );
-          return;
-        }
-      }
-
-      Alert.alert(
-        "No Subscription Found",
-        `We couldn't find an active subscription on your ${iapService.platformName} account.`
-      );
-    } catch (error: any) {
-      Alert.alert("Error", error.message || "Failed to restore purchases.");
-    } finally {
-      setIsLoading(false);
-    }
-  };
-
-  const renderPlanCard = (planType: PlanType) => {
-    const plan = SUBSCRIPTION_PLANS[planType];
-    const isSelected = selectedPlan === planType;
-
-    return (
-      <TouchableOpacity
-        key={planType}
-        style={[styles.planCard, isSelected && styles.planCardSelected]}
-        onPress={() => setSelectedPlan(planType)}
-        activeOpacity={0.7}
-      >
-        <View style={styles.planHeader}>
-          <Text
-            style={[styles.planTitle, isSelected && styles.planTitleSelected]}
-          >
-            {plan.name}
-          </Text>
-          {plan.bestValue && (
-            <View style={styles.bestValueBadge}>
-              <Text style={styles.bestValueText}>Best Value</Text>
-            </View>
-          )}
-        </View>
-        <Text
-          style={[styles.planPrice, isSelected && styles.planPriceSelected]}
-        >
-          First 30 days free - Then ₦{plan.price.toLocaleString()}/
-          {plan.duration}
-        </Text>
-      </TouchableOpacity>
-    );
   };
 
   return (
@@ -294,34 +167,25 @@ const PremiumScreen: React.FC = () => {
           style={styles.foxImage}
         />
 
-        {/* Plan Cards */}
-        <View style={styles.plansContainer}>
-          {renderPlanCard("monthly")}
-          {renderPlanCard("annual")}
+        {/* Features List */}
+        <View style={styles.featuresContainer}>
+          {[
+            { icon: "book-outline" as const, text: "Unlimited access to all lessons" },
+            { icon: "bar-chart-outline" as const, text: "Progress tracking & analytics" },
+            { icon: "game-controller-outline" as const, text: "Gamified learning experience" },
+            { icon: "star-outline" as const, text: "Exclusive content & early access" },
+          ].map((feature, index) => (
+            <View key={index} style={styles.featureRow}>
+              <Ionicons name={feature.icon} size={20} color="#4ECDC4" />
+              <Text style={styles.featureText}>{feature.text}</Text>
+            </View>
+          ))}
         </View>
 
-        {/* Auto-Renew Toggle */}
-        <View style={styles.autoRenewContainer}>
-          <View style={styles.autoRenewTextContainer}>
-            <Text style={styles.autoRenewLabel}>Auto-renew subscription</Text>
-            <Text style={styles.autoRenewDesc}>
-              {autoRenew
-                ? "You'll be charged automatically when your plan expires"
-                : "You'll need to manually renew when your plan expires"}
-            </Text>
-          </View>
-          <Switch
-            value={autoRenew}
-            onValueChange={setAutoRenew}
-            trackColor={{ false: "rgba(255,255,255,0.3)", true: "#4ECDC4" }}
-            thumbColor={autoRenew ? "#FFF" : "#f4f3f4"}
-          />
-        </View>
-
-        {/* CTA Button */}
+        {/* CTA — Start Free Trial */}
         <TouchableOpacity
           style={[styles.ctaButton, isLoading && styles.ctaButtonDisabled]}
-          onPress={handleSubscribe}
+          onPress={handleStartTrial}
           disabled={isLoading}
           activeOpacity={0.8}
         >
@@ -331,15 +195,16 @@ const PremiumScreen: React.FC = () => {
             <Text style={styles.ctaButtonText}>Start 30-day free trial</Text>
           )}
         </TouchableOpacity>
-        
+
+        {/* Manage Subscription */}
         <TouchableOpacity
-          style={styles.restoreButton}
-          onPress={handleRestorePurchases}
+          style={styles.manageButton}
+          onPress={handleManageSubscription}
           disabled={isLoading}
           activeOpacity={0.7}
         >
-          <Ionicons name="refresh-outline" size={16} color="#FFF" />
-          <Text style={styles.restoreText}>Restore Purchases</Text>
+          <Ionicons name="settings-outline" size={18} color="#FFF" />
+          <Text style={styles.manageText}>Manage your subscription</Text>
         </TouchableOpacity>
 
         {/* School Code Option */}
@@ -421,60 +286,29 @@ const styles = StyleSheet.create({
     height: 342,
     left: 35,
   },
-  plansContainer: {
-    marginBottom: 20,
-    gap: 16,
-  },
-  planCard: {
+  featuresContainer: {
     backgroundColor: "rgba(68, 68, 68, 0.9)",
     borderRadius: 16,
     padding: 20,
-    borderWidth: 2,
-    borderColor: "transparent",
+    marginBottom: 24,
+    gap: 14,
   },
-  planCardSelected: {
-    borderColor: "#4ECDC4",
-    backgroundColor: "rgba(68, 68, 68, 1)",
-  },
-  planHeader: {
+  featureRow: {
     flexDirection: "row",
-    justifyContent: "space-between",
     alignItems: "center",
-    marginBottom: 8,
+    gap: 12,
   },
-  planTitle: {
-    fontSize: 24,
-    fontWeight: "bold",
-    color: "#FFF",
-  },
-  planTitleSelected: {
-    color: "#4ECDC4",
-  },
-  bestValueBadge: {
-    backgroundColor: "#4ECDC4",
-    paddingHorizontal: 12,
-    paddingVertical: 4,
-    borderRadius: 12,
-  },
-  bestValueText: {
-    fontSize: 12,
-    fontWeight: "bold",
-    color: "#1A1A1A",
-  },
-  planPrice: {
+  featureText: {
     fontSize: 15,
     color: "#FFF",
-    opacity: 0.8,
-  },
-  planPriceSelected: {
-    opacity: 1,
+    flex: 1,
   },
   ctaButton: {
     backgroundColor: "#FFF",
     borderRadius: 16,
     paddingVertical: 18,
     alignItems: "center",
-    marginBottom: 20,
+    marginBottom: 14,
     shadowColor: "#000",
     shadowOffset: { width: 0, height: 4 },
     shadowOpacity: 0.3,
@@ -489,74 +323,36 @@ const styles = StyleSheet.create({
     fontWeight: "bold",
     color: "#FF6B35",
   },
-  termsContainer: {
-    paddingHorizontal: 10,
+  manageButton: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    paddingVertical: 14,
+    paddingHorizontal: 20,
+    backgroundColor: "rgba(255, 255, 255, 0.2)",
+    borderRadius: 12,
+    gap: 8,
+    marginBottom: 12,
   },
-  termsText: {
-    fontSize: 12,
-    color: "#FFF",
-    textAlign: "center",
-    lineHeight: 18,
-    opacity: 0.8,
-  },
-  termsLink: {
-    color: "#FFD93D",
+  manageText: {
+    fontSize: 15,
     fontWeight: "600",
+    color: "#FFF",
   },
   schoolCodeButton: {
     flexDirection: "row",
     alignItems: "center",
     justifyContent: "center",
-    marginTop: 16,
     paddingVertical: 14,
     paddingHorizontal: 20,
     backgroundColor: "rgba(255, 255, 255, 0.15)",
     borderRadius: 12,
     gap: 8,
   },
-  restoreButton: {
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "center",
-    paddingVertical: 10,
-    gap: 6,
-    marginBottom: 4,
-  },
-  restoreText: {
-    fontSize: 14,
-    color: "#FFF",
-    opacity: 0.8,
-    textDecorationLine: "underline",
-  },
   schoolCodeText: {
     fontSize: 15,
     fontWeight: "600",
     color: "#FFF",
-  },
-  autoRenewContainer: {
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "space-between",
-    backgroundColor: "rgba(255, 255, 255, 0.12)",
-    borderRadius: 12,
-    paddingVertical: 14,
-    paddingHorizontal: 16,
-    marginBottom: 20,
-  },
-  autoRenewTextContainer: {
-    flex: 1,
-    marginRight: 12,
-  },
-  autoRenewLabel: {
-    fontSize: 15,
-    fontWeight: "600",
-    color: "#FFF",
-  },
-  autoRenewDesc: {
-    fontSize: 12,
-    color: "#FFF",
-    opacity: 0.7,
-    marginTop: 2,
   },
   legalContainer: {
     marginTop: 20,
