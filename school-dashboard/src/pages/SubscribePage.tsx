@@ -113,8 +113,8 @@ export default function SubscribePage() {
           <img
             src="/fox.png"
             alt="MoneyQuest Fox Mascot"
-            width={200}
-            height={200}
+            width={250}
+            height={250}
           />
         </div>
 
