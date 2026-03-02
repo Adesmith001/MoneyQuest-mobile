@@ -23,6 +23,7 @@ import {
   setHealth,
 } from "../../store/slices/gameSlice";
 import { refreshUserData, updateUser } from "../../store/slices/authSlice";
+import { fetchLeaderboard } from "../../store/slices/leaderboardSlice";
 import CorrectAnswerModal from "../../components/modals/CorrectAnswerModal";
 import IncorrectAnswerModal from "../../components/modals/IncorrectAnswerModal";
 import FlagQuestionModal from "../../components/modals/FlagQuestionModal";
@@ -877,24 +878,25 @@ const QuestionScreen: React.FC<Props> = ({ navigation, route }) => {
         : 0;
 
       try {
-        // Submit level completion to backend
+        // Submit level completion to backend — pass xpGained so Appwrite gets the real per-question XP
         const result = await questionService.submitLevelQuiz(
           user.$id,
           levelId,
           correctAnswersCount,
           questions.length,
-          timeSpentMinutes
+          timeSpentMinutes,
+          xpGained            // <-- actual per-question XP accumulated this session
         );
 
-        // Update user's XP and progress in Appwrite
-        const currentTotalXP = user.totalXP || 0;
-        const currentMonthlyXP = user.monthlyXP || 0;
-        const newTotalXP = currentTotalXP + xpGained;
-        const newMonthlyXP = currentMonthlyXP + xpGained;
+        // Use the XP values that were actually committed to Appwrite (fresh DB read + xpGained)
+        const { xp: newXP, monthlyXP: newMonthlyXP, totalXP: newTotalXP } = result.writtenXP;
 
+        // Current month key — used to prevent ProfileScreen from re-triggering monthly reset
+        const now = new Date();
+        const currentMonthKey = `${now.getFullYear()}-${now.getMonth() + 1}`;
+
+        // updateData only carries fields NOT already written by submitLevelProgress
         const updateData: any = {
-          totalXP: newTotalXP,
-          monthlyXP: newMonthlyXP,
           updatedAt: new Date().toISOString(),
         };
 
@@ -987,13 +989,17 @@ const QuestionScreen: React.FC<Props> = ({ navigation, route }) => {
           
           dispatch(setHealth(newLives));
 
-          // Update Redux store with new currentLevelId and lives
+          // Update Redux store with new currentLevelId, lives AND earned XP
           dispatch(
             updateUser({
               currentLevelId: nextLevelToUnlock,
               currentSectionId: nextSectionId,
               lives: newLives,
               lastLifeRegenTime: newLastLifeRegenTime,
+              xp: newXP,
+              monthlyXP: newMonthlyXP,
+              totalXP: newTotalXP,
+              lastMonthlyReset: currentMonthKey,
             })
           );
         } else if (result.passed && !nextLevelToUnlock) {
@@ -1018,9 +1024,22 @@ const QuestionScreen: React.FC<Props> = ({ navigation, route }) => {
               currentSectionId: sectionId,
               lives: newLives,
               lastLifeRegenTime: newLastLifeRegenTime,
+              xp: newXP,
+              monthlyXP: newMonthlyXP,
+              totalXP: newTotalXP,
+              lastMonthlyReset: currentMonthKey,
             })
           );
           
+        } else {
+          dispatch(
+            updateUser({
+              xp: newXP,
+              monthlyXP: newMonthlyXP,
+              totalXP: newTotalXP,
+              lastMonthlyReset: currentMonthKey,
+            })
+          );
         }
 
         await databases.updateDocument(
@@ -1030,8 +1049,8 @@ const QuestionScreen: React.FC<Props> = ({ navigation, route }) => {
           updateData
         );
 
-        // Refresh user data to ensure everything is in sync
-        dispatch(refreshUserData(user.$id) as any);
+        // Silently refresh leaderboard so the user's new rank is visible immediately
+        dispatch(fetchLeaderboard({ silent: true }) as any);
 
         dispatch(nextLevel());
         navigation.replace("LevelCompletion", {

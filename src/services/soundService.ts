@@ -76,14 +76,27 @@ class SoundService {
       if (sound) {
         const status = await sound.getStatusAsync();
         if (status.isLoaded) {
+          // Re-request audio focus before playing (Android can lose focus between plays)
+          await Audio.setAudioModeAsync({
+            allowsRecordingIOS: false,
+            playsInSilentModeIOS: true,
+            staysActiveInBackground: false,
+            shouldDuckAndroid: true,
+            playThroughEarpieceAndroid: false,
+          });
           // replayAsync resets position and plays — reliable for short SFX
           await sound.replayAsync();
         }
       } else {
         console.warn(`Sound '${soundName}' not found. Available: ${Object.keys(this.sounds).join(', ')}`);
       }
-    } catch (error) {
-      console.error(`Failed to play sound '${soundName}':`, error);
+    } catch (error: any) {
+      // AudioFocusNotAcquiredException is non-fatal — OS denied audio focus temporarily
+      // (e.g. another app holds focus). Silently skip the sound effect.
+      if (error?.message?.includes('AudioFocusNotAcquiredException')) {
+        return;
+      }
+      console.warn(`Failed to play sound '${soundName}':`, error);
     }
   }
 

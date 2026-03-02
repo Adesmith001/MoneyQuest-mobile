@@ -362,15 +362,12 @@ const HomeScreen: React.FC<Props> = ({ navigation }) => {
       return { isUnlocked: true, isCompleted: true, isCurrent };
     }
 
-    // If no progress exists, only unlock first level of first section
+    // If no progress exists, unlock first level of every section
     if (!currentSectionId || !currentLevelId) {
-      const targetFirstSectionId = firstSectionId || sections[0]?.id;
-      const isFirstLevel = levelIndex === 0 && sectionId === targetFirstSectionId;
-
       return {
-        isUnlocked: isFirstLevel,
+        isUnlocked: levelIndex === 0,
         isCompleted: false,
-        isCurrent: isFirstLevel,
+        isCurrent: false,
       };
     }
 
@@ -384,35 +381,8 @@ const HomeScreen: React.FC<Props> = ({ navigation }) => {
       const previousLevel = sectionLevels[levelIndex - 1];
       isUnlocked = isUnlocked || levelsToCheck.has(previousLevel.level_id);
     } else if (levelIndex === 0) {
-      // First level of section
-      const sectionsToCheck = builtSectionsData || sections;
-      const currentSectionIndex = sectionsToCheck.findIndex(s => s.id === sectionId);
-
-      if (currentSectionIndex === 0) {
-        // First section's first level is always unlocked
-        isUnlocked = true;
-      } else if (currentSectionIndex > 0) {
-        // For subsequent sections, check if last level of previous section is completed
-        const previousSection = sectionsToCheck[currentSectionIndex - 1];
-        if (previousSection?.levels?.length > 0) {
-          const lastLevelOfPrevSection = previousSection.levels[previousSection.levels.length - 1];
-          isUnlocked = isUnlocked || levelsToCheck.has(lastLevelOfPrevSection.levelId);
-        }
-      } else {
-        // Section not in array yet - this is the section currently being built
-        // Check if this is right after an already-built section
-        if (builtSectionsData && builtSectionsData.length > 0) {
-          const previousSection = builtSectionsData[builtSectionsData.length - 1];
-          if (previousSection?.levels?.length > 0) {
-            const lastLevelOfPrevSection = previousSection.levels[previousSection.levels.length - 1];
-            isUnlocked = isUnlocked || levelsToCheck.has(lastLevelOfPrevSection.levelId);
-          }
-        } else {
-          // No previous sections built, check if this is the first section
-          const isFirstSection = sectionId === firstSectionId;
-          isUnlocked = isUnlocked || isFirstSection;
-        }
-      }
+      // First level of any section is always unlocked – users can start from any section
+      isUnlocked = true;
     }
 
     return { isUnlocked, isCompleted: false, isCurrent };
@@ -452,18 +422,21 @@ const HomeScreen: React.FC<Props> = ({ navigation }) => {
           }
         }
 
-        // Update user's current progress in Appwrite
+        // Update user's current progress in Appwrite and Redux
         try {
           if (user?.$id) {
+            const progressUpdate = {
+              currentLevelId: node.levelId,
+              currentSectionId: node.sectionId,
+              currentSection: sectionIndex + 1,
+            };
             await databases.updateDocument(
               DB_ID,
               COLLECTIONS.USERS,
               user.$id,
-              {
-                currentLevelId: node.levelId,
-                currentSectionId: node.sectionId,
-              }
+              progressUpdate
             );
+            dispatch(updateUser(progressUpdate));
           }
         } catch (error) {
           console.error('Failed to update progress:', error);

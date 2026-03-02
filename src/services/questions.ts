@@ -457,7 +457,8 @@ class QuestionService {
     levelId: string,
     questionsCorrect: number,
     totalQuestions: number,
-    timeSpentMinutes: number
+    timeSpentMinutes: number,
+    xpEarned?: number          // pass xpGained from the game session
   ) {
     try {
       const score = Math.round((questionsCorrect / totalQuestions) * 100);
@@ -469,7 +470,8 @@ class QuestionService {
         score,
         timeSpentMinutes,
         questionsCorrect,
-        totalQuestions
+        totalQuestions,
+        xpEarned          // thread through so Appwrite gets the real per-question XP
       );
 
       return result;

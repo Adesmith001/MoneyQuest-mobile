@@ -97,13 +97,21 @@ const ProfileScreen: React.FC<Props> = ({ navigation }) => {
       dispatch(loadStreakData(user.$id) as any);
     }
 
-    // Check if monthly XP should be reset
+    // Check if monthly XP should be reset (only triggered by userId / streak changes,
+    // NOT by XP changes — avoids an infinite loop where earning XP re-triggers the reset)
     if (user && levelProgressService.shouldResetMonthlyXP(user)) {
-      levelProgressService.resetMonthlyXP(user.$id);
+      const now = new Date();
+      const monthKey = `${now.getFullYear()}-${now.getMonth() + 1}`;
+      levelProgressService.resetMonthlyXP(user.$id)
+        .then(() => {
+          // Sync Redux so shouldResetMonthlyXP won't fire again until next month
+          dispatch(updateUser({ monthlyXP: 0, lastMonthlyReset: monthKey }) as any);
+        })
+        .catch(() => { /* silent fail – will retry next visit */ });
     }
 
     // Log Appwrite data
-  }, [user?.$id, user?.monthlyXP, user?.lives, user?.totalXP, user?.xp, currentStreak, weeklyStreak, dispatch]);
+  }, [user?.$id, currentStreak, weeklyStreak, dispatch]);
 
   // Update lives and regeneration timer
   useEffect(() => {
@@ -330,30 +338,6 @@ const ProfileScreen: React.FC<Props> = ({ navigation }) => {
                   {subscription.planType === "annual" ? "Annual" : "Monthly"}
                 </Text>
               </View>
-
-              {/* Auto-Renew Toggle */}
-              {(subscription.status === "trial" || subscription.status === "active") && (
-                <View style={styles.subscriptionRow}>
-                  <View style={{ flex: 1 }}>
-                    <Text style={styles.subscriptionLabel}>Auto-renew</Text>
-                    <Text style={styles.autoRenewHint}>
-                      {subscription.autoRenew
-                        ? "Payment will be charged automatically"
-                        : "You'll need to renew manually"}
-                    </Text>
-                  </View>
-                  {isTogglingAutoRenew ? (
-                    <ActivityIndicator size="small" color="#FF5722" />
-                  ) : (
-                    <Switch
-                      value={subscription.autoRenew}
-                      onValueChange={handleToggleAutoRenew}
-                      trackColor={{ false: "#E0E0E0", true: "#4ECDC4" }}
-                      thumbColor={subscription.autoRenew ? "#FFF" : "#f4f3f4"}
-                    />
-                  )}
-                </View>
-              )}
 
               {/* Cancel Button */}
               {subscription.status === "active" && (

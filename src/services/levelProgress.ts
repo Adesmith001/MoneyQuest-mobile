@@ -67,8 +67,9 @@ class LevelProgressService {
     score: number,
     timeSpentMinutes: number,
     questionsCorrect: number,
-    totalQuestions: number
-  ): Promise<BackendSubmitLevelResponse> {
+    totalQuestions: number,
+    xpEarned?: number          // caller-provided; falls back to score-based formula
+  ): Promise<BackendSubmitLevelResponse & { writtenXP: { xp: number; monthlyXP: number; totalXP: number } }> {
     try {
       // Submit to backend API
       const backendResponse = await backendApi.submitLevelResults(
@@ -78,19 +79,20 @@ class LevelProgressService {
         timeSpentMinutes
       );
 
-      // Calculate XP earned (you can adjust this formula)
-      const baseXP = 50; // Base XP per level
-      const scoreBonus = Math.floor((score / 100) * 50); // Up to 50 bonus XP for perfect score
-      const xpEarned = baseXP + scoreBonus;
+      // Use caller-provided XP (accumulated per-question) or fallback formula
+      const xpToAdd = xpEarned ?? (50 + Math.floor((score / 100) * 50));
 
-      // Update user's stats in Appwrite
+      // Read fresh Appwrite data – avoids using stale Redux values
       const userDoc = await databases.getDocument(DB_ID, COLLECTIONS.USERS, userId);
-      
+
       const newTotalQuestions = (userDoc.totalQuestionsAnswered || 0) + totalQuestions;
       const newCorrectAnswers = (userDoc.correctAnswers || 0) + questionsCorrect;
-      const newXP = (userDoc.xp || 0) + xpEarned;
-      const newMonthlyXP = (userDoc.monthlyXP || 0) + xpEarned;
-      const newTotalXP = (userDoc.totalXP || 0) + xpEarned;
+      const newXP       = (userDoc.xp       || 0) + xpToAdd;
+      const newMonthlyXP = (userDoc.monthlyXP || 0) + xpToAdd;
+      const newTotalXP   = (userDoc.totalXP   || 0) + xpToAdd;
+
+      const now = new Date();
+      const currentMonthKey = `${now.getFullYear()}-${now.getMonth() + 1}`;
 
       const updateData: any = {
         totalQuestionsAnswered: newTotalQuestions,
@@ -98,7 +100,9 @@ class LevelProgressService {
         xp: newXP,
         monthlyXP: newMonthlyXP,
         totalXP: newTotalXP,
-        updatedAt: new Date().toISOString(),
+        // Stamp the reset key so shouldResetMonthlyXP won't re-trigger after this write
+        lastMonthlyReset: userDoc.lastMonthlyReset || currentMonthKey,
+        updatedAt: now.toISOString(),
       };
 
       // If level passed, update current level
@@ -108,7 +112,10 @@ class LevelProgressService {
 
       await databases.updateDocument(DB_ID, COLLECTIONS.USERS, userId, updateData);
 
-      return backendResponse;
+      return {
+        ...backendResponse,
+        writtenXP: { xp: newXP, monthlyXP: newMonthlyXP, totalXP: newTotalXP },
+      };
     } catch (error) {
       console.error('Submit level progress error:', error);
       throw error;
@@ -200,10 +207,12 @@ class LevelProgressService {
    */
   async resetMonthlyXP(userId: string): Promise<void> {
     try {
+      const now = new Date();
+      const monthKey = `${now.getFullYear()}-${now.getMonth() + 1}`;
       await databases.updateDocument(DB_ID, COLLECTIONS.USERS, userId, {
         monthlyXP: 0,
-        totalXP: 0,
-        updatedAt: new Date().toISOString(),
+        lastMonthlyReset: monthKey,
+        updatedAt: now.toISOString(),
       });
     } catch (error) {
       console.error('Reset monthly XP error:', error);
@@ -217,14 +226,10 @@ class LevelProgressService {
    * @returns True if reset is needed
    */
   shouldResetMonthlyXP(user: User): boolean {
-    const lastUpdate = new Date(user.$updatedAt);
     const now = new Date();
-    
-    // Check if we're in a different month
-    return (
-      lastUpdate.getMonth() !== now.getMonth() ||
-      lastUpdate.getFullYear() !== now.getFullYear()
-    );
+    const currentMonthKey = `${now.getFullYear()}-${now.getMonth() + 1}`;
+    // Reset if never reset before, or if it was reset in a previous month
+    return !user.lastMonthlyReset || user.lastMonthlyReset !== currentMonthKey;
   }
 
   /**

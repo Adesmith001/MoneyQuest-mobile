@@ -5,6 +5,7 @@ import { databases, DB_ID, COLLECTIONS, Query } from '../../services/appwrite';
 interface LeaderboardState {
   entries: LeaderboardEntry[];
   isLoading: boolean;
+  hasLoaded: boolean;  // true once the first fetch completes
   error: string | null;
   currentUserRank: number | null;
 }
@@ -12,6 +13,7 @@ interface LeaderboardState {
 const initialState: LeaderboardState = {
   entries: [],
   isLoading: false,
+  hasLoaded: false,
   error: null,
   currentUserRank: null,
 };
@@ -19,33 +21,32 @@ const initialState: LeaderboardState = {
 // Async thunks
 export const fetchLeaderboard = createAsyncThunk(
   'leaderboard/fetchLeaderboard',
-  async (_, { rejectWithValue }) => {
+  async (options: { silent?: boolean } = {}, { rejectWithValue }) => {
     try {
       const currentDate = new Date();
       const currentMonth = currentDate.getMonth() + 1;
       const currentYear = currentDate.getFullYear();
 
+      // Fetch directly from users collection ordered by monthlyXP (include 0 XP users)
       const response = await databases.listDocuments(
         DB_ID,
-        COLLECTIONS.LEADERBOARD,
+        COLLECTIONS.USERS,
         [
-          Query.equal('month', `${currentMonth}`),
-          Query.equal('year', currentYear),
           Query.orderDesc('monthlyXP'),
-          Query.limit(100)
+          Query.limit(100),
         ]
       );
 
-      // Type-safe conversion from Appwrite documents to LeaderboardEntry interfaces
       const leaderboardEntries: LeaderboardEntry[] = response.documents.map((doc: any, index: number) => ({
         $id: doc.$id,
-        userId: doc.userId,
-        userName: doc.userName,
-        profilePicture: doc.profilePicture,
-        monthlyXP: doc.monthlyXP,
-        rank: index + 1, // Calculate rank based on order
-        month: doc.month || `${currentMonth}`,
-        year: doc.year || currentYear,
+        userId: doc.$id,
+        userName: doc.username || doc.name || 'Anonymous',
+        avatar: doc.avatar || '',
+        profilePicture: doc.profilePicture || '',
+        monthlyXP: doc.monthlyXP || 0,
+        rank: index + 1,
+        month: `${currentMonth}`,
+        year: currentYear,
       }));
 
       return leaderboardEntries;
@@ -125,12 +126,16 @@ const leaderboardSlice = createSlice({
   },
   extraReducers: (builder) => {
     builder
-      .addCase(fetchLeaderboard.pending, (state) => {
-        state.isLoading = true;
+      .addCase(fetchLeaderboard.pending, (state, action) => {
+        // Don't show loading spinner on silent background refreshes
+        if (!action.meta.arg?.silent) {
+          state.isLoading = true;
+        }
         state.error = null;
       })
       .addCase(fetchLeaderboard.fulfilled, (state, action) => {
         state.isLoading = false;
+        state.hasLoaded = true;
         state.entries = action.payload;
         state.error = null;
       })

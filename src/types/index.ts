@@ -24,6 +24,7 @@ export interface User {
   correctAnswers: number;
   monthlyXP: number;
   totalXP: number; // Total XP accumulated (resets monthly like monthlyXP)
+  lastMonthlyReset?: string; // 'YYYY-M' – month this user's monthlyXP was last reset
   activeDays?: string;
   // Lives system (max 5, regenerates 1 per hour)
   lives: number;
@@ -153,14 +154,14 @@ export interface LeaderboardEntry {
   $id: string;
   userId: string;
   userName: string;
-  profilePicture?: string;
+  avatar?: string;       
+  profilePicture?: string; 
   monthlyXP: number;
   rank: number;
   month: string;
   year: number;
 }
 
-// Backend API Types
 // Backend API Level format (from /levels endpoint)
 export interface BackendLevel {
   level_id: string;

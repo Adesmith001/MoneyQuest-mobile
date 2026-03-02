@@ -1,4 +1,4 @@
-import React, { useEffect } from 'react';
+import React, { useCallback, useRef } from 'react';
 import {
   View,
   Text,
@@ -9,27 +9,77 @@ import {
   Image,
 } from 'react-native';
 import { useSelector, useDispatch } from 'react-redux';
+import { useFocusEffect } from '@react-navigation/native';
 import { RootState } from '../../store';
 import { fetchLeaderboard } from '../../store/slices/leaderboardSlice';
+import { updateUser } from '../../store/slices/authSlice';
 import { LeaderboardEntry } from '../../types';
 import { getAvatarById } from '../../utils/avatarUtils';
 import { Ionicons } from '@expo/vector-icons';
+import levelProgressService from '../../services/levelProgress';
+
+const POLL_INTERVAL_MS = 30_000;
 
 const crownImage = require('../../../assets/crown.png');
 
 const LeaderboardScreen: React.FC = () => {
   const dispatch = useDispatch();
-  const { entries, isLoading } = useSelector(
+  const { entries, isLoading, hasLoaded } = useSelector(
     (state: RootState) => state.leaderboard,
   );
   const { user: currentUser } = useSelector((state: RootState) => state.auth);
 
-  useEffect(() => {
-    dispatch(fetchLeaderboard() as any);
-  }, [dispatch]);
+  // Keep stable refs so the interval always calls the latest dispatch
+  const dispatchRef = useRef(dispatch);
+  dispatchRef.current = dispatch;
+  const currentUserRef = useRef(currentUser);
+  currentUserRef.current = currentUser;
 
-  const topThree = entries.slice(0, 3);
-  const restOfLeaderboard = entries.slice(3);
+  useFocusEffect(
+    useCallback(() => {
+      // Check & execute monthly XP reset for current user on screen focus
+      const user = currentUserRef.current;
+      if (user && levelProgressService.shouldResetMonthlyXP(user)) {
+        const now = new Date();
+        const monthKey = `${now.getFullYear()}-${now.getMonth() + 1}`;
+        levelProgressService.resetMonthlyXP(user.$id)
+          .then(() => {
+            dispatchRef.current(updateUser({ monthlyXP: 0, lastMonthlyReset: monthKey }) as any);
+          })
+          .catch(() => { /* silent fail – will retry next visit */ });
+      }
+
+      // Initial fetch (shows spinner on first ever load)
+      dispatchRef.current(fetchLeaderboard({ silent: false }) as any);
+
+      // Background polling – silent refresh every 30 s
+      const intervalId = setInterval(() => {
+        dispatchRef.current(fetchLeaderboard({ silent: true }) as any);
+      }, POLL_INTERVAL_MS);
+
+      return () => clearInterval(intervalId);
+    }, []) // empty deps – only wires up on focus, tears down on blur
+  );
+
+  // Merge live auth data for current user, then re-sort so rank moves immediately
+  const resolvedEntries: LeaderboardEntry[] = entries
+    .map((entry) => {
+      if (currentUser && entry.userId === currentUser.$id) {
+        return {
+          ...entry,
+          userName: currentUser.username || currentUser.name || entry.userName,
+          avatar: currentUser.avatar || entry.avatar,
+          profilePicture: currentUser.profilePicture || entry.profilePicture,
+          monthlyXP: currentUser.monthlyXP ?? entry.monthlyXP,
+        };
+      }
+      return entry;
+    })
+    .sort((a, b) => b.monthlyXP - a.monthlyXP)
+    .map((entry, index) => ({ ...entry, rank: index + 1 }));
+
+  const topThree = resolvedEntries.slice(0, 3);
+  const restOfLeaderboard = resolvedEntries.slice(3);
 
   // ── Podium helpers ──────────────────────────────────────────────────────
 
@@ -65,7 +115,7 @@ const LeaderboardScreen: React.FC = () => {
             ]}
           >
             <Image
-              source={getAvatarById(player.profilePicture)}
+              source={getAvatarById(player.avatar || player.profilePicture)}
               style={[
                 styles.podiumAvatar,
                 isFirst && styles.firstPodiumAvatar,
@@ -102,7 +152,7 @@ const LeaderboardScreen: React.FC = () => {
         <Text style={styles.listRank}>{rank}</Text>
         <View style={styles.listAvatarContainer}>
           <Image
-            source={getAvatarById(item.profilePicture)}
+            source={getAvatarById(item.avatar || item.profilePicture)}
             style={styles.listAvatar}
           />
         </View>
@@ -114,9 +164,9 @@ const LeaderboardScreen: React.FC = () => {
     );
   };
 
-  // ── Loading state ──────────────────────────────────────────────────────
+  // ── Loading state (first load only – background refreshes are silent) ──
 
-  if (isLoading) {
+  if (isLoading && !hasLoaded) {
     return (
       <SafeAreaView style={styles.container}>
         <ActivityIndicator size="large" color="#FF6B35" style={{ flex: 1 }} />
@@ -126,7 +176,7 @@ const LeaderboardScreen: React.FC = () => {
 
   // ── Empty state ────────────────────────────────────────────────────────
 
-  if (!isLoading && entries.length === 0) {
+  if (hasLoaded && resolvedEntries.length === 0) {
     return (
       <SafeAreaView style={styles.container}>
         <View style={styles.emptyContainer}>
@@ -187,11 +237,11 @@ const styles = StyleSheet.create({
     backgroundColor: '#FFFFFF',
   },
   title: {
-    fontSize: 24,
+    fontSize: 30,
     fontWeight: 'bold',
     textAlign: 'center',
     color: '#1B2633',
-    marginTop: 16,
+    marginTop: 20,
     marginBottom: 8,
   },
 
@@ -269,6 +319,7 @@ const styles = StyleSheet.create({
     borderRadius: FIRST_AVATAR_SIZE / 2,
   },
 
+
   /* name + xp below podium */
   podiumName: {
     fontSize: 15,
@@ -326,6 +377,7 @@ const styles = StyleSheet.create({
     height: 46,
     borderRadius: 23,
   },
+
   listName: {
     flex: 1,
     fontSize: 16,
