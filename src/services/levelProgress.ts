@@ -85,14 +85,18 @@ class LevelProgressService {
       // Read fresh Appwrite data – avoids using stale Redux values
       const userDoc = await databases.getDocument(DB_ID, COLLECTIONS.USERS, userId);
 
+      const now = new Date();
+      const currentMonthKey = `${now.getFullYear()}-${now.getMonth() + 1}`;
+
+      // Check if we need to reset monthly XP (new month)
+      const needsReset = !userDoc.lastMonthlyReset || userDoc.lastMonthlyReset !== currentMonthKey;
+      const baseMonthlyXP = needsReset ? 0 : (userDoc.monthlyXP || 0);
+
       const newTotalQuestions = (userDoc.totalQuestionsAnswered || 0) + totalQuestions;
       const newCorrectAnswers = (userDoc.correctAnswers || 0) + questionsCorrect;
       const newXP       = (userDoc.xp       || 0) + xpToAdd;
-      const newMonthlyXP = (userDoc.monthlyXP || 0) + xpToAdd;
+      const newMonthlyXP = baseMonthlyXP + xpToAdd;
       const newTotalXP   = (userDoc.totalXP   || 0) + xpToAdd;
-
-      const now = new Date();
-      const currentMonthKey = `${now.getFullYear()}-${now.getMonth() + 1}`;
 
       const updateData: any = {
         totalQuestionsAnswered: newTotalQuestions,
@@ -100,8 +104,7 @@ class LevelProgressService {
         xp: newXP,
         monthlyXP: newMonthlyXP,
         totalXP: newTotalXP,
-        // Stamp the reset key so shouldResetMonthlyXP won't re-trigger after this write
-        lastMonthlyReset: userDoc.lastMonthlyReset || currentMonthKey,
+        lastMonthlyReset: currentMonthKey,
         updatedAt: now.toISOString(),
       };
 
@@ -241,15 +244,23 @@ class LevelProgressService {
     try {
       const userDoc = await databases.getDocument(DB_ID, COLLECTIONS.USERS, userId);
       
+      const now = new Date();
+      const currentMonthKey = `${now.getFullYear()}-${now.getMonth() + 1}`;
+
+      // Check if we need to reset monthly XP (new month)
+      const needsReset = !userDoc.lastMonthlyReset || userDoc.lastMonthlyReset !== currentMonthKey;
+      const baseMonthlyXP = needsReset ? 0 : (userDoc.monthlyXP || 0);
+
       const newXP = (userDoc.xp || 0) + xpAmount;
-      const newMonthlyXP = (userDoc.monthlyXP || 0) + xpAmount;
+      const newMonthlyXP = baseMonthlyXP + xpAmount;
       const newTotalXP = (userDoc.totalXP || 0) + xpAmount;
 
       await databases.updateDocument(DB_ID, COLLECTIONS.USERS, userId, {
         xp: newXP,
         monthlyXP: newMonthlyXP,
         totalXP: newTotalXP,
-        updatedAt: new Date().toISOString(),
+        lastMonthlyReset: currentMonthKey,
+        updatedAt: now.toISOString(),
       });
     } catch (error) {
       console.error('Add XP error:', error);

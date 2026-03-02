@@ -1,6 +1,7 @@
 import { useSearchParams } from 'react-router-dom';
 import { useState, useEffect } from 'react';
 import { databases, ID, Query } from '../lib/appwrite';
+import { Permission, Role } from 'appwrite';
 import { config } from '../config';
 
 const PLANS: Record<string, { price: number; billingCycle: 'month' | 'year' }> = {
@@ -82,7 +83,12 @@ export default function SubscribeSuccessPage() {
             currency: 'NGN',
             expirationDate: expirationDate.toISOString(),
             createdAt: now.toISOString(),
-          }
+          },
+          [
+            Permission.read(Role.user(userId)),
+            Permission.update(Role.user(userId)),
+            Permission.delete(Role.user(userId)),
+          ]
         );
 
         if (!cancelled) {

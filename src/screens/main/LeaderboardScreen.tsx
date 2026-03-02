@@ -37,17 +37,6 @@ const LeaderboardScreen: React.FC = () => {
 
   useFocusEffect(
     useCallback(() => {
-      // Check & execute monthly XP reset for current user on screen focus
-      const user = currentUserRef.current;
-      if (user && levelProgressService.shouldResetMonthlyXP(user)) {
-        const now = new Date();
-        const monthKey = `${now.getFullYear()}-${now.getMonth() + 1}`;
-        levelProgressService.resetMonthlyXP(user.$id)
-          .then(() => {
-            dispatchRef.current(updateUser({ monthlyXP: 0, lastMonthlyReset: monthKey }) as any);
-          })
-          .catch(() => { /* silent fail – will retry next visit */ });
-      }
 
       // Initial fetch (shows spinner on first ever load)
       dispatchRef.current(fetchLeaderboard({ silent: false }) as any);

@@ -411,10 +411,17 @@ class QuestionService {
         return { livesRemaining: 5, canContinue: true, xpEarned };
       }
       
+      const now = new Date();
+      const currentMonthKey = `${now.getFullYear()}-${now.getMonth() + 1}`;
+
+      // Check if we need to reset monthly XP (new month)
+      const needsReset = !user.lastMonthlyReset || user.lastMonthlyReset !== currentMonthKey;
+      const baseMonthlyXP = needsReset ? 0 : (user.monthlyXP || 0);
+
       const newTotalQuestions = (user.totalQuestionsAnswered || 0) + 1;
       const newCorrectAnswers = (user.correctAnswers || 0) + (isCorrect ? 1 : 0);
       const newXP = (user.xp || 0) + xpEarned;
-      const newMonthlyXP = (user.monthlyXP || 0) + xpEarned;
+      const newMonthlyXP = baseMonthlyXP + xpEarned;
       const newTotalXP = (user.totalXP || 0) + xpEarned;
 
       // NOTE: Lives deduction is handled in QuestionScreen.tsx after this function returns
@@ -430,7 +437,8 @@ class QuestionService {
           xp: newXP,
           monthlyXP: newMonthlyXP,
           totalXP: newTotalXP,
-          updatedAt: new Date().toISOString(),
+          lastMonthlyReset: currentMonthKey,
+          updatedAt: now.toISOString(),
         });
       } catch (error) {
         console.error('Failed to update user document, continuing anyway');

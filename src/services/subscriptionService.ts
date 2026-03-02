@@ -399,6 +399,29 @@ class SubscriptionService {
 
       const premiumCode = codesResult.documents[0] as any;
 
+      // Guard: if this payment reference was already used by another account, block reuse.
+      // This protects against cases where status update failed previously.
+      if (premiumCode.paymentReference) {
+        const existingSubByPayment = await databases.listDocuments(
+          APPWRITE_DATABASE_ID,
+          APPWRITE_SUBSCRIPTIONS_COLLECTION_ID,
+          [
+            Query.equal('korapayTransactionReference', premiumCode.paymentReference),
+            Query.limit(1),
+          ]
+        );
+
+        if (
+          existingSubByPayment.documents.length > 0 &&
+          existingSubByPayment.documents[0].userId !== userId
+        ) {
+          return {
+            success: false,
+            message: 'This code has already been used.',
+          };
+        }
+      }
+
       // Check if the code has already been redeemed
       if (premiumCode.status === 'redeemed') {
         return { success: false, message: 'This code has already been used.' };
@@ -423,8 +446,29 @@ class SubscriptionService {
         return { success: false, message: 'Invalid plan type in code.' };
       }
 
-      // Calculate subscription dates
+      // Consume the code FIRST. If this write fails, do not activate subscription.
+      // This prevents a successful activation while the code remains unused.
       const now = new Date();
+      try {
+        await databases.updateDocument(
+          APPWRITE_DATABASE_ID,
+          'premium_codes',
+          premiumCode.$id,
+          {
+            status: 'redeemed',
+            redeemedAt: now.toISOString(),
+            redeemedBy: userId,
+          }
+        );
+      } catch (consumeError: any) {
+        console.error('Failed to consume premium code:', consumeError);
+        return {
+          success: false,
+          message: 'Could not use this code right now. Please try again.',
+        };
+      }
+
+      // Calculate subscription dates
       const endDate = new Date(now);
       if (plan.billingCycle === 'month') {
         endDate.setMonth(endDate.getMonth() + 1);
@@ -483,23 +527,6 @@ class SubscriptionService {
           ]
         );
         activated = response as unknown as Subscription;
-      }
-
-      // Mark the code as redeemed
-      try {
-        await databases.updateDocument(
-          APPWRITE_DATABASE_ID,
-          'premium_codes',
-          premiumCode.$id,
-          {
-            status: 'redeemed',
-            redeemedAt: now.toISOString(),
-            redeemedBy: userId,
-          }
-        );
-      } catch {
-        // Non-critical — subscription is activated regardless
-        console.warn('Could not update premium code status');
       }
 
       // Save locally for offline access

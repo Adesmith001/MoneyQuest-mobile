@@ -97,19 +97,6 @@ const ProfileScreen: React.FC<Props> = ({ navigation }) => {
       dispatch(loadStreakData(user.$id) as any);
     }
 
-    // Check if monthly XP should be reset (only triggered by userId / streak changes,
-    // NOT by XP changes — avoids an infinite loop where earning XP re-triggers the reset)
-    if (user && levelProgressService.shouldResetMonthlyXP(user)) {
-      const now = new Date();
-      const monthKey = `${now.getFullYear()}-${now.getMonth() + 1}`;
-      levelProgressService.resetMonthlyXP(user.$id)
-        .then(() => {
-          // Sync Redux so shouldResetMonthlyXP won't fire again until next month
-          dispatch(updateUser({ monthlyXP: 0, lastMonthlyReset: monthKey }) as any);
-        })
-        .catch(() => { /* silent fail – will retry next visit */ });
-    }
-
     // Log Appwrite data
   }, [user?.$id, currentStreak, weeklyStreak, dispatch]);
 
