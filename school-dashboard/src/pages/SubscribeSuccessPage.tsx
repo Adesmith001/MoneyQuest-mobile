@@ -1,5 +1,21 @@
 import { useSearchParams } from 'react-router-dom';
 import { useState, useEffect } from 'react';
+import { databases, ID, Query } from '../lib/appwrite';
+import { config } from '../config';
+
+const PLANS: Record<string, { price: number; billingCycle: 'month' | 'year' }> = {
+  monthly: { price: 3500, billingCycle: 'month' },
+  annual: { price: 42000, billingCycle: 'year' },
+};
+
+function generateCode(): string {
+  const chars = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789';
+  let code = 'MQP-';
+  for (let i = 0; i < 6; i++) {
+    code += chars.charAt(Math.floor(Math.random() * chars.length));
+  }
+  return code;
+}
 
 export default function SubscribeSuccessPage() {
   const [searchParams] = useSearchParams();
@@ -14,7 +30,7 @@ export default function SubscribeSuccessPage() {
 
   const planLabel = plan === 'annual' ? 'Annual' : 'Monthly';
 
-  // Call our API to generate/fetch the premium code
+  // Create premium code directly via Appwrite client SDK (same approach as school codes)
   useEffect(() => {
     if (!reference || !userId) {
       setError('Missing payment information. Please contact support.');
@@ -24,47 +40,68 @@ export default function SubscribeSuccessPage() {
 
     let cancelled = false;
 
-    const fetchCode = async () => {
+    const createCode = async () => {
       try {
-        const res = await fetch('/api/generate-premium-code', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ reference, userId, planType: plan }),
-        });
+        // Check if a code already exists for this payment reference
+        const existing = await databases.listDocuments(
+          config.appwrite.databaseId,
+          'premium_codes',
+          [Query.equal('paymentReference', reference), Query.limit(1)]
+        );
 
-        const data = await res.json();
+        if (cancelled) return;
 
-        if (!cancelled && data.code) {
-          setPremiumCode(data.code);
+        if (existing.documents.length > 0) {
+          setPremiumCode(existing.documents[0].code as string);
           setIsLoading(false);
           return;
         }
 
-        // If the API didn't return a code, retry a few times
-        if (!cancelled) {
-          retryCount++;
-          if (retryCount < 5) {
-            setTimeout(fetchCode, 3000);
-          } else {
-            setError('Could not generate your code. Please contact support with your payment reference: ' + reference);
-            setIsLoading(false);
-          }
+        // Generate and create the code
+        const code = generateCode();
+        const planInfo = PLANS[plan] || PLANS.monthly;
+        const now = new Date();
+        const expirationDate = new Date(now);
+        if (planInfo.billingCycle === 'month') {
+          expirationDate.setMonth(expirationDate.getMonth() + 1);
+        } else {
+          expirationDate.setFullYear(expirationDate.getFullYear() + 1);
         }
-      } catch {
-        if (!cancelled) {
-          retryCount++;
-          if (retryCount < 5) {
-            setTimeout(fetchCode, 3000);
-          } else {
-            setError('Could not generate your code. Please contact support with your payment reference: ' + reference);
-            setIsLoading(false);
+
+        await databases.createDocument(
+          config.appwrite.databaseId,
+          'premium_codes',
+          ID.unique(),
+          {
+            code,
+            userId,
+            planType: plan,
+            status: 'unused',
+            paymentReference: reference,
+            amount: planInfo.price,
+            currency: 'NGN',
+            expirationDate: expirationDate.toISOString(),
+            createdAt: now.toISOString(),
           }
+        );
+
+        if (!cancelled) {
+          setPremiumCode(code);
+          setIsLoading(false);
+        }
+      } catch (err: any) {
+        if (!cancelled) {
+          console.error('Error creating premium code:', err);
+          setError(
+            'Could not generate your code. Please contact support with your payment reference: ' +
+              reference
+          );
+          setIsLoading(false);
         }
       }
     };
 
-    let retryCount = 0;
-    fetchCode();
+    createCode();
 
     return () => { cancelled = true; };
   }, [reference, userId, plan]);
