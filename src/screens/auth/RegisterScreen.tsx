@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { 
   View, 
   Text, 
@@ -10,11 +10,13 @@ import {
   Alert,
   Image,
   ScrollView,
+  ActivityIndicator,
 } from 'react-native';
 import { useDispatch, useSelector } from 'react-redux';
 import { signUp, signInWithGoogle } from '../../store/slices/authSlice';
 import { RootState, AppDispatch } from '../../store';
 import AnimatedTextInput from '../../components/AnimatedTextInput';
+import authService from '../../services/auth';
 
 interface Props {
   navigation: any;
@@ -24,15 +26,48 @@ const RegisterScreen: React.FC<Props> = ({ navigation }) => {
   const [firstName, setFirstName] = useState('');
   const [lastName, setLastName] = useState('');
   const [username, setUsername] = useState('');
+  const [usernameStatus, setUsernameStatus] = useState<'idle' | 'checking' | 'available' | 'taken'>('idle');
   const [phoneNumber, setPhoneNumber] = useState('');
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const dispatch = useDispatch<AppDispatch>();
   const { isLoading, error } = useSelector((state: RootState) => state.auth);
+  const debounceTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  // Debounced real-time username availability check
+  useEffect(() => {
+    if (!username.trim() || username.trim().length < 3) {
+      setUsernameStatus('idle');
+      return;
+    }
+    setUsernameStatus('checking');
+    if (debounceTimer.current) clearTimeout(debounceTimer.current);
+    debounceTimer.current = setTimeout(async () => {
+      try {
+        const taken = await authService.isUsernameTaken(username.trim());
+        setUsernameStatus(taken ? 'taken' : 'available');
+      } catch {
+        setUsernameStatus('idle');
+      }
+    }, 600);
+    return () => {
+      if (debounceTimer.current) clearTimeout(debounceTimer.current);
+    };
+  }, [username]);
 
   const handleSignUp = async () => {
     if (!firstName || !lastName || !username || !phoneNumber || !email || !password) {
       Alert.alert('Error', 'Please fill in all fields');
+      return;
+    }
+
+    if (usernameStatus === 'taken') {
+      Alert.alert('Error', 'That username is already taken. Please choose another.');
+      return;
+    }
+
+    if (usernameStatus === 'checking') {
+      Alert.alert('Please wait', 'Still checking username availability...');
       return;
     }
 
@@ -118,6 +153,22 @@ const RegisterScreen: React.FC<Props> = ({ navigation }) => {
                 autoCapitalize="none"
                 autoCorrect={false}
               />
+              {usernameStatus === 'checking' && (
+                <View style={styles.usernameStatus}>
+                  <ActivityIndicator size="small" color="#888" />
+                  <Text style={styles.usernameStatusText}>Checking availability...</Text>
+                </View>
+              )}
+              {usernameStatus === 'available' && (
+                <View style={styles.usernameStatus}>
+                  <Text style={[styles.usernameStatusText, { color: '#4CAF50' }]}>✓ Username is available</Text>
+                </View>
+              )}
+              {usernameStatus === 'taken' && (
+                <View style={styles.usernameStatus}>
+                  <Text style={[styles.usernameStatusText, { color: '#F44336' }]}>✗ Username is already taken</Text>
+                </View>
+              )}
 
               <AnimatedTextInput
                 label="Phone Number"
@@ -219,6 +270,18 @@ const styles = StyleSheet.create({
   },
   form: {
     marginBottom: 40,
+  },
+  usernameStatus: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    marginTop: -8,
+    marginBottom: 4,
+    paddingHorizontal: 4,
+  },
+  usernameStatusText: {
+    fontSize: 13,
+    color: '#888',
   },
   signUpButton: {
     backgroundColor: "#FF5722",

@@ -129,6 +129,9 @@ export type RootStackParamList = {
   LevelCompletion: {
     xpGained: number;
     accuracy: number;
+    sectionId?: string;
+    passed?: boolean;
+    nextLevelId?: string;
   };
 
   // Other Screens

@@ -1058,6 +1058,7 @@ const QuestionScreen: React.FC<Props> = ({ navigation, route }) => {
           accuracy,
           passed: result.passed,
           nextLevelId: nextLevelToUnlock,
+          sectionId,
         });
       } catch (error) {
         console.error("Error submitting level:", error);
@@ -1065,6 +1066,7 @@ const QuestionScreen: React.FC<Props> = ({ navigation, route }) => {
         navigation.replace("LevelCompletion", {
           xpGained: xpGained,
           accuracy,
+          sectionId,
         });
       }
     }

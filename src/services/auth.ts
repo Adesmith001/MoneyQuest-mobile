@@ -18,6 +18,19 @@ import { levelProgressService } from "./levelProgress";
 
 class AuthService {
 
+  // Check if a username is already taken
+  async isUsernameTaken(username: string): Promise<boolean> {
+    try {
+      const result = await databases.listDocuments(DB_ID, COLLECTIONS.USERS, [
+        Query.equal('username', username.toLowerCase().trim()),
+        Query.limit(1),
+      ]);
+      return result.total > 0;
+    } catch {
+      return false;
+    }
+  }
+
   // Create account with email and password
   async createAccount(
     email: string,
@@ -36,6 +49,14 @@ class AuthService {
 
       if (password.length < 8) {
         throw new Error('Password must be at least 8 characters long');
+      }
+
+      // Check username uniqueness before creating the Appwrite account
+      if (username && username.trim()) {
+        const taken = await this.isUsernameTaken(username);
+        if (taken) {
+          throw new Error('This username is already taken. Please choose a different one.');
+        }
       }
 
       // Check if user already exists by trying to create account
@@ -285,7 +306,7 @@ class AuthService {
       }
 
       if (username && username.trim() !== '') {
-        userData.username = username;
+        userData.username = username.toLowerCase().trim();
       }
 
       // Use the Appwrite user ID as the document ID to maintain consistency

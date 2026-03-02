@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from "react";
+import React, { useEffect } from "react";
 import {
   View,
   Text,
@@ -10,8 +10,10 @@ import {
 } from "react-native";
 import CustomButton from "../../components/CustomButton";
 import { COLORS, FONT_SIZES, SPACING } from "../../constants";
-import FeedbackModal from '../../components/modals/FeedbackModal';
-import { openFeedbackForm } from '../../utils/linking';
+import * as StoreReview from 'expo-store-review';
+import AsyncStorage from '@react-native-async-storage/async-storage';
+
+const REVIEW_KEY_PREFIX = 'review_shown_section_';
 
 const { width } = Dimensions.get("window");
 
@@ -21,33 +23,46 @@ interface Props {
     params: {
       xpGained: number;
       accuracy: number;
+      sectionId?: string;
+      passed?: boolean;
+      nextLevelId?: string;
     };
   };
 }
 
 const LessonCompleteScreen: React.FC<Props> = ({ navigation, route }) => {
-  const { xpGained, accuracy } = route.params;
-  const [isFeedbackModalVisible, setFeedbackModalVisible] = useState(false);
+  const { xpGained, accuracy, sectionId } = route.params;
 
-  // Show the feedback modal after a short delay
+  // Trigger native in-app review once per section
   useEffect(() => {
-    // TODO: Add logic here to decide when to show the modal,
-    // e.g., based on level number or user progress.
-    const timer = setTimeout(() => {
-      setFeedbackModalVisible(true);
-    }, 1500); // 1.5-second delay
+    if (!sectionId) return;
 
-    return () => clearTimeout(timer);
-  }, []);
+    const maybeRequestReview = async () => {
+      try {
+        const key = `${REVIEW_KEY_PREFIX}${sectionId}`;
+        const alreadyShown = await AsyncStorage.getItem(key);
+
+        if (!alreadyShown) {
+          const isAvailable = await StoreReview.isAvailableAsync();
+          // Mark as shown regardless so we don't re-attempt on error
+          await AsyncStorage.setItem(key, 'true');
+          if (isAvailable) {
+            // Small delay so the completion screen appears first
+            setTimeout(() => {
+              StoreReview.requestReview();
+            }, 1500);
+          }
+        }
+      } catch (_) {
+        // Silently fail — review prompt is non-critical
+      }
+    };
+
+    maybeRequestReview();
+  }, [sectionId]);
 
   const handleContinue = () => {
     navigation.popToTop();
-  };
-
-  const handleRate = () => {
-    openFeedbackForm();
-    setFeedbackModalVisible(false);
-    handleContinue();
   };
 
   return (
@@ -118,12 +133,6 @@ const LessonCompleteScreen: React.FC<Props> = ({ navigation, route }) => {
         </View>
       </View>
       </ScrollView>
-
-      <FeedbackModal
-        visible={isFeedbackModalVisible}
-        onClose={() => setFeedbackModalVisible(false)}
-        onRate={handleRate}
-      />
     </SafeAreaView>
   );
 };

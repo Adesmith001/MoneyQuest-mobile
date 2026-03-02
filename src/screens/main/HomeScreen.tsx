@@ -68,6 +68,10 @@ const HomeScreen: React.FC<Props> = ({ navigation }) => {
 
   // Track if initial data has been loaded to avoid redundant API calls
   const [hasInitiallyLoaded, setHasInitiallyLoaded] = useState(false);
+  // Ref mirror of hasInitiallyLoaded — always current inside memoized callbacks
+  const hasInitiallyLoadedRef = useRef(false);
+  // Prevent concurrent fetches (e.g. useEffect + useFocusEffect firing together)
+  const isFetchingRef = useRef(false);
 
   // Ref for horizontal scroll to scroll to user's current section
   const horizontalScrollRef = useRef<ScrollView>(null);
@@ -107,17 +111,20 @@ const HomeScreen: React.FC<Props> = ({ navigation }) => {
     return () => pulseAnimation.stop();
   }, [pulseAnim]);
 
-  // Fetch sections and levels from backend when screen is focused
-  useFocusEffect(
-    React.useCallback(() => {
-      async function fetchLearningPath() {
-        try {
-          // Only show loading indicator on first load or if we have no sections
-          // Subsequent focus events should use cached data silently
-          const isFirstLoad = !hasInitiallyLoaded || sections.length === 0;
-          if (isFirstLoad) {
-            setIsLoading(true);
-          }
+  // ─────────────────────────────────────────────────────────────────────────
+  // Main data-fetch function — stable useCallback so it can be used in both
+  // useEffect (initial / user-change load) and useFocusEffect (focus refresh)
+  // ─────────────────────────────────────────────────────────────────────────
+  const fetchLearningPath = React.useCallback(async () => {
+    // Prevent concurrent invocations (useEffect + useFocusEffect can fire together)
+    if (isFetchingRef.current) return;
+    isFetchingRef.current = true;
+
+    try {
+        // Show loading spinner only on first-ever load
+        if (!hasInitiallyLoadedRef.current) {
+          setIsLoading(true);
+        }
 
           // 🩺 STEP 0: Refresh user lives from Appwrite (with timeout protection for iOS)
           if (user?.$id) {
@@ -305,17 +312,17 @@ const HomeScreen: React.FC<Props> = ({ navigation }) => {
           setSections(sectionsData);
 
           // Mark that we've successfully loaded data
+          hasInitiallyLoadedRef.current = true;
           setHasInitiallyLoaded(true);
 
           // Scroll to user's current section after loading
           if (!hasScrolledToCurrentSection && user?.currentSectionId && sectionsData.length > 0) {
             const currentSectionIndex = sectionsData.findIndex(s => s.id === user.currentSectionId);
             if (currentSectionIndex > 0) {
-              // Delay scroll to ensure layout is ready
               setTimeout(() => {
                 horizontalScrollRef.current?.scrollTo({
                   x: currentSectionIndex * screenWidth,
-                  animated: false, // Don't animate on initial load
+                  animated: false,
                 });
                 setHasScrolledToCurrentSection(true);
               }, 100);
@@ -329,11 +336,22 @@ const HomeScreen: React.FC<Props> = ({ navigation }) => {
           );
         } finally {
           setIsLoading(false);
+          isFetchingRef.current = false;
         }
-      }
+  }, [user?.$id, user?.currentLevelId, user?.currentSectionId, dispatch]);
 
+  // ── Trigger 1: runs on mount AND whenever user.$id / progress keys change.
+  // This guarantees the fetch fires even if Redux Persist hydrates user AFTER
+  // the screen has already gained focus (the classic first-load blank screen bug).
+  useEffect(() => {
+    fetchLearningPath();
+  }, [fetchLearningPath]);
+
+  // ── Trigger 2: re-fetch silently when the user navigates back to this screen.
+  useFocusEffect(
+    React.useCallback(() => {
       fetchLearningPath();
-    }, [user?.$id, user?.currentLevelId, user?.currentSectionId])
+    }, [fetchLearningPath])
   );
 
   // Calculate level progress based on user's current position
