@@ -11,6 +11,8 @@ import PaymentsPage from './pages/PaymentsPage';
 import SettingsPage from './pages/SettingsPage';
 import BuySeatsPage from './pages/BuySeatsPage';
 import ResetPasswordPage from './pages/ResetPasswordPage';
+import SubscribePage from './pages/SubscribePage';
+import SubscribeSuccessPage from './pages/SubscribeSuccessPage';
 
 // Layout
 import DashboardLayout from './components/layout/DashboardLayout';
@@ -77,6 +79,10 @@ function App() {
 
         {/* Password Reset - Public, standalone page */}
         <Route path="/reset-password" element={<ResetPasswordPage />} />
+
+        {/* Individual Subscription - Public, standalone pages */}
+        <Route path="/subscribe" element={<SubscribePage />} />
+        <Route path="/subscribe/success" element={<SubscribeSuccessPage />} />
 
         {/* Protected Routes */}
         <Route

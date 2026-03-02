@@ -22,7 +22,7 @@ export const SCHOOL_PRICING = {
   monthly: {
     id: 'monthly' as const,
     name: 'Monthly',
-    pricePerSeat: 5000,
+    pricePerSeat: 3500,
     fixedSeats: undefined as number | undefined,
     fixedPrice: undefined as number | undefined,
     currency: 'NGN',
@@ -34,7 +34,7 @@ export const SCHOOL_PRICING = {
   annual: {
     id: 'annual' as const,
     name: 'Annual',
-    pricePerSeat: 60000,
+    pricePerSeat: 42000,
     fixedSeats: undefined as number | undefined,
     fixedPrice: undefined as number | undefined,
     currency: 'NGN',
@@ -47,8 +47,8 @@ export const SCHOOL_PRICING = {
     id: 'school_monthly_100' as const,
     name: 'School Plan (Monthly)',
     fixedSeats: 100,
-    fixedPrice: 450000,
-    pricePerSeat: 4500,
+    fixedPrice: 320000,
+    pricePerSeat: 3200,
     currency: 'NGN',
     duration: 'Month',
     billingCycle: 'month' as const,
@@ -59,8 +59,8 @@ export const SCHOOL_PRICING = {
     id: 'school_annual_100' as const,
     name: 'School Plan (Annual)',
     fixedSeats: 100,
-    fixedPrice: 5400000,
-    pricePerSeat: 54000,
+    fixedPrice: 3840000,
+    pricePerSeat: 38400,
     currency: 'NGN',
     duration: 'Year',
     billingCycle: 'year' as const,
@@ -70,3 +70,25 @@ export const SCHOOL_PRICING = {
 };
 
 export type SchoolPlanType = keyof typeof SCHOOL_PRICING;
+
+// Individual user subscription pricing (matches mobile app)
+export const INDIVIDUAL_PRICING = {
+  monthly: {
+    id: 'monthly' as const,
+    name: 'Monthly',
+    price: 3500,
+    currency: 'NGN',
+    duration: 'Month',
+    billingCycle: 'month' as const,
+  },
+  annual: {
+    id: 'annual' as const,
+    name: 'Annual',
+    price: 42000,
+    currency: 'NGN',
+    duration: 'Year',
+    billingCycle: 'year' as const,
+  },
+};
+
+export type IndividualPlanType = keyof typeof INDIVIDUAL_PRICING;
