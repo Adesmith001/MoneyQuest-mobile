@@ -19,6 +19,9 @@
       "deploymentTarget": "13.0",
       "jsEngine": "hermes",
       "newArchEnabled": false,
+      "entitlements": {
+        "com.apple.developer.game-center": false
+      },
       "infoPlist": {
         "UIBackgroundModes": [
           "remote-notification",
