@@ -160,7 +160,7 @@ const PremiumScreen: React.FC = () => {
           {/* Step 2 — Enter Premium Code */}
           <View style={styles.codeSection}>
             <Text style={styles.codeSectionTitle}>
-              Already paid? Enter your code
+              Enter your code
             </Text>
             <View style={styles.codeRow}>
               <TextInput
