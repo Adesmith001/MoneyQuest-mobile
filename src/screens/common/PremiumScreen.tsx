@@ -35,6 +35,27 @@ const PremiumScreen: React.FC = () => {
 
   const [code, setCode] = useState("");
   const [isRedeeming, setIsRedeeming] = useState(false);
+  const [isStartingTrial, setIsStartingTrial] = useState(false);
+
+  const handleStartTrial = async () => {
+    if (!user) {
+      Alert.alert("Error", "User not found. Please log in again.");
+      return;
+    }
+
+    setIsStartingTrial(true);
+    try {
+      const existing = await subscriptionService.getUserSubscription(user.$id);
+      if (!existing) {
+        await subscriptionService.createTrialSubscription(user.$id);
+      }
+      navigation.reset({ index: 0, routes: [{ name: "MainTabs" }] });
+    } catch (err: any) {
+      Alert.alert("Error", err.message || "Could not start free trial. Please try again.");
+    } finally {
+      setIsStartingTrial(false);
+    }
+  };
 
   /** Opens the subscription page in the browser */
   const handleSubscribe = async () => {
@@ -112,7 +133,8 @@ const PremiumScreen: React.FC = () => {
           {/* Close Button */}
           <TouchableOpacity
             style={styles.closeButton}
-            onPress={() => navigation.goBack()}
+            onPress={handleStartTrial}
+            disabled={isStartingTrial}
           >
             <Ionicons name="close" size={28} color="#FFF" />
           </TouchableOpacity>
@@ -192,6 +214,23 @@ const PremiumScreen: React.FC = () => {
               </TouchableOpacity>
             </View>
           </View>
+
+          {/* Free Trial CTA */}
+          <TouchableOpacity
+            style={styles.freeTrialButton}
+            onPress={handleStartTrial}
+            disabled={isStartingTrial}
+            activeOpacity={0.8}
+          >
+            {isStartingTrial ? (
+              <ActivityIndicator color="#FF6B35" size="small" />
+            ) : (
+              <>
+                <Ionicons name="gift-outline" size={20} color="#FF6B35" />
+                <Text style={styles.freeTrialButtonText}>Start 30-Day Free Trial</Text>
+              </>
+            )}
+          </TouchableOpacity>
 
           {/* School Code Option */}
           <TouchableOpacity
@@ -367,6 +406,26 @@ const styles = StyleSheet.create({
     fontSize: 15,
     fontWeight: "600",
     color: "#FFF",
+  },
+  freeTrialButton: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    backgroundColor: "#FFF",
+    borderRadius: 16,
+    paddingVertical: 16,
+    marginBottom: 12,
+    gap: 8,
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.15,
+    shadowRadius: 4,
+    elevation: 4,
+  },
+  freeTrialButtonText: {
+    fontSize: 17,
+    fontWeight: "bold",
+    color: "#FF6B35",
   },
   legalContainer: {
     marginTop: 20,
