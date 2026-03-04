@@ -7,6 +7,7 @@ import AppNavigator from './src/navigation/AppNavigator';
 import * as Linking from 'expo-linking';
 import { Alert, Platform, ErrorUtils, View, Text, StyleSheet, LogBox } from 'react-native';
 import * as Font from 'expo-font';
+import * as NavigationBar from 'expo-navigation-bar';
 import LoadingScreen from './src/components/LoadingScreen';
 import notificationService from './src/services/notifications';
 import soundService from './src/services/soundService';
@@ -102,6 +103,15 @@ function AppContent() {
   useEffect(() => {
     async function prepare() {
       try {
+
+        if (Platform.OS === 'android') {
+          try {
+            await NavigationBar.setVisibilityAsync('hidden');
+            await NavigationBar.setBehaviorAsync('overlay-swipe');
+          } catch (navErr) {
+            console.warn('⚠️ Could not hide navigation bar:', navErr);
+          }
+        }
 
         // Only load fonts - skip other services that might cause issues on iOS
         // Initialize sound service (non-blocking)

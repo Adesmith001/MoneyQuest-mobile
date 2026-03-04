@@ -103,6 +103,13 @@ class CachedBackendApiService {
     try {
       const sections = await backendApi.getSections();
       
+      // If API returned empty, allow retry on next call
+      if (!sections || sections.length === 0) {
+        store.dispatch(setSectionsLoading(false));
+        this.sessionFetchedSections = false;
+        return [];
+      }
+
       // Save to both caches for persistence
       store.dispatch(setSections(sections));
       await cacheService.saveSections(sections);
@@ -148,6 +155,12 @@ class CachedBackendApiService {
     try {
       const levels = await backendApi.getSectionLevels(sectionId);
       
+      // If API returned empty, allow retry on next call
+      if (!levels || levels.length === 0) {
+        this.sessionFetchedLevels.delete(sectionId);
+        return [];
+      }
+
       // Save to both caches for persistence
       store.dispatch(setLevels({ sectionId, levels }));
       await cacheService.saveLevels(sectionId, levels);

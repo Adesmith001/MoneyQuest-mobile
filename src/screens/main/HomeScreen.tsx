@@ -72,6 +72,9 @@ const HomeScreen: React.FC<Props> = ({ navigation }) => {
   const hasInitiallyLoadedRef = useRef(false);
   // Prevent concurrent fetches (e.g. useEffect + useFocusEffect firing together)
   const isFetchingRef = useRef(false);
+  // Retry counter — when sections come back empty, retry up to 3 times
+  const retryCountRef = useRef(0);
+  const MAX_RETRIES = 3;
 
   // Ref for horizontal scroll to scroll to user's current section
   const horizontalScrollRef = useRef<ScrollView>(null);
@@ -116,6 +119,9 @@ const HomeScreen: React.FC<Props> = ({ navigation }) => {
   // useEffect (initial / user-change load) and useFocusEffect (focus refresh)
   // ─────────────────────────────────────────────────────────────────────────
   const fetchLearningPath = React.useCallback(async () => {
+    // Don't fetch if user isn't hydrated yet — wait for Redux Persist
+    if (!user?.$id) return;
+
     // Prevent concurrent invocations (useEffect + useFocusEffect can fire together)
     if (isFetchingRef.current) return;
     isFetchingRef.current = true;
@@ -308,6 +314,22 @@ const HomeScreen: React.FC<Props> = ({ navigation }) => {
               console.error(`Failed to fetch levels for section ${section.title}:`, error);
             }
           }
+
+          // If sections came back empty but we haven't exhausted retries,
+          // reset the cache session flags and retry after a short delay.
+          if (sectionsData.length === 0 && retryCountRef.current < MAX_RETRIES) {
+            retryCountRef.current += 1;
+            console.warn(`[HomeScreen] Sections empty — retry ${retryCountRef.current}/${MAX_RETRIES}`);
+            // Reset the cached API session flags so the next call hits the real API
+            cachedBackendApi.resetSessionTracking();
+            isFetchingRef.current = false;
+            // Short delay before retrying to allow backend/network to settle
+            setTimeout(() => fetchLearningPath(), 1000);
+            return; // Exit this invocation; the retry will finish the job
+          }
+
+          // Reset retry counter on success (or final attempt)
+          retryCountRef.current = 0;
 
           setSections(sectionsData);
 
@@ -676,7 +698,7 @@ const HomeScreen: React.FC<Props> = ({ navigation }) => {
     );
   };
 
-  if (isLoading) {
+  if (isLoading || !hasInitiallyLoaded) {
     return (
       <SafeAreaView style={styles.container}>
         <LearningPathSkeleton />
@@ -684,8 +706,8 @@ const HomeScreen: React.FC<Props> = ({ navigation }) => {
     );
   }
 
-  // ✅ Add empty state check AFTER loading
-  if (!isLoading && sections.length === 0) {
+  // ✅ Add empty state check AFTER a successful initial load AND retries exhausted
+  if (sections.length === 0) {
     return (
       <SafeAreaView style={styles.container}>
         <View style={styles.emptyStateContainer}>
@@ -696,20 +718,23 @@ const HomeScreen: React.FC<Props> = ({ navigation }) => {
           />
           <Text style={styles.emptyStateTitle}>No Learning Content Available</Text>
           <Text style={styles.emptyStateMessage}>
-            It looks like no sections or levels have been created yet.{'\n\n'}
-            Please contact the developer to set up the learning content.
+            We couldn't load the learning content.{'\n\n'}
+            Check your internet connection and try again.
           </Text>
           <TouchableOpacity
             style={styles.emptyStateButton}
             onPress={() => {
-              Alert.alert(
-                'Developer Contact',
-                'Please reach out to the app developer for assistance.',
-                [{ text: 'OK' }]
-              );
+              // Force fresh fetch: reset all caching guards and retry
+              retryCountRef.current = 0;
+              cachedBackendApi.resetSessionTracking();
+              setIsLoading(true);
+              setHasInitiallyLoaded(false);
+              hasInitiallyLoadedRef.current = false;
+              isFetchingRef.current = false;
+              fetchLearningPath();
             }}
           >
-            <Text style={styles.emptyStateButtonText}>Contact Support</Text>
+            <Text style={styles.emptyStateButtonText}>Retry</Text>
           </TouchableOpacity>
         </View>
       </SafeAreaView>

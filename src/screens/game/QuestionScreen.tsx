@@ -84,37 +84,32 @@ const mixAndLimitQuestions = (questions: AnyQuestion[]): AnyQuestion[] => {
     matching: 2,
   };
 
-  // Select questions for each type (shuffle and take required amount)
-  const selectedQuestions: AnyQuestion[] = [];
-
   // Helper to shuffle and take N items
   const shuffleAndTake = (arr: AnyQuestion[], count: number) => {
     const shuffled = [...arr].sort(() => Math.random() - 0.5);
     return shuffled.slice(0, Math.min(count, arr.length));
   };
 
-  // Add scenario questions (3)
-  selectedQuestions.push(...shuffleAndTake(scenario, targetCounts.scenario));
-  
-  // Add MCQ questions (3)
-  selectedQuestions.push(...shuffleAndTake(mcq, targetCounts.mcq));
-  
-  // Add fill in gap questions (2)
-  selectedQuestions.push(...shuffleAndTake(fillGap, targetCounts.fillGap));
-  
-  // Add matching questions (2)
-  selectedQuestions.push(...shuffleAndTake(matching, targetCounts.matching));
+  const selectedMcq = shuffleAndTake(mcq, targetCounts.mcq);
+  const selectedFillGap = shuffleAndTake(fillGap, targetCounts.fillGap);
+  const selectedScenario = shuffleAndTake(scenario, targetCounts.scenario);
+  const selectedMatching = shuffleAndTake(matching, targetCounts.matching);
 
-  // If we don't have enough questions, fill with any available type
+  const selectedQuestions: AnyQuestion[] = [
+    ...selectedMcq,
+    ...selectedFillGap,
+    ...selectedScenario,
+    ...selectedMatching,
+  ];
+
   const remainingNeeded = 10 - selectedQuestions.length;
   if (remainingNeeded > 0) {
-    const usedIds = new Set(selectedQuestions.map((_, i) => i));
-    const remaining = questions.filter((_, i) => !usedIds.has(i));
+    const usedIds = new Set(selectedQuestions.map(q => JSON.stringify(q)));
+    const remaining = questions.filter(q => !usedIds.has(JSON.stringify(q)));
     selectedQuestions.push(...shuffleAndTake(remaining, remainingNeeded));
   }
 
-  // Shuffle the final mix and return exactly 10 questions
-  return selectedQuestions.sort(() => Math.random() - 0.5).slice(0, 10);
+  return selectedQuestions.slice(0, 10);
 };
 
 /**
@@ -1095,6 +1090,17 @@ const QuestionScreen: React.FC<Props> = ({ navigation, route }) => {
           </Text>
         </View>
 
+         {/* Section image (if uploaded for this section) */}
+          {sectionImageUrl ? (
+            <View style={styles.sectionImageContainer}>
+              <Image
+                source={{ uri: sectionImageUrl }}
+                style={styles.sectionImage}
+                resizeMode="cover"
+              />
+            </View>
+          ) : null}
+
         <ScrollView contentContainerStyle={styles.articleContainer}>
 
           {/* Display content or description */}
@@ -1107,17 +1113,6 @@ const QuestionScreen: React.FC<Props> = ({ navigation, route }) => {
             }
             textStyle={styles.articleContent}
           />
-
-          {/* Section image (if uploaded for this section) */}
-          {sectionImageUrl ? (
-            <View style={styles.sectionImageContainer}>
-              <Image
-                source={{ uri: sectionImageUrl }}
-                style={styles.sectionImage}
-                resizeMode="cover"
-              />
-            </View>
-          ) : null}
         </ScrollView>
 
         <View style={styles.footer}>
@@ -1594,6 +1589,7 @@ const styles = StyleSheet.create({
   },
   footer: {
     padding: SPACING.md,
+    paddingBottom: SPACING.md + 16,
   },
   submittingOverlay: {
     position: 'absolute',
@@ -1676,15 +1672,15 @@ const styles = StyleSheet.create({
     color: COLORS.text,
   },
   sectionImageContainer: {
-    marginTop: SPACING.xl,
-    borderRadius: 16,
     overflow: 'hidden',
-    borderWidth: 1,
-    borderColor: COLORS.border || '#E0E0E0',
+    padding: SPACING.md,
   },
   sectionImage: {
     width: '100%',
     height: 220,
+    borderRadius: 16,
+    borderWidth: 1,
+    borderColor: COLORS.border || '#E0E0E0',
   },
 });
 
