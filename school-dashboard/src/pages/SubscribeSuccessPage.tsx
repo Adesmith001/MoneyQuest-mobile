@@ -1,6 +1,6 @@
 import { useSearchParams } from 'react-router-dom';
 import { useState, useEffect } from 'react';
-import { databases, ID, Query } from '../lib/appwrite';
+import { databases, account, ID, Query } from '../lib/appwrite';
 import { Permission, Role } from 'appwrite';
 import { config } from '../config';
 
@@ -43,6 +43,15 @@ export default function SubscribeSuccessPage() {
 
     const createCode = async () => {
       try {
+        // Ensure we have an Appwrite session (anonymous) so the client SDK can
+        // read/write to the premium_codes collection. The user came from the
+        // mobile app and has no browser session.
+        try {
+          await account.get();
+        } catch {
+          await account.createAnonymousSession();
+        }
+
         // Check if a code already exists for this payment reference
         const existing = await databases.listDocuments(
           config.appwrite.databaseId,
@@ -85,9 +94,11 @@ export default function SubscribeSuccessPage() {
             createdAt: now.toISOString(),
           },
           [
-            Permission.read(Role.user(userId)),
-            Permission.update(Role.user(userId)),
-            Permission.delete(Role.user(userId)),
+            // Allow anyone to read so both the web page and the mobile app user
+            // can query/verify this code without sharing a session.
+            Permission.read(Role.any()),
+            Permission.update(Role.any()),
+            Permission.delete(Role.any()),
           ]
         );
 
