@@ -24,8 +24,7 @@
       },
       "infoPlist": {
         "UIBackgroundModes": [
-          "remote-notification",
-          "audio"
+          "remote-notification"
         ],
         "ITSAppUsesNonExemptEncryption": false,
         "UIViewControllerBasedStatusBarAppearance": false

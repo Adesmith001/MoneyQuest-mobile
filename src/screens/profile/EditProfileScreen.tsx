@@ -278,6 +278,7 @@ const EditProfileScreen: React.FC<Props> = ({ navigation }) => {
                 placeholder="Email"
                 keyboardType="email-address"
                 autoCapitalize="none"
+                editable={false}
               />
             </View>
           </View>

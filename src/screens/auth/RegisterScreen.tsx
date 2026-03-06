@@ -56,7 +56,7 @@ const RegisterScreen: React.FC<Props> = ({ navigation }) => {
   }, [username]);
 
   const handleSignUp = async () => {
-    if (!firstName || !lastName || !username || !phoneNumber || !email || !password) {
+    if (!firstName || !lastName || !username || !email || !password) {
       Alert.alert('Error', 'Please fill in all fields');
       return;
     }
@@ -171,7 +171,7 @@ const RegisterScreen: React.FC<Props> = ({ navigation }) => {
               )}
 
               <AnimatedTextInput
-                label="Phone Number"
+                label="Phone Number (Optional)"
                 value={phoneNumber}
                 onChangeText={setPhoneNumber}
                 keyboardType="phone-pad"
