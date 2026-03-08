@@ -40,9 +40,9 @@ const FALLBACK = {
   GOOGLE_CLIENT_ID: '',
   FACEBOOK_APP_ID: '',
   TWITTER_CLIENT_ID: '',
-  MONEYQUEST_API_BASE_URL: 'https://moneyquestproject-demo-production.up.railway.app',
+  MONEYQUEST_API_BASE_URL: '',
   KORAPAY_PUBLIC_KEY: '',
-  KORAPAY_API_URL: 'https://api.korapay.com/merchant/api/v1',
+  KORAPAY_API_URL: '',
 };
 
 // Export all environment variables with fallbacks

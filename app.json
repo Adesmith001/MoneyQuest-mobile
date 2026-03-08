@@ -83,8 +83,7 @@
       },
       "APPWRITE_ENDPOINT": "https://fra.cloud.appwrite.io/v1",
       "APPWRITE_PROJECT_ID": "68cc6ab300330cae9c56",
-      "APPWRITE_DATABASE_ID": "68cc891e001ebcafceeb",
-      "MONEYQUEST_API_BASE_URL": "https://moneyquestproject-demo-production.up.railway.app"
+      "APPWRITE_DATABASE_ID": "68cc891e001ebcafceeb"
     },
     "owner": "adesmith",
     "privacyPolicyUrl": "https://www.nurtureehaven.com/privacy-policy",

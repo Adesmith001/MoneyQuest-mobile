@@ -1,10 +1,4 @@
-/**
- * Backend Learning Path Configuration
- * Maps backend section/level UUIDs to app structure
- * 
- * To get these IDs from your backend, run:
- * curl https://moneyquestproject-demo-production.up.railway.app/debug/levels
- */
+
 
 export interface LearningPathLevel {
   levelId: string;
@@ -21,10 +15,7 @@ export interface LearningPathSection {
   levels: LearningPathLevel[];
 }
 
-/**
- * IMPORTANT: Replace these with your actual backend section/level IDs
- * Get them from: https://moneyquestproject-demo-production.up.railway.app/debug/levels
- */
+
 export const LEARNING_PATH: LearningPathSection[] = [
   {
     sectionId: 'a4e06ac5-dac1-46eb-af25-ce02dbfbb614', // Replace with your section ID
