@@ -136,6 +136,14 @@ class AuthService {
       // Create email session
       await account.createEmailPasswordSession(email, password);
 
+      // Check if account is disabled before proceeding
+      const accountInfo = await account.get();
+      const userDoc = await this.getUserDocument(accountInfo.$id);
+      if (userDoc?.accountStatus === 'disabled') {
+        // Keep session alive so the user can reactivate from the login screen
+        throw new Error('ACCOUNT_DISABLED:' + accountInfo.$id);
+      }
+
       // Get current user after session is created
       const user = await this.getCurrentUser();
       return user;
@@ -202,6 +210,7 @@ class AuthService {
         totalQuestionsAnswered: userDoc.totalQuestionsAnswered,
         correctAnswers: userDoc.correctAnswers,
         monthlyXP: userDoc.monthlyXP,
+        hasCompletedTutorial: userDoc.hasCompletedTutorial || false,
         $createdAt: account_info.$createdAt,
         $updatedAt: account_info.$updatedAt,
       } as User;
@@ -249,6 +258,8 @@ class AuthService {
         lastLifeRegenTime: userDoc.lastLifeRegenTime || new Date().toISOString(),
         currentLevelId: userDoc.currentLevelId,
         currentSectionId: userDoc.currentSectionId,
+        hasCompletedTutorial: userDoc.hasCompletedTutorial || false,
+        accountStatus: userDoc.accountStatus,
         $createdAt: userDoc.$createdAt,
         $updatedAt: userDoc.$updatedAt,
       };
@@ -759,6 +770,7 @@ class AuthService {
         lastLifeRegenTime: userDoc.lastLifeRegenTime || new Date().toISOString(),
         currentLevelId: userDoc.currentLevelId,
         currentSectionId: userDoc.currentSectionId,
+        hasCompletedTutorial: userDoc.hasCompletedTutorial || false,
         $createdAt: userDoc.$createdAt,
         $updatedAt: userDoc.$updatedAt,
       };
@@ -863,6 +875,48 @@ class AuthService {
     } catch (error) {
       console.error('Signup error:', error);
       throw error;
+    }
+  }
+
+  /**
+   * Reactivate a previously disabled account.
+   * Clears accountStatus so the user can sign in normally again.
+   * Can only be called while a valid session exists (session is kept alive during the disabled check).
+   */
+  async reactivateAccount(userId: string): Promise<void> {
+    try {
+      await databases.updateDocument(DB_ID, COLLECTIONS.USERS, userId, {
+        accountStatus: 'active',
+        updatedAt: new Date().toISOString(),
+      });
+    } catch (error) {
+      console.error('Reactivate account error:', error);
+      throw new Error('Failed to reactivate account. Please try again.');
+    }
+  }
+
+  /**
+   * Disable (deactivate) the current user's account.
+   * Sets accountStatus to 'disabled' on the user document and signs out.
+   * The account data is preserved and can be reactivated later.
+   */
+  async disableAccount(userId: string): Promise<void> {
+    try {
+      // Set accountStatus to disabled on user document
+      await databases.updateDocument(DB_ID, COLLECTIONS.USERS, userId, {
+        accountStatus: 'disabled',
+        updatedAt: new Date().toISOString(),
+      });
+
+      // Sign out the user
+      try {
+        await account.deleteSession('current');
+      } catch (err) {
+        // Session may already be invalid
+      }
+    } catch (error) {
+      console.error('Account disable failed:', error);
+      throw new Error('Failed to disable account. Please try again or contact support.');
     }
   }
 

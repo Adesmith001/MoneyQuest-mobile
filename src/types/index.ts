@@ -29,6 +29,8 @@ export interface User {
   // Lives system (max 5, regenerates 1 per hour)
   lives: number;
   lastLifeRegenTime: string; // ISO timestamp of last life regeneration
+  // Account status
+  accountStatus?: string; // 'active' | 'disabled'
   // Current progress tracking
   currentLevelId?: string; // UUID of current level from backend
   currentSectionId?: string; // UUID of current section from backend

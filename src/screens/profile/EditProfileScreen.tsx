@@ -10,20 +10,17 @@ import {
   Switch,
   TextInput,
   Image,
-  Modal,
-  ActivityIndicator,
 } from "react-native";
 import { Ionicons } from '@expo/vector-icons';
 import { useDispatch, useSelector } from "react-redux";
-import { signOut, updateUser, logout } from "../../store/slices/authSlice";
+import { signOut, updateUser } from "../../store/slices/authSlice";
 import { RootState, AppDispatch } from "../../store";
 import CustomButton from "../../components/CustomButton";
 import { getAvatarById } from "../../utils/avatarUtils";
 import { databases, DB_ID, COLLECTIONS } from "../../services/appwrite";
 import NotificationService from "../../services/notifications";
 import soundService from "../../services/soundService";
-import AuthService from "../../services/auth";
-import AsyncStorage from '@react-native-async-storage/async-storage';
+
 import { Platform, Linking } from 'react-native';
 
 interface Props {
@@ -37,8 +34,6 @@ const EditProfileScreen: React.FC<Props> = ({ navigation }) => {
   const [notificationEnabled, setNotificationEnabled] = useState(true);
   const [soundEnabled, setSoundEnabled] = useState(true);
   const [isLoadingPermissions, setIsLoadingPermissions] = useState(false);
-
-  const [isDeleting, setIsDeleting] = useState(false);
 
   // Editable form state
   const [name, setName] = useState(user?.name || "");
@@ -141,64 +136,6 @@ const EditProfileScreen: React.FC<Props> = ({ navigation }) => {
           text: "Sign Out",
           style: "destructive",
           onPress: () => dispatch(signOut()),
-        },
-      ]
-    );
-  };
-
-  const handleDeleteAccount = () => {
-    Alert.alert(
-      "Delete Account",
-      "Are you sure you want to delete your account? All your data, progress, and XP will be permanently removed. This action cannot be undone.",
-      [
-        { text: "Cancel", style: "cancel" },
-        {
-          text: "Delete",
-          style: "destructive",
-          onPress: () => confirmDeleteAccount(),
-        },
-      ]
-    );
-  };
-
-  const confirmDeleteAccount = () => {
-    // Second confirmation for safety
-    Alert.alert(
-      "Final Confirmation",
-      "This will permanently delete your account. Are you absolutely sure?",
-      [
-        { text: "No, keep my account", style: "cancel" },
-        {
-          text: "Yes, delete permanently",
-          style: "destructive",
-          onPress: async () => {
-            if (!user?.$id) return;
-
-            setIsDeleting(true);
-            try {
-              await AuthService.deleteAccount(user.$id);
-
-              // Clear local storage
-              await AsyncStorage.removeItem('userId');
-              await AsyncStorage.removeItem(`subscription_cache_${user.$id}`);
-
-              // Reset Redux state
-              dispatch(logout());
-
-              Alert.alert(
-                "Account Deleted",
-                "Your account and all associated data have been permanently deleted."
-              );
-            } catch (error: any) {
-              console.error('Delete account error:', error);
-              Alert.alert(
-                "Error",
-                error.message || "Failed to delete account. Please try again or contact support."
-              );
-            } finally {
-              setIsDeleting(false);
-            }
-          },
         },
       ]
     );
@@ -319,9 +256,7 @@ const EditProfileScreen: React.FC<Props> = ({ navigation }) => {
             <Text style={styles.logoutText}>Logout</Text>
           </TouchableOpacity>
 
-          <TouchableOpacity onPress={handleDeleteAccount} style={styles.textButton} disabled={isDeleting}>
-            <Text style={styles.deleteText}>{isDeleting ? 'Deleting account...' : 'Delete my account'}</Text>
-          </TouchableOpacity>
+
         </View>
 
         {/* Contact Us Section */}
@@ -363,21 +298,7 @@ const EditProfileScreen: React.FC<Props> = ({ navigation }) => {
         </View>
       </ScrollView>
 
-      {/* Deleting Account Modal */}
-      <Modal
-        visible={isDeleting}
-        transparent
-        animationType="fade"
-        statusBarTranslucent
-      >
-        <View style={styles.modalOverlay}>
-          <View style={styles.modalContent}>
-            <ActivityIndicator size="large" color="#FF4500" />
-            <Text style={styles.modalTitle}>Deleting Account</Text>
-            <Text style={styles.modalSubtitle}>Please wait while we remove your data...</Text>
-          </View>
-        </View>
-      </Modal>
+
     </SafeAreaView>
   );
 };
@@ -526,10 +447,6 @@ const styles = StyleSheet.create({
     color: "#FF4500",
     fontWeight: "600",
   },
-  deleteText: {
-    fontSize: 14,
-    color: "#999",
-  },
   contactSection: {
     paddingHorizontal: 20,
     paddingVertical: 24,
@@ -571,37 +488,6 @@ const styles = StyleSheet.create({
     fontSize: 12,
     color: "#333",
     fontWeight: "500",
-  },
-  modalOverlay: {
-    flex: 1,
-    backgroundColor: "rgba(0, 0, 0, 0.6)",
-    justifyContent: "center",
-    alignItems: "center",
-  },
-  modalContent: {
-    backgroundColor: "#FFFFFF",
-    borderRadius: 20,
-    paddingVertical: 36,
-    paddingHorizontal: 32,
-    alignItems: "center",
-    marginHorizontal: 40,
-    shadowColor: "#000",
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.25,
-    shadowRadius: 8,
-    elevation: 10,
-  },
-  modalTitle: {
-    fontSize: 18,
-    fontWeight: "bold",
-    color: "#333",
-    marginTop: 20,
-  },
-  modalSubtitle: {
-    fontSize: 14,
-    color: "#666",
-    marginTop: 8,
-    textAlign: "center",
   },
 });
 

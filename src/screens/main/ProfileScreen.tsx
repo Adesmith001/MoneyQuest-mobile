@@ -12,11 +12,13 @@ import {
   Switch,
   Alert,
   ActivityIndicator,
+  Modal,
   Platform,
 } from "react-native";
 import { useSelector, useDispatch } from "react-redux";
 import { useFocusEffect } from "@react-navigation/native";
 import { Ionicons } from "@expo/vector-icons";
+import AsyncStorage from '@react-native-async-storage/async-storage';
 import { RootState } from "../../store";
 import { formatXP, formatMonthlyXP, formatLifeRegenTime, getDaysUntilMonthEnd } from "../../utils";
 import { getAvatarById } from "../../utils/avatarUtils";
@@ -25,9 +27,10 @@ import CustomButton from "../../components/CustomButton";
 import { loadStreakData } from "../../store/slices/streakSlice";
 import { livesService } from "../../services/lives";
 import { levelProgressService } from "../../services/levelProgress";
-import { updateUser } from "../../store/slices/authSlice";
+import { updateUser, logout } from "../../store/slices/authSlice";
 import { subscriptionService } from "../../services/subscriptionService";
 import { Subscription } from "../../types/subscription";
+import AuthService from "../../services/auth";
 import CoachMark from "../../components/tutorial/CoachMark";
 import { PROFILE_COACH_STEPS } from "../../config/coachMarkSteps";
 import { markProfileGuideSeen } from "../../store/slices/tutorialSlice";
@@ -49,6 +52,11 @@ const ProfileScreen: React.FC<Props> = ({ navigation }) => {
   const [lifeRegenTime, setLifeRegenTime] = useState('');
   const [subscription, setSubscription] = useState<Subscription | null>(null);
   const [isTogglingAutoRenew, setIsTogglingAutoRenew] = useState(false);
+
+  // Delete/Disable account
+  const [isAccountModalVisible, setAccountModalVisible] = useState(false);
+  const [isDeleting, setIsDeleting] = useState(false);
+  const [isDisabling, setIsDisabling] = useState(false);
 
   // Coach marks
   const [coachStep, setCoachStep] = useState(0);
@@ -175,6 +183,85 @@ const ProfileScreen: React.FC<Props> = ({ navigation }) => {
               Alert.alert("Subscription Cancelled", "Your subscription has been cancelled. You'll still have access until the current period ends.");
             } catch (error: any) {
               Alert.alert("Error", error.message || "Failed to cancel subscription.");
+            }
+          },
+        },
+      ]
+    );
+  };
+
+  const handleDisableAccount = () => {
+    Alert.alert(
+      "Disable Account",
+      "Your account will be disabled. You can contact support to reactivate it later. Are you sure?",
+      [
+        { text: "Cancel", style: "cancel" },
+        {
+          text: "Disable",
+          style: "destructive",
+          onPress: async () => {
+            if (!user?.$id) return;
+            setIsDisabling(true);
+            setAccountModalVisible(false);
+            try {
+              await AuthService.disableAccount(user.$id);
+
+              await AsyncStorage.removeItem('userId');
+
+              dispatch(logout());
+
+              Alert.alert(
+                "Account Disabled",
+                "Your account has been disabled. Contact support to reactivate it."
+              );
+            } catch (error: any) {
+              console.error('Disable account error:', error);
+              Alert.alert(
+                "Error",
+                error.message || "Failed to disable account. Please try again."
+              );
+            } finally {
+              setIsDisabling(false);
+            }
+          },
+        },
+      ]
+    );
+  };
+
+  const handleDeleteAccount = () => {
+    Alert.alert(
+      "Final Confirmation",
+      "This will permanently delete your account and all your data, progress, and XP. This action cannot be undone. Are you absolutely sure?",
+      [
+        { text: "No, keep my account", style: "cancel" },
+        {
+          text: "Yes, delete permanently",
+          style: "destructive",
+          onPress: async () => {
+            if (!user?.$id) return;
+            setIsDeleting(true);
+            setAccountModalVisible(false);
+            try {
+              await AuthService.deleteAccount(user.$id);
+
+              await AsyncStorage.removeItem('userId');
+              await AsyncStorage.removeItem(`subscription_cache_${user.$id}`);
+
+              dispatch(logout());
+
+              Alert.alert(
+                "Account Deleted",
+                "Your account and all associated data have been permanently deleted."
+              );
+            } catch (error: any) {
+              console.error('Delete account error:', error);
+              Alert.alert(
+                "Error",
+                error.message || "Failed to delete account. Please try again or contact support."
+              );
+            } finally {
+              setIsDeleting(false);
             }
           },
         },
@@ -372,6 +459,17 @@ const ProfileScreen: React.FC<Props> = ({ navigation }) => {
           <Ionicons name="chevron-forward" size={18} color="#CCC" />
         </TouchableOpacity>
 
+        {/* Delete Account Button */}
+        <TouchableOpacity
+          style={styles.deleteAccountButton}
+          activeOpacity={0.7}
+          onPress={() => setAccountModalVisible(true)}
+        >
+          <Ionicons name="trash-outline" size={22} color="#F44336" />
+          <Text style={styles.deleteAccountText}>Delete Account</Text>
+          <Ionicons name="chevron-forward" size={18} color="#CCC" />
+        </TouchableOpacity>
+
         {/* Badges & Achievement */}
         <View style={styles.achievementsSection}>
           <Text style={styles.sectionTitle}>Badges & Achievement</Text>
@@ -405,6 +503,93 @@ const ProfileScreen: React.FC<Props> = ({ navigation }) => {
           setCoachStep(0);
         }}
       />
+
+      {/* Account Action Modal */}
+      <Modal
+        visible={isAccountModalVisible}
+        transparent
+        animationType="slide"
+        statusBarTranslucent
+        onRequestClose={() => setAccountModalVisible(false)}
+      >
+        <TouchableOpacity
+          style={styles.accountModalOverlay}
+          activeOpacity={1}
+          onPress={() => setAccountModalVisible(false)}
+        >
+          <View style={styles.accountModalContent}>
+            <View style={styles.accountModalHandle} />
+            <Text style={styles.accountModalTitle}>Account Settings</Text>
+            <Text style={styles.accountModalSubtitle}>
+              What would you like to do with your account?
+            </Text>
+
+            {/* Disable Option */}
+            <TouchableOpacity
+              style={styles.accountOptionCard}
+              onPress={handleDisableAccount}
+            >
+              <View style={[styles.accountOptionIcon, { backgroundColor: '#FFF3E0' }]}>
+                <Ionicons name="pause-circle-outline" size={24} color="#FF9800" />
+              </View>
+              <View style={styles.accountOptionInfo}>
+                <Text style={styles.accountOptionTitle}>Disable Account</Text>
+                <Text style={styles.accountOptionDesc}>
+                  Temporarily disable your account. Your data will be preserved and you can reactivate by contacting support.
+                </Text>
+              </View>
+            </TouchableOpacity>
+
+            {/* Delete Option */}
+            <TouchableOpacity
+              style={[styles.accountOptionCard, { borderColor: '#FFEBEE' }]}
+              onPress={handleDeleteAccount}
+            >
+              <View style={[styles.accountOptionIcon, { backgroundColor: '#FFEBEE' }]}>
+                <Ionicons name="trash-outline" size={24} color="#F44336" />
+              </View>
+              <View style={styles.accountOptionInfo}>
+                <Text style={[styles.accountOptionTitle, { color: '#F44336' }]}>
+                  Delete Account Permanently
+                </Text>
+                <Text style={styles.accountOptionDesc}>
+                  Permanently delete your account and all data including progress, XP, and streaks. This cannot be undone.
+                </Text>
+              </View>
+            </TouchableOpacity>
+
+            {/* Cancel */}
+            <TouchableOpacity
+              style={styles.accountModalCancel}
+              onPress={() => setAccountModalVisible(false)}
+            >
+              <Text style={styles.accountModalCancelText}>Cancel</Text>
+            </TouchableOpacity>
+          </View>
+        </TouchableOpacity>
+      </Modal>
+
+      {/* Processing Overlay Modal */}
+      <Modal
+        visible={isDeleting || isDisabling}
+        transparent
+        animationType="fade"
+        statusBarTranslucent
+      >
+        <View style={styles.processingOverlay}>
+          <View style={styles.processingContent}>
+            <ActivityIndicator size="large" color="#FF4500" />
+            <Text style={styles.processingTitle}>
+              {isDeleting ? 'Deleting Account' : 'Disabling Account'}
+            </Text>
+            <Text style={styles.processingSubtitle}>
+              {isDeleting
+                ? 'Please wait while we remove your data...'
+                : 'Please wait while we disable your account...'}
+            </Text>
+          </View>
+        </View>
+      </Modal>
     </SafeAreaView>
   );
 };
@@ -655,6 +840,139 @@ const styles = StyleSheet.create({
     fontSize: 14,
     fontWeight: '600',
     color: '#FFF',
+  },
+  deleteAccountButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#FFFFFF',
+    marginHorizontal: 20,
+    marginBottom: 20,
+    paddingVertical: 16,
+    paddingHorizontal: 20,
+    borderRadius: 16,
+    borderWidth: 1,
+    borderColor: '#F0F0F0',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.06,
+    shadowRadius: 4,
+    elevation: 1,
+  },
+  deleteAccountText: {
+    flex: 1,
+    fontSize: 16,
+    fontWeight: '600',
+    color: '#F44336',
+    marginLeft: 12,
+  },
+  accountModalOverlay: {
+    flex: 1,
+    backgroundColor: 'rgba(0, 0, 0, 0.5)',
+    justifyContent: 'flex-end',
+  },
+  accountModalContent: {
+    backgroundColor: '#FFFFFF',
+    borderTopLeftRadius: 24,
+    borderTopRightRadius: 24,
+    paddingHorizontal: 24,
+    paddingBottom: Platform.OS === 'ios' ? 40 : 24,
+    paddingTop: 12,
+  },
+  accountModalHandle: {
+    width: 40,
+    height: 4,
+    borderRadius: 2,
+    backgroundColor: '#DDD',
+    alignSelf: 'center',
+    marginBottom: 20,
+  },
+  accountModalTitle: {
+    fontSize: 20,
+    fontWeight: 'bold',
+    color: '#333',
+    textAlign: 'center',
+    marginBottom: 8,
+  },
+  accountModalSubtitle: {
+    fontSize: 14,
+    color: '#666',
+    textAlign: 'center',
+    marginBottom: 24,
+  },
+  accountOptionCard: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#FAFAFA',
+    borderRadius: 16,
+    padding: 16,
+    marginBottom: 12,
+    borderWidth: 1,
+    borderColor: '#F0F0F0',
+  },
+  accountOptionIcon: {
+    width: 48,
+    height: 48,
+    borderRadius: 24,
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginRight: 14,
+  },
+  accountOptionInfo: {
+    flex: 1,
+  },
+  accountOptionTitle: {
+    fontSize: 16,
+    fontWeight: '700',
+    color: '#333',
+    marginBottom: 4,
+  },
+  accountOptionDesc: {
+    fontSize: 13,
+    color: '#888',
+    lineHeight: 18,
+  },
+  accountModalCancel: {
+    marginTop: 8,
+    paddingVertical: 16,
+    alignItems: 'center',
+    borderRadius: 30,
+    backgroundColor: '#F5F5F5',
+  },
+  accountModalCancelText: {
+    fontSize: 16,
+    fontWeight: '600',
+    color: '#333',
+  },
+  processingOverlay: {
+    flex: 1,
+    backgroundColor: 'rgba(0, 0, 0, 0.6)',
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  processingContent: {
+    backgroundColor: '#FFFFFF',
+    borderRadius: 20,
+    paddingVertical: 36,
+    paddingHorizontal: 32,
+    alignItems: 'center',
+    marginHorizontal: 40,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.25,
+    shadowRadius: 8,
+    elevation: 10,
+  },
+  processingTitle: {
+    fontSize: 18,
+    fontWeight: 'bold',
+    color: '#333',
+    marginTop: 20,
+  },
+  processingSubtitle: {
+    fontSize: 14,
+    color: '#666',
+    marginTop: 8,
+    textAlign: 'center',
   },
 });
 

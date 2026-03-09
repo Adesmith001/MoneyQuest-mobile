@@ -77,6 +77,23 @@ export const signOut = createAsyncThunk(
   }
 );
 
+export const reactivateAccount = createAsyncThunk(
+  'auth/reactivateAccount',
+  async ({ userId }: { userId: string }, { rejectWithValue, dispatch }) => {
+    try {
+      await AuthService.reactivateAccount(userId);
+      const currentUser = await AuthService.getCurrentUser();
+      const userDocument = await AuthService.getUserDocument(currentUser.$id);
+      if (userDocument?.$id) {
+        try { dispatch(updateStreakOnLogin(userDocument.$id)); } catch {}
+      }
+      return { currentUser, userDocument };
+    } catch (error: any) {
+      return rejectWithValue(error.message);
+    }
+  }
+);
+
 export const signInWithGoogle = createAsyncThunk(
   "auth/signInWithGoogle",
   async (_, { rejectWithValue }) => {
@@ -144,7 +161,13 @@ export const checkAuthStatus = createAsyncThunk(
       const currentUser = await AuthService.getCurrentUser();
       if (currentUser) {
         const userDocument = await AuthService.getUserDocument(currentUser.$id);
-        
+
+        // Block disabled accounts on session restore
+        if (userDocument?.accountStatus === 'disabled') {
+          await AuthService.signOut();
+          return null;
+        }
+
         // Update streak on app startup if user is already authenticated (silently fail if there are permission issues)
         if (userDocument?.$id) {
           try {
@@ -466,6 +489,21 @@ const authSlice = createSlice({
         if (state.user && action.payload) {
           state.user = action.payload;
         }
+      })
+      // Reactivate Account
+      .addCase(reactivateAccount.pending, (state) => {
+        state.isLoading = true;
+        state.error = null;
+      })
+      .addCase(reactivateAccount.fulfilled, (state, action) => {
+        state.isLoading = false;
+        state.isAuthenticated = true;
+        state.user = action.payload.userDocument;
+        state.error = null;
+      })
+      .addCase(reactivateAccount.rejected, (state, action) => {
+        state.isLoading = false;
+        state.error = action.payload as string;
       });
   },
 });

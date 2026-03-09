@@ -13,7 +13,8 @@ import {
   Image 
 } from 'react-native';
 import { useDispatch, useSelector } from 'react-redux';
-import { signIn, signInWithGoogle } from '../../store/slices/authSlice';
+import { signIn, signInWithGoogle, reactivateAccount } from '../../store/slices/authSlice';
+import AuthService from '../../services/auth';
 import { RootState, AppDispatch } from '../../store';
 import { Ionicons } from '@expo/vector-icons';
 
@@ -45,9 +46,35 @@ const LoginScreen: React.FC<Props> = ({ navigation }) => {
         // Login successful, navigation will be handled by AppNavigator
         Alert.alert('Success', 'Login successful!');
       } else {
-        // Login failed
         const errorMessage = result.payload as string;
-        Alert.alert('Login Failed', errorMessage || 'Invalid email or password');
+        if (errorMessage?.startsWith('ACCOUNT_DISABLED:')) {
+          const userId = errorMessage.split(':')[1];
+          Alert.alert(
+            'Account Disabled',
+            'Your account is currently disabled. Would you like to reactivate it?',
+            [
+              {
+                text: 'Cancel',
+                style: 'cancel',
+                onPress: () => AuthService.signOut(),
+              },
+              {
+                text: 'Reactivate',
+                onPress: async () => {
+                  const reactivateResult = await dispatch(reactivateAccount({ userId }));
+                  if (reactivateAccount.fulfilled.match(reactivateResult)) {
+                    Alert.alert('Account Reactivated', 'Welcome back! Your account is now active.');
+                  } else {
+                    Alert.alert('Error', 'Failed to reactivate account. Please try again.');
+                    AuthService.signOut();
+                  }
+                },
+              },
+            ]
+          );
+        } else {
+          Alert.alert('Login Failed', errorMessage || 'Invalid email or password');
+        }
       }
     } catch (error) {
       Alert.alert('Error', 'An unexpected error occurred');
