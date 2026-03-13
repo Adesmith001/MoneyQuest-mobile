@@ -1,9 +1,17 @@
-import { useState, useEffect } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { useSearchParams, useNavigate } from 'react-router-dom';
 import { loadKoraPayScript } from '../lib/korapay';
+import { account, databases, Query } from '../lib/appwrite';
 import { config, INDIVIDUAL_PRICING } from '../config';
 
 type PlanType = 'monthly' | 'annual';
+
+type UserOption = {
+  $id: string;
+  username?: string;
+  name?: string;
+  email?: string;
+};
 
 function generateReference(): string {
   const timestamp = Date.now();
@@ -15,23 +23,113 @@ export default function SubscribePage() {
   const [searchParams] = useSearchParams();
   const navigate = useNavigate();
 
-  const userId = searchParams.get('userId') || '';
-  const email = searchParams.get('email') || '';
-  const name = searchParams.get('name') || '';
+  const requestedUserId = searchParams.get('userId') || '';
+  const requestedEmail = searchParams.get('email') || '';
+  const requestedName = searchParams.get('name') || '';
+  const requestedPlan = searchParams.get('plan');
+  const requestedReference = searchParams.get('reference') || '';
 
-  const [selectedPlan, setSelectedPlan] = useState<PlanType>('annual');
+  const [selectedPlan, setSelectedPlan] = useState<PlanType>(
+    requestedPlan === 'monthly' || requestedPlan === 'annual' ? requestedPlan : 'annual'
+  );
+  const [users, setUsers] = useState<UserOption[]>([]);
+  const [isLoadingUsers, setIsLoadingUsers] = useState(true);
+  const [userLookupError, setUserLookupError] = useState('');
+  const [userQuery, setUserQuery] = useState('');
+  const [selectedUserId, setSelectedUserId] = useState(requestedUserId);
+  const [manualUserId, setManualUserId] = useState(requestedUserId);
+  const [manualEmail, setManualEmail] = useState(requestedEmail);
+  const [manualName, setManualName] = useState(requestedName);
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState('');
 
-  const isValid = userId && email;
+  const filteredUsers = useMemo(() => {
+    const query = userQuery.trim().toLowerCase();
+    if (!query) return users;
+    return users.filter((user) =>
+      [user.username, user.name].some((field) =>
+        (field || '').toLowerCase().includes(query)
+      )
+    );
+  }, [users, userQuery]);
+
+  const selectedUser = useMemo(
+    () => users.find((user) => user.$id === selectedUserId) || null,
+    [users, selectedUserId]
+  );
+
+  const effectiveUserId = selectedUser?.$id || manualUserId.trim();
+  const effectiveEmail = (selectedUser?.email || manualEmail).trim();
+  const effectiveName = (selectedUser?.name || selectedUser?.username || manualName).trim();
+
+  const isValid = effectiveUserId && effectiveEmail;
 
   useEffect(() => {
     loadKoraPayScript().catch(() => {});
   }, []);
 
+  useEffect(() => {
+    let cancelled = false;
+
+    const fetchUsers = async () => {
+      setIsLoadingUsers(true);
+      setUserLookupError('');
+      try {
+        try {
+          await account.get();
+        } catch {
+          await account.createAnonymousSession();
+        }
+
+        const response = await databases.listDocuments(
+          config.appwrite.databaseId,
+          config.collections.users,
+          [Query.limit(250)]
+        );
+
+        if (cancelled) return;
+
+        const normalized = response.documents.map((doc) => ({
+          $id: doc.$id,
+          username: (doc.username as string | undefined) || '',
+          name: (doc.name as string | undefined) || '',
+          email: (doc.email as string | undefined) || '',
+        }));
+
+        setUsers(normalized);
+
+        if (requestedUserId && normalized.some((u) => u.$id === requestedUserId)) {
+          setSelectedUserId(requestedUserId);
+        }
+      } catch (err) {
+        if (!cancelled) {
+          setUserLookupError(
+            'Could not load usernames automatically. You can still enter your account details manually.'
+          );
+        }
+      } finally {
+        if (!cancelled) {
+          setIsLoadingUsers(false);
+        }
+      }
+    };
+
+    fetchUsers();
+    return () => {
+      cancelled = true;
+    };
+  }, [requestedUserId]);
+
+  useEffect(() => {
+    if (!selectedUser) return;
+    setManualUserId(selectedUser.$id);
+    setManualEmail(selectedUser.email || '');
+    setManualName(selectedUser.name || selectedUser.username || '');
+  }, [selectedUser]);
+
   const handlePayment = async () => {
     if (!isValid) {
-      setError('Missing required information. Please go back to the app and try again.');
+      setError('Please select your account (or enter your User ID and email) before continuing.');
       return;
     }
 
@@ -46,7 +144,7 @@ export default function SubscribePage() {
       }
 
       const plan = INDIVIDUAL_PRICING[selectedPlan];
-      const reference = generateReference();
+      const reference = requestedReference || generateReference();
 
       window.Korapay.initialize({
         key: config.korapay.publicKey,
@@ -54,12 +152,12 @@ export default function SubscribePage() {
         amount: plan.price,
         currency: 'NGN',
         customer: {
-          name: name || email,
-          email: email,
+          name: effectiveName || effectiveEmail,
+          email: effectiveEmail,
         },
         notification_url: `${window.location.origin}/api/webhooks/korapay`,
         metadata: {
-          userId,
+          userId: effectiveUserId,
           planType: selectedPlan,
           source: 'web',
         },
@@ -67,7 +165,9 @@ export default function SubscribePage() {
           setIsLoading(false);
         },
         onSuccess: () => {
-          navigate(`/subscribe/success?plan=${selectedPlan}&reference=${encodeURIComponent(reference)}&userId=${encodeURIComponent(userId)}`);
+          navigate(
+            `/subscribe/success?plan=${selectedPlan}&reference=${encodeURIComponent(reference)}&userId=${encodeURIComponent(effectiveUserId)}`
+          );
         },
         onFailed: (data) => {
           setIsLoading(false);
@@ -79,20 +179,6 @@ export default function SubscribePage() {
       setError(err.message || 'Something went wrong. Please try again.');
     }
   };
-
-  if (!isValid) {
-    return (
-      <div className="min-h-screen bg-[#FF6B35] flex items-center justify-center p-4">
-        <div className="bg-[#444444] rounded-2xl p-8 max-w-md w-full text-center">
-          <div className="text-6xl mb-4">⚠️</div>
-          <h1 className="text-2xl font-bold text-white mb-2">Invalid Link</h1>
-          <p className="text-white/70">
-            This link is missing required information. Please go back to the MoneyQuest app and try again.
-          </p>
-        </div>
-      </div>
-    );
-  }
 
   const monthly = INDIVIDUAL_PRICING.monthly;
   const annual = INDIVIDUAL_PRICING.annual;
@@ -106,6 +192,73 @@ export default function SubscribePage() {
           <p className="text-white/80 text-base leading-relaxed">
             Unlock all the power of this mobile tool and enjoy digital experience like never before!
           </p>
+        </div>
+
+        {/* Account Selection */}
+        <div className="bg-[#444444]/90 rounded-2xl p-5 mb-6">
+          <h2 className="text-white font-semibold text-lg mb-2">Choose your MoneyQuest account</h2>
+          <p className="text-white/70 text-sm mb-4">
+            Your payment code will be tied to this account and can only be redeemed by this user.
+          </p>
+
+          {isLoadingUsers ? (
+            <p className="text-white/70 text-sm">Loading accounts...</p>
+          ) : (
+            <>
+              {userLookupError ? (
+                <div className="mb-3 p-3 bg-amber-500/20 border border-amber-400/40 rounded-xl text-amber-100 text-xs">
+                  {userLookupError}
+                </div>
+              ) : null}
+
+              {users.length > 0 ? (
+                <>
+                  <input
+                    value={userQuery}
+                    onChange={(e) => setUserQuery(e.target.value)}
+                    placeholder="Search by username or name"
+                    className="w-full rounded-xl px-4 py-3 bg-[#1A1A1A] text-white placeholder:text-white/40 border border-white/10 mb-3 outline-none focus:border-[#4ECDC4]"
+                  />
+
+                  <select
+                    value={selectedUserId}
+                    onChange={(e) => setSelectedUserId(e.target.value)}
+                    className="w-full rounded-xl px-4 py-3 bg-[#1A1A1A] text-white border border-white/10 outline-none focus:border-[#4ECDC4]"
+                  >
+                    <option value="">Select your account</option>
+                    {filteredUsers.map((user) => (
+                      <option key={user.$id} value={user.$id}>
+                        {user.username || user.name || 'Unnamed user'}
+                      </option>
+                    ))}
+                  </select>
+                </>
+              ) : null}
+
+              {(users.length === 0 || userLookupError) ? (
+                <div className="space-y-3 mt-3">
+                  <input
+                    value={manualUserId}
+                    onChange={(e) => setManualUserId(e.target.value)}
+                    placeholder="User ID"
+                    className="w-full rounded-xl px-4 py-3 bg-[#1A1A1A] text-white placeholder:text-white/40 border border-white/10 outline-none focus:border-[#4ECDC4]"
+                  />
+                  <input
+                    value={manualEmail}
+                    onChange={(e) => setManualEmail(e.target.value)}
+                    placeholder="Email"
+                    className="w-full rounded-xl px-4 py-3 bg-[#1A1A1A] text-white placeholder:text-white/40 border border-white/10 outline-none focus:border-[#4ECDC4]"
+                  />
+                  <input
+                    value={manualName}
+                    onChange={(e) => setManualName(e.target.value)}
+                    placeholder="Name (optional)"
+                    className="w-full rounded-xl px-4 py-3 bg-[#1A1A1A] text-white placeholder:text-white/40 border border-white/10 outline-none focus:border-[#4ECDC4]"
+                  />
+                </div>
+              ) : null}
+            </>
+          )}
         </div>
 
         {/* Fox Mascot */}
@@ -185,6 +338,17 @@ export default function SubscribePage() {
               </div>
             ))}
           </div>
+        </div>
+
+        {/* Web purchase guide */}
+        <div className="bg-[#444444]/90 rounded-2xl p-5 mb-6 text-left">
+          <p className="text-white font-semibold mb-3">How it works</p>
+          <ol className="space-y-2 text-white/90 text-sm">
+            <li>1. Select your MoneyQuest account above.</li>
+            <li>2. Choose a plan and complete payment on this website.</li>
+            <li>3. Copy the premium code shown after successful payment.</li>
+            <li>4. Open the app and redeem the code in Get Premium.</li>
+          </ol>
         </div>
 
         {/* Error */}
