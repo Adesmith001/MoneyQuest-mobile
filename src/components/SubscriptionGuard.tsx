@@ -5,6 +5,7 @@ import { useSelector } from 'react-redux';
 import { RootState } from '../store';
 import { subscriptionService } from '../services/subscriptionService';
 import { schoolService } from '../services/schoolService';
+import revenueCatService from '../services/revenueCatService';
 import { Subscription } from '../types/subscription';
 import { SchoolStudent } from '../types/school';
 import { Ionicons } from '@expo/vector-icons';
@@ -21,6 +22,8 @@ interface SubscriptionGuardProps {
  *  1. Reads locally cached subscription (AsyncStorage) → instant, no network
  *  2. Evaluates access via pure date-math → works fully offline
  *  3. Silently refreshes cache from Appwrite in the background when online
+ *  4. Falls back to RevenueCat entitlement check for store subscribers whose
+ *     Appwrite record hasn't been synced yet (e.g. fresh install, new device).
  *
  * The user never sees a loading screen; the cached expiry date is the
  * authoritative counter until the next online sync overwrites it.
@@ -74,7 +77,23 @@ const SubscriptionGuard: React.FC<SubscriptionGuardProps> = ({
     setSubscription(localSub);
     setSubscriptionType(localAccess ? 'individual' : null);
     setTrialDaysRemaining(localDays);
-
+      // ── Step 3: RevenueCat entitlement check (store subscribers without Appwrite record) ──
+      // Runs when the user has no local cache (e.g. fresh install, new device).
+      // If RevenueCat says they have premium, grant access and trigger an async Appwrite sync.
+      if (!localAccess && localSub === null && revenueCatService.isConfigured()) {
+        try {
+          const customerInfo = await revenueCatService.getCustomerInfo();
+          if (revenueCatService.hasActiveEntitlement(customerInfo)) {
+            setHasAccess(true);
+            setSubscriptionType('individual');
+            // Fire-and-forget: seed the Appwrite record so the local cache is populated
+            subscriptionService.refreshSubscriptionCache(user.$id).catch(() => {});
+            return;
+          }
+        } catch {
+          // RC offline or not configured — continue with no-access flow
+        }
+      }
     if (!localAccess && localSub === null) {
       // No local cache at all — user may be new or just logged in on a new device.
       // Try a one-off network fetch to seed the cache, then re-evaluate.

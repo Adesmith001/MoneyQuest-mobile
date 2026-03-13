@@ -24,4 +24,6 @@ declare module '@env' {
   export const MONEYQUEST_API_BASE_URL: string;
   export const KORAPAY_PUBLIC_KEY: string;
   export const KORAPAY_API_URL: string;
+  export const REVENUECAT_IOS_KEY: string;
+  export const REVENUECAT_ANDROID_KEY: string;
 }

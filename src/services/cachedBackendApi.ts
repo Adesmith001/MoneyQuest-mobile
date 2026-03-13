@@ -19,7 +19,7 @@ import { BackendSection, BackendLevel } from '../types';
  * 
  * Refresh strategy:
  * - Serve cached data instantly on every session
- * - Once per session, check if cache is >7 days old
+ * - Once per session, check if cache is >3 days old
  * - If stale, silently fetch fresh data in the background
  * - Fresh data is written to AsyncStorage only (not Redux)
  * - User sees updated content on their NEXT session
@@ -66,7 +66,7 @@ class CachedBackendApiService {
    * Get sections with caching
    * Priority: Redux (persisted) -> AsyncStorage -> API
    * Will NOT call API if valid cache exists.
-   * Triggers a silent background refresh if cache is >7 days old.
+    * Triggers a silent background refresh if cache is >3 days old.
    */
   async getSections(): Promise<BackendSection[]> {
     // Ensure cache is initialized first
@@ -229,7 +229,7 @@ class CachedBackendApiService {
   // ===== SILENT BACKGROUND REFRESH =====
 
   /**
-   * Trigger a silent background refresh if cache is stale (>7 days).
+    * Trigger a silent background refresh if cache is stale (>3 days).
    * Only runs once per session. Does NOT update Redux — fresh data
    * is written to AsyncStorage and picked up on the next session.
    */

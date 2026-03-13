@@ -12,12 +12,13 @@ import { useNavigation, useRoute, RouteProp } from '@react-navigation/native';
 import { Ionicons } from '@expo/vector-icons';
 import { koraPayService } from '../../services/korapayService';
 import { subscriptionService } from '../../services/subscriptionService';
-import { PlanType } from '../../types/subscription';
+import { PaymentProvider, PlanType } from '../../types/subscription';
 import { useSelector } from 'react-redux';
 import { RootState } from '../../store';
 
 type PaymentPendingParams = {
-  reference: string;
+  provider: PaymentProvider;
+  reference?: string;
   planType: PlanType;
 };
 
@@ -29,13 +30,17 @@ const PaymentPendingScreen: React.FC = () => {
   const [paymentStatus, setPaymentStatus] = useState<'pending' | 'success' | 'failed'>('pending');
   const [errorMessage, setErrorMessage] = useState('');
 
-  const { reference, planType } = route.params || {};
+  const { provider, reference, planType } = route.params || {};
 
   useEffect(() => {
-    if (reference) {
+    if (provider === 'korapay' && reference) {
       verifyPayment();
+    } else if (provider) {
+      setIsVerifying(false);
+      setPaymentStatus('failed');
+      setErrorMessage('This payment flow does not use pending verification in the app.');
     }
-  }, [reference]);
+  }, [provider, reference]);
 
   const verifyPayment = async () => {
     try {
@@ -60,12 +65,14 @@ const PaymentPendingScreen: React.FC = () => {
           if (user) {
             // Extract the paid amount from payment data for verification
             const paidAmount = status.data?.amount;
-            await subscriptionService.activateSubscription(
-              user.$id, 
-              planType, 
-              reference,
-              paidAmount // Pass amount for verification
-            );
+            await subscriptionService.activateProviderSubscription(user.$id, {
+              provider: 'korapay',
+              planType,
+              transactionReference: reference,
+              paidAmount,
+              customerReference: status.data?.customer?.email,
+              autoRenew: false,
+            });
           }
           setPaymentStatus('success');
           setIsVerifying(false);
@@ -96,7 +103,7 @@ const PaymentPendingScreen: React.FC = () => {
         routes: [{ name: 'MainTabs' as never }],
       });
     } else {
-      navigation.goBack();
+      navigation.navigate('Premium' as never);
     }
   };
 

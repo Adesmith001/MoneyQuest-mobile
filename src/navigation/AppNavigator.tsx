@@ -38,9 +38,8 @@ import MainTabNavigator from './MainTabNavigator';
 
 // Other Screens
 import PremiumScreen from '../screens/common/PremiumScreen';
-import PremiumCodeEntryScreen from '../screens/common/PremiumCodeEntryScreen';
-import PaymentPendingScreen from '../screens/common/PaymentPendingScreen';
 import SchoolCodeEntryScreen from '../screens/common/SchoolCodeEntryScreen';
+import PremiumCodeEntryScreen from '../screens/common/PremiumCodeEntryScreen';
 import QuestionScreen from '../screens/game/QuestionScreen';
 import LevelCompletionScreen from '../screens/game/LevelCompletionScreen';
 import EditProfileScreen from '../screens/profile/EditProfileScreen';
@@ -113,12 +112,8 @@ export type RootStackParamList = {
 
   // Subscription
   Premium: undefined;
-  PremiumCodeEntry: undefined;
   SchoolCodeEntry: undefined;
-  PaymentPending: {
-    reference: string;
-    planType: 'monthly' | 'annual';
-  };
+  PremiumCodeEntry: undefined;
 
   // Game Screens
   Question: {
@@ -343,14 +338,6 @@ const AppNavigator: React.FC = () => {
                   }}
                 />
                 <Stack.Screen
-                  name="PremiumCodeEntry"
-                  component={PremiumCodeEntryScreen}
-                  options={{
-                    headerShown: false,
-                    presentation: 'modal',
-                  }}
-                />
-                <Stack.Screen
                   name="SchoolCodeEntry"
                   component={SchoolCodeEntryScreen}
                   options={{
@@ -359,11 +346,11 @@ const AppNavigator: React.FC = () => {
                   }}
                 />
                 <Stack.Screen
-                  name="PaymentPending"
-                  component={PaymentPendingScreen}
+                  name="PremiumCodeEntry"
+                  component={PremiumCodeEntryScreen}
                   options={{
                     headerShown: false,
-                    gestureEnabled: false,
+                    presentation: 'modal',
                   }}
                 />
                 <Stack.Screen

@@ -416,30 +416,20 @@ const QuestionScreen: React.FC<Props> = ({ navigation, route }) => {
           const mixedQuestions = mixAndLimitQuestions(allQuestions);
           setQuestions(mixedQuestions);
         } else {
-          // Regular level - Check cache for level data first
-          let cachedLevelData = await cacheService.getLevelData(levelId);
-          
-          if (cachedLevelData) {
-            setLevelData(cachedLevelData);
-          } else {
-            // Fetch from API if not cached
-            // Get level description (includes level_summary for article view)
-            const levelDescription = await backendApi.getLevelDescription(levelId);
-            
-            // Get full level details
-            const levelDetails = await backendApi.getLevelDetails(levelId);
-            
-            // Merge description data into levelDetails
-            const mergedLevelData = {
-              ...levelDetails,
-              level_summary: levelDescription.level_summary || levelDescription.description,
-            };
-            
-            setLevelData(mergedLevelData);
-            
-            // Cache the level data for future use
-            await cacheService.saveLevelData(levelId, mergedLevelData);
-          }
+          // Regular level - always fetch latest article data from API
+          // Get level description (includes level_summary for article view)
+          const levelDescription = await backendApi.getLevelDescription(levelId);
+
+          // Get full level details
+          const levelDetails = await backendApi.getLevelDetails(levelId);
+
+          // Merge description data into levelDetails
+          const mergedLevelData = {
+            ...levelDetails,
+            level_summary: levelDescription.level_summary || levelDescription.description,
+          };
+
+          setLevelData(mergedLevelData);
 
           // Fetch section image for article view
           if (sectionId) {

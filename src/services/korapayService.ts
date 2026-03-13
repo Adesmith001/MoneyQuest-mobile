@@ -1,20 +1,18 @@
-import axios from 'axios';
 import { ENV } from '../config/environment';
 import { getRandomBytes } from 'expo-crypto';
 import {
-  PaymentIntent,
   KoraPayInitializeResponse,
   PlanType,
   SUBSCRIPTION_PLANS,
 } from '../types/subscription';
 
 class KoraPayService {
-  private secretKey: string;
-  private apiUrl: string;
+  private publicKey: string;
+  private hostedCheckoutBaseUrl: string;
 
   constructor() {
-    this.secretKey = ENV.KORAPAY_SECRET_KEY;
-    this.apiUrl = ENV.KORAPAY_API_URL;
+    this.publicKey = ENV.KORAPAY_PUBLIC_KEY;
+    this.hostedCheckoutBaseUrl = 'https://moneyquestschooldashboard.vercel.app/subscribe';
   }
 
   /**
@@ -44,39 +42,26 @@ class KoraPayService {
       const plan = SUBSCRIPTION_PLANS[planType];
       const reference = this.generateReference();
 
-      const payload = {
-        amount: plan.price,
-        currency: plan.currency,
+      if (!this.publicKey) {
+        throw new Error('KoraPay public key is not configured.');
+      }
+
+      const query = new URLSearchParams({
+        userId,
+        email: userEmail,
+        name: userName,
+        plan: planType,
         reference,
-        customer: {
-          name: userName,
-          email: userEmail,
-        },
-        metadata: {
-          userId,
-          planType,
-          description: `MoneyQuest ${plan.name} Subscription`,
+      });
+
+      return {
+        status: true,
+        message: 'Hosted checkout initialized',
+        data: {
+          reference,
+          checkout_url: `${this.hostedCheckoutBaseUrl}?${query.toString()}`,
         },
       };
-
-      const url = `${this.apiUrl}/charges/initialize`;
-      
-      const response = await axios.post<KoraPayInitializeResponse>(
-        url,
-        payload,
-        {
-          headers: {
-            Authorization: `Bearer ${this.secretKey}`,
-            'Content-Type': 'application/json',
-          },
-        }
-      );
-
-      if (response.data.status) {
-        return response.data;
-      } else {
-        throw new Error(response.data.message || 'Payment initialization failed');
-      }
     } catch (error: any) {
       console.error('KoraPay initialization error:', error);
       throw new Error(
@@ -84,61 +69,6 @@ class KoraPayService {
           error.message ||
           'Failed to initialize payment'
       );
-    }
-  }
-
-  /**
-   * Verify a payment transaction
-   */
-  async verifyPayment(reference: string): Promise<any> {
-    try {
-      const response = await axios.get(
-        `${this.apiUrl}/charges/${reference}`,
-        {
-          headers: {
-            Authorization: `Bearer ${this.secretKey}`,
-            'Content-Type': 'application/json',
-          },
-        }
-      );
-
-      return response.data;
-    } catch (error: any) {
-      console.error('KoraPay verification error:', error);
-      throw new Error(
-        error.response?.data?.message ||
-          error.message ||
-          'Failed to verify payment'
-      );
-    }
-  }
-
-  /**
-   * Get payment status
-   */
-  async getPaymentStatus(reference: string): Promise<{
-    status: 'success' | 'pending' | 'failed';
-    data: any;
-  }> {
-    try {
-      const verification = await this.verifyPayment(reference);
-
-      if (verification.status) {
-        const paymentStatus = verification.data.status;
-
-        if (paymentStatus === 'success' || paymentStatus === 'completed') {
-          return { status: 'success', data: verification.data };
-        } else if (paymentStatus === 'pending' || paymentStatus === 'processing') {
-          return { status: 'pending', data: verification.data };
-        } else {
-          return { status: 'failed', data: verification.data };
-        }
-      } else {
-        return { status: 'failed', data: verification };
-      }
-    } catch (error: any) {
-      console.error('Error getting payment status:', error);
-      return { status: 'failed', data: null };
     }
   }
 

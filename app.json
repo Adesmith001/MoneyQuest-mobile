@@ -88,7 +88,6 @@
     "owner": "adesmith",
     "privacyPolicyUrl": "https://www.nurtureehaven.com/privacy-policy",
     "plugins": [
-      "react-native-iap",
       [
         "expo-build-properties",
         {
@@ -116,7 +115,8 @@
           "color": "#FF6B35",
           "sounds": []
         }
-      ]
+      ],
+      "react-native-purchases"
     ]
   }
 }

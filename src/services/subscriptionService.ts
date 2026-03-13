@@ -9,6 +9,8 @@ import {
   Subscription,
   SubscriptionStatus,
   PlanType,
+  PaymentProvider,
+  SubscriptionActivationInput,
   SUBSCRIPTION_PLANS,
 } from '../types/subscription';
 
@@ -84,6 +86,7 @@ class SubscriptionService {
         userId,
         planType: 'monthly', // Default to monthly
         status: 'trial',
+        paymentProvider: 'none',
         trialStartDate: now.toISOString(),
         trialEndDate: trialEndDate.toISOString(),
         subscriptionStartDate: now.toISOString(), // Required field for Appwrite schema
@@ -195,11 +198,9 @@ class SubscriptionService {
    * NOTE: This should only be called from secure backend (Appwrite Function webhook)
    * For client-side, payment status verification happens through polling
    */
-  async activateSubscription(
+  async activateProviderSubscription(
     userId: string,
-    planType: PlanType,
-    transactionReference: string,
-    paidAmount?: number // Optional amount verification
+    activation: SubscriptionActivationInput
   ): Promise<Subscription> {
     try {
       const subscription = await this.getUserSubscription(userId);
@@ -209,34 +210,43 @@ class SubscriptionService {
       }
 
       const now = new Date();
-      const plan = SUBSCRIPTION_PLANS[planType];
-      
-      // Verify amount if provided (important for webhook verification)
-      if (paidAmount !== undefined && paidAmount < plan.price) {
+      const plan = SUBSCRIPTION_PLANS[activation.planType];
+
+      if (activation.paidAmount !== undefined && activation.paidAmount < plan.price) {
         throw new Error(
-          `Payment amount mismatch. Expected ${plan.price}, received ${paidAmount}`
+          `Payment amount mismatch. Expected ${plan.price}, received ${activation.paidAmount}`
         );
       }
 
       const endDate = new Date(now);
 
-      // Calculate subscription end date based on plan
       if (plan.billingCycle === 'month') {
         endDate.setMonth(endDate.getMonth() + 1);
       } else {
         endDate.setFullYear(endDate.getFullYear() + 1);
       }
 
-      const nextBillingDate = new Date(endDate);
-
-      const updatedData = {
-        planType,
+      const updatedData: Partial<Subscription> = {
+        planType: activation.planType,
         status: 'active' as SubscriptionStatus,
+        paymentProvider: activation.provider,
         subscriptionStartDate: now.toISOString(),
         subscriptionEndDate: endDate.toISOString(),
         lastPaymentDate: now.toISOString(),
-        nextBillingDate: nextBillingDate.toISOString(),
-        korapayTransactionReference: transactionReference,
+        nextBillingDate: endDate.toISOString(),
+        paymentReference: activation.transactionReference,
+        externalTransactionId:
+          activation.externalTransactionId || activation.transactionReference,
+        originalTransactionId: activation.originalTransactionId,
+        providerProductId: activation.productId,
+        receiptReference: activation.receiptReference,
+        korapayTransactionReference:
+          activation.provider === 'korapay' ? activation.transactionReference : undefined,
+        korapayCustomerReference:
+          activation.provider === 'korapay' ? activation.customerReference : undefined,
+        autoRenew:
+          activation.autoRenew ??
+          (activation.provider === 'apple_iap' || activation.provider === 'google_play'),
         amount: plan.price,
         updatedAt: now.toISOString(),
       };
@@ -252,9 +262,24 @@ class SubscriptionService {
       await this.saveSubscriptionLocally(activated);
       return activated;
     } catch (error: any) {
-      console.error('Error activating subscription:', error);
+      console.error('Error activating provider subscription:', error);
       throw new Error(error.message || 'Failed to activate subscription');
     }
+  }
+
+  async activateSubscription(
+    userId: string,
+    planType: PlanType,
+    transactionReference: string,
+    paidAmount?: number // Optional amount verification
+  ): Promise<Subscription> {
+    return this.activateProviderSubscription(userId, {
+      planType,
+      provider: 'korapay',
+      transactionReference,
+      paidAmount,
+      autoRenew: false,
+    });
   }
 
   /**
@@ -266,6 +291,14 @@ class SubscriptionService {
 
       if (!subscription) {
         throw new Error('Subscription not found');
+      }
+
+      if (subscription.paymentProvider === 'apple_iap') {
+        throw new Error('Apple subscriptions must be managed in the App Store.');
+      }
+
+      if (subscription.paymentProvider === 'google_play') {
+        throw new Error('Google Play subscriptions must be managed in the Play Store.');
       }
 
       const updatedData = {
@@ -299,6 +332,14 @@ class SubscriptionService {
 
       if (!subscription) {
         throw new Error('Subscription not found');
+      }
+
+      if (subscription.paymentProvider === 'apple_iap') {
+        throw new Error('Apple subscriptions must be managed in the App Store.');
+      }
+
+      if (subscription.paymentProvider === 'google_play') {
+        throw new Error('Google Play subscriptions must be managed in the Play Store.');
       }
 
       const response = await databases.updateDocument(
@@ -488,10 +529,13 @@ class SubscriptionService {
           {
             planType,
             status: 'active' as SubscriptionStatus,
+            paymentProvider: 'korapay' as PaymentProvider,
             subscriptionStartDate: now.toISOString(),
             subscriptionEndDate: endDate.toISOString(),
             lastPaymentDate: now.toISOString(),
             nextBillingDate: endDate.toISOString(),
+            paymentReference: premiumCode.paymentReference || '',
+            externalTransactionId: premiumCode.paymentReference || '',
             korapayTransactionReference: premiumCode.paymentReference || '',
             amount: premiumCode.amount || plan.price,
             updatedAt: now.toISOString(),
@@ -507,6 +551,7 @@ class SubscriptionService {
             userId,
             planType,
             status: 'active' as SubscriptionStatus,
+            paymentProvider: 'korapay' as PaymentProvider,
             trialStartDate: now.toISOString(),
             trialEndDate: now.toISOString(),
             subscriptionStartDate: now.toISOString(),
@@ -514,6 +559,8 @@ class SubscriptionService {
             lastPaymentDate: now.toISOString(),
             nextBillingDate: endDate.toISOString(),
             autoRenew: false,
+            paymentReference: premiumCode.paymentReference || '',
+            externalTransactionId: premiumCode.paymentReference || '',
             korapayTransactionReference: premiumCode.paymentReference || '',
             amount: premiumCode.amount || plan.price,
             currency: 'NGN',

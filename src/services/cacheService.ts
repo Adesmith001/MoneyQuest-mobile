@@ -1,8 +1,6 @@
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { BackendSection, BackendLevel } from '../types';
 
-const SOUND_ENABLED_KEY = '@sound_enabled';
-
 const CACHE_KEYS = {
   COMPLETED_LEVELS: '@moneyquest_completed_levels',
   SECTIONS: '@moneyquest_sections',
@@ -11,13 +9,11 @@ const CACHE_KEYS = {
   LEVELS_TIMESTAMP_PREFIX: '@moneyquest_levels_timestamp_',
   QUESTIONS_PREFIX: '@moneyquest_questions_',
   QUESTIONS_TIMESTAMP_PREFIX: '@moneyquest_questions_timestamp_',
-  LEVEL_DATA_PREFIX: '@moneyquest_level_data_',
-  LEVEL_DATA_TIMESTAMP_PREFIX: '@moneyquest_level_data_timestamp_',
   BACKGROUND_REFRESH_DONE: '@moneyquest_bg_refresh_done',
 };
 
-// Refresh interval: 7 days in milliseconds
-const REFRESH_INTERVAL = 7 * 24 * 60 * 60 * 1000;
+// Refresh interval: 3 days in milliseconds
+const REFRESH_INTERVAL = 3 * 24 * 60 * 60 * 1000;
 
 class CacheService {
   private initialized = false;
@@ -123,7 +119,7 @@ class CacheService {
   }
 
   /**
-   * Check if sections cache is older than 7 days
+   * Check if sections cache is older than 3 days
    */
   async isSectionsCacheStale(): Promise<boolean> {
     try {
@@ -170,7 +166,7 @@ class CacheService {
   }
 
   /**
-   * Check if levels cache for a section is older than 7 days
+   * Check if levels cache for a section is older than 3 days
    */
   async isLevelsCacheStale(sectionId: string): Promise<boolean> {
     try {
@@ -217,7 +213,7 @@ class CacheService {
   }
 
   /**
-   * Check if questions cache for a level is older than 7 days
+   * Check if questions cache for a level is older than 3 days
    */
   async isQuestionsCacheStale(levelId: string): Promise<boolean> {
     try {
@@ -227,39 +223,6 @@ class CacheService {
       return age > REFRESH_INTERVAL;
     } catch {
       return true;
-    }
-  }
-
-  // ===== LEVEL DATA (ARTICLE) CACHE =====
-
-  /**
-   * Get level data (article/description) from cache
-   */
-  async getLevelData(levelId: string): Promise<any | null> {
-    try {
-      const cached = await AsyncStorage.getItem(CACHE_KEYS.LEVEL_DATA_PREFIX + levelId);
-
-      if (cached) {
-        return JSON.parse(cached);
-      }
-      return null;
-    } catch (error) {
-      console.error('Failed to get level data from cache:', error);
-      return null;
-    }
-  }
-
-  /**
-   * Save level data (article/description) to cache (with timestamp)
-   */
-  async saveLevelData(levelId: string, levelData: any): Promise<void> {
-    try {
-      await Promise.all([
-        AsyncStorage.setItem(CACHE_KEYS.LEVEL_DATA_PREFIX + levelId, JSON.stringify(levelData)),
-        AsyncStorage.setItem(CACHE_KEYS.LEVEL_DATA_TIMESTAMP_PREFIX + levelId, Date.now().toString()),
-      ]);
-    } catch (error) {
-      console.error('Failed to save level data to cache:', error);
     }
   }
 

@@ -2,7 +2,9 @@ export type SubscriptionStatus = 'trial' | 'active' | 'expired' | 'cancelled' | 
 
 export type PlanType = 'monthly' | 'annual';
 
-export type PaymentProvider = 'korapay' | 'google_play' | 'school' | 'none';
+export type PaymentProvider = 'apple_iap' | 'korapay' | 'google_play' | 'school' | 'none';
+
+export type PaymentSessionStatus = 'pending' | 'requires_action' | 'completed' | 'failed';
 
 export interface SubscriptionPlan {
   id: PlanType;
@@ -21,6 +23,7 @@ export interface Subscription {
   userId: string;
   planType: PlanType;
   status: SubscriptionStatus;
+  paymentProvider?: PaymentProvider;
   trialStartDate: string;
   trialEndDate: string;
   subscriptionStartDate: string; // Required field in Appwrite
@@ -28,12 +31,48 @@ export interface Subscription {
   lastPaymentDate?: string;
   nextBillingDate?: string;
   autoRenew: boolean;
+  paymentReference?: string;
+  externalTransactionId?: string;
+  originalTransactionId?: string;
+  providerProductId?: string;
+  receiptReference?: string;
   korapayTransactionReference?: string;
   korapayCustomerReference?: string;
   amount: number;
   currency: string;
   createdAt: string;
   updatedAt: string;
+}
+
+export interface SubscriptionActivationInput {
+  planType: PlanType;
+  provider: PaymentProvider;
+  transactionReference: string;
+  paidAmount?: number;
+  externalTransactionId?: string;
+  originalTransactionId?: string;
+  productId?: string;
+  receiptReference?: string;
+  customerReference?: string;
+  autoRenew?: boolean;
+}
+
+export interface PaymentStartRequest {
+  userId: string;
+  planType: PlanType;
+  provider: PaymentProvider;
+  userEmail?: string;
+  userName?: string;
+}
+
+export interface PaymentStartResult {
+  provider: PaymentProvider;
+  status: PaymentSessionStatus;
+  planType: PlanType;
+  reference?: string;
+  checkoutUrl?: string;
+  productId?: string;
+  message?: string;
 }
 
 export interface PaymentIntent {

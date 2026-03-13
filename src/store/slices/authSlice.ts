@@ -4,6 +4,7 @@ import AuthService from '../../services/auth';
 import googleAuthService from '../../services/googleAuth';
 import { updateStreakOnLogin, resetStreakState } from './streakSlice';
 import AsyncStorage from '@react-native-async-storage/async-storage';
+import revenueCatService from '../../services/revenueCatService';
 
 const initialState: AuthState = {
   user: null,
@@ -30,7 +31,8 @@ export const signIn = createAsyncThunk(
           // Silently fail - streak is not critical for login
         }
       }
-      
+      // Identify user with RevenueCat (non-blocking)
+      revenueCatService.identifyUser(currentUser.$id).catch(() => {});
       return { currentUser, userDocument };
     } catch (error: any) {
       return rejectWithValue(error.message);
@@ -57,6 +59,8 @@ export const signUp = createAsyncThunk(
       // Step 3: Get the current user (session is now established)
       const currentUser = await AuthService.getCurrentUser();
       const userDocument = await AuthService.getUserDocument(currentUser.$id);
+      // Identify the new user with RevenueCat (non-blocking)
+      revenueCatService.identifyUser(currentUser.$id).catch(() => {});
       return { currentUser, userDocument };
     } catch (error: any) {
       return rejectWithValue(error.message);
@@ -71,6 +75,8 @@ export const signOut = createAsyncThunk(
       await AuthService.signOut();
       // Reset streak state on sign out
       dispatch(resetStreakState());
+      // Unlink RevenueCat user (non-blocking)
+      revenueCatService.logOut().catch(() => {});
     } catch (error: any) {
       return rejectWithValue(error.message);
     }
@@ -144,7 +150,8 @@ export const getCurrentUser = createAsyncThunk(
             // Silently fail - streak is not critical
           }
         }
-        
+        // Re-identify with RevenueCat on app startup (non-blocking)
+        revenueCatService.identifyUser(currentUser.$id).catch(() => {});
         return { currentUser, userDocument };
       }
       return null;

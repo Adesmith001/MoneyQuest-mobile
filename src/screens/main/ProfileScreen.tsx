@@ -34,6 +34,7 @@ import AuthService from "../../services/auth";
 import CoachMark from "../../components/tutorial/CoachMark";
 import { PROFILE_COACH_STEPS } from "../../config/coachMarkSteps";
 import { markProfileGuideSeen } from "../../store/slices/tutorialSlice";
+import { useRevenueCat } from "../../hooks/useRevenueCat";
 
 const { width: screenWidth } = Dimensions.get("window");
 
@@ -52,6 +53,7 @@ const ProfileScreen: React.FC<Props> = ({ navigation }) => {
   const [lifeRegenTime, setLifeRegenTime] = useState('');
   const [subscription, setSubscription] = useState<Subscription | null>(null);
   const [isTogglingAutoRenew, setIsTogglingAutoRenew] = useState(false);
+  const { isPremium, presentCustomerCenter } = useRevenueCat();
 
   // Delete/Disable account
   const [isAccountModalVisible, setAccountModalVisible] = useState(false);
@@ -165,6 +167,23 @@ const ProfileScreen: React.FC<Props> = ({ navigation }) => {
     } finally {
       setIsTogglingAutoRenew(false);
     }
+  };
+
+  const isStoreManagedSubscription =
+    subscription?.paymentProvider === 'apple_iap' ||
+    subscription?.paymentProvider === 'google_play';
+
+  const handleManageStoreSubscription = async () => {
+    if (subscription?.paymentProvider === 'apple_iap') {
+      await Linking.openURL('https://apps.apple.com/account/subscriptions');
+      return;
+    }
+    if (subscription?.paymentProvider === 'google_play') {
+      await Linking.openURL('https://play.google.com/store/account/subscriptions');
+      return;
+    }
+
+    Alert.alert('Unavailable', 'Manage this subscription in the store where it was purchased.');
   };
 
   const handleCancelSubscription = () => {
@@ -414,12 +433,33 @@ const ProfileScreen: React.FC<Props> = ({ navigation }) => {
               </View>
 
               {/* Cancel Button */}
-              {subscription.status === "active" && (
+              {subscription.status === "active" && !isStoreManagedSubscription && (
                 <TouchableOpacity
                   style={styles.cancelSubscriptionButton}
                   onPress={handleCancelSubscription}
                 >
                   <Text style={styles.cancelSubscriptionText}>Cancel Subscription</Text>
+                </TouchableOpacity>
+              )}
+
+              {subscription.status === "active" && isStoreManagedSubscription && (
+                <TouchableOpacity
+                  style={styles.renewButton}
+                  onPress={presentCustomerCenter}
+                >
+                  <Ionicons name="settings-outline" size={16} color="#FF5722" style={{ marginRight: 6 }} />
+                  <Text style={styles.renewButtonText}>Manage Subscription</Text>
+                </TouchableOpacity>
+              )}
+
+              {/* RevenueCat Customer Center for premium users without an Appwrite record */}
+              {!subscription && isPremium && (
+                <TouchableOpacity
+                  style={styles.renewButton}
+                  onPress={presentCustomerCenter}
+                >
+                  <Ionicons name="settings-outline" size={16} color="#FF5722" style={{ marginRight: 6 }} />
+                  <Text style={styles.renewButtonText}>Manage Subscription</Text>
                 </TouchableOpacity>
               )}
 

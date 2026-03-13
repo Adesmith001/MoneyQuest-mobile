@@ -11,6 +11,7 @@ import * as NavigationBar from 'expo-navigation-bar';
 import LoadingScreen from './src/components/LoadingScreen';
 import notificationService from './src/services/notifications';
 import soundService from './src/services/soundService';
+import revenueCatService from './src/services/revenueCatService';
 
 // Ignore specific warnings that don't affect functionality
 LogBox.ignoreLogs([
@@ -118,6 +119,13 @@ function AppContent() {
         soundService.initialize().catch(err => {
           console.warn('⚠️ Sound service init failed (non-blocking):', err);
         });
+
+        // Initialize RevenueCat (non-blocking — no userId yet; user is identified on sign-in)
+        try {
+          revenueCatService.configure();
+        } catch (rcErr) {
+          console.warn('⚠️ RevenueCat init failed (non-blocking):', rcErr);
+        }
 
         try {
           const fontPromise = Font.loadAsync({
