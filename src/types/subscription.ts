@@ -55,6 +55,9 @@ export interface SubscriptionActivationInput {
   receiptReference?: string;
   customerReference?: string;
   autoRenew?: boolean;
+  /** Actual subscription end date from the store (Apple/Google). When provided,
+   * this takes priority over the locally-calculated end date. */
+  subscriptionEndDate?: string;
 }
 
 export interface PaymentStartRequest {

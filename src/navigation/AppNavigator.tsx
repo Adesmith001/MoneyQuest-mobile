@@ -9,6 +9,7 @@ import { Alert, ActivityIndicator, View, Text } from 'react-native';
 import googleAuthService from '../services/googleAuth';
 import { updateUser } from '../store/slices/authSlice';
 import { completeAppTour } from '../store/slices/tutorialSlice';
+import revenueCatService from '../services/revenueCatService';
 
 // ⚡ Import ALL screens directly - lazy loading causes white screen on iOS production
 import LoadingScreen from '../screens/common/LoadingScreen';
@@ -171,6 +172,14 @@ const AppNavigator: React.FC = () => {
   const handleSplashComplete = () => {
     setShowSplash(false);
   };
+
+  // Re-link RevenueCat whenever the signed-in user changes (covers app restart
+  // from persisted Redux state, all sign-in paths, and Google OAuth callback).
+  useEffect(() => {
+    if (user?.$id) {
+      revenueCatService.identifyUser(user.$id).catch(() => {});
+    }
+  }, [user?.$id]);
 
   // Handle OAuth callbacks
   useEffect(() => {

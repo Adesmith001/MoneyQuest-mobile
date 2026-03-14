@@ -124,6 +124,8 @@ export const handleOAuthCallback = createAsyncThunk(
       
       if (result.success && result.user) {
         await AsyncStorage.setItem("userId", result.user.$id);
+        // Link the Appwrite user ID to RevenueCat so store purchases are accessible
+        revenueCatService.identifyUser(result.user.$id).catch(() => {});
         return result.user;
       } else {
         return rejectWithValue(result.error || "OAuth callback failed");
@@ -183,7 +185,8 @@ export const checkAuthStatus = createAsyncThunk(
             // Silently fail - streak is not critical
           }
         }
-        
+        // Re-identify with RevenueCat on session restore (non-blocking)
+        revenueCatService.identifyUser(currentUser.$id).catch(() => {});
         return { currentUser, userDocument };
       }
       return null;

@@ -204,11 +204,6 @@ class SubscriptionService {
   ): Promise<Subscription> {
     try {
       const subscription = await this.getUserSubscription(userId);
-
-      if (!subscription) {
-        throw new Error('Subscription not found');
-      }
-
       const now = new Date();
       const plan = SUBSCRIPTION_PLANS[activation.planType];
 
@@ -218,12 +213,64 @@ class SubscriptionService {
         );
       }
 
-      const endDate = new Date(now);
+      // Use the store-provided end date (Apple/Google pass the real expiry via RC);
+      // fall back to locally-calculated date for KoraPay and other providers.
+      const endDate = activation.subscriptionEndDate
+        ? new Date(activation.subscriptionEndDate)
+        : (() => {
+            const d = new Date(now);
+            if (plan.billingCycle === 'month') {
+              d.setMonth(d.getMonth() + 1);
+            } else {
+              d.setFullYear(d.getFullYear() + 1);
+            }
+            return d;
+          })();
 
-      if (plan.billingCycle === 'month') {
-        endDate.setMonth(endDate.getMonth() + 1);
-      } else {
-        endDate.setFullYear(endDate.getFullYear() + 1);
+      // If no subscription document exists (user bought without a prior trial),
+      // create one instead of failing — RevenueCat already verified the purchase.
+      if (!subscription) {
+        const response = await databases.createDocument(
+          APPWRITE_DATABASE_ID,
+          APPWRITE_SUBSCRIPTIONS_COLLECTION_ID,
+          ID.unique(),
+          {
+            userId,
+            planType: activation.planType,
+            status: 'active' as SubscriptionStatus,
+            paymentProvider: activation.provider,
+            trialStartDate: now.toISOString(),
+            trialEndDate: now.toISOString(),
+            subscriptionStartDate: now.toISOString(),
+            subscriptionEndDate: endDate.toISOString(),
+            lastPaymentDate: now.toISOString(),
+            nextBillingDate: endDate.toISOString(),
+            autoRenew: activation.autoRenew ??
+              (activation.provider === 'apple_iap' || activation.provider === 'google_play'),
+            paymentReference: activation.transactionReference,
+            externalTransactionId:
+              activation.externalTransactionId || activation.transactionReference,
+            originalTransactionId: activation.originalTransactionId,
+            providerProductId: activation.productId,
+            receiptReference: activation.receiptReference,
+            korapayTransactionReference:
+              activation.provider === 'korapay' ? activation.transactionReference : undefined,
+            korapayCustomerReference:
+              activation.provider === 'korapay' ? activation.customerReference : undefined,
+            amount: plan.price,
+            currency: 'NGN',
+            createdAt: now.toISOString(),
+            updatedAt: now.toISOString(),
+          },
+          [
+            Permission.read(Role.user(userId)),
+            Permission.update(Role.user(userId)),
+            Permission.delete(Role.user(userId)),
+          ]
+        );
+        const created = response as unknown as Subscription;
+        await this.saveSubscriptionLocally(created);
+        return created;
       }
 
       const updatedData: Partial<Subscription> = {

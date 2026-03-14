@@ -41,7 +41,7 @@ const PremiumScreen: React.FC = () => {
   const navigation = useNavigation<NavigationProp>();
   const { user } = useSelector((state: RootState) => state.auth);
 
-  const { presentPaywall: rcPresentPaywall, refreshCustomerInfo } = useRevenueCat();
+  const { refreshCustomerInfo } = useRevenueCat();
 
   const [isStartingTrial, setIsStartingTrial] = useState(false);
   const [isRCLoading, setIsRCLoading] = useState(false);
@@ -100,41 +100,83 @@ const PremiumScreen: React.FC = () => {
   };
 
   /**
-   * Open the RevenueCat native Paywall — handles plan selection, payment, and
-   * receipt validation inside the RC UI. On success, sync the result to Appwrite.
+   * Purchase the currently selected package using the native App Store / Google
+   * Play flow while keeping this custom screen as the checkout UI.
    */
-  const handleRevenueCatPaywall = async () => {
+  const handleStoreSubscription = async () => {
     if (!user) {
       Alert.alert("Error", "User not found. Please log in again.");
       return;
     }
+
+    if (!revenueCatService.isConfigured()) {
+      Alert.alert("Purchase Unavailable", "Store purchases are not available right now.");
+      return;
+    }
+
     setIsRCLoading(true);
     try {
-      const purchased = await rcPresentPaywall();
-      if (purchased) {
-        // Sync the verified purchase with Appwrite
-        try {
-          const customerInfo = await revenueCatService.getCustomerInfo();
-          const productId = revenueCatService.getOriginalTransactionId(customerInfo);
-          const idLower = productId.toLowerCase();
-          const planType: PlanType =
-            idLower.includes("annual") || idLower.includes("yearly") ? "annual" : "monthly";
-          const provider: PaymentProvider =
-            Platform.OS === "ios" ? "apple_iap" : "google_play";
+      let selectedPackage = rcPackages[selectedPlan];
 
-          await subscriptionService.activateProviderSubscription(user.$id, {
-            planType,
-            provider,
-            transactionReference: productId,
-            autoRenew: true,
-          });
-        } catch (syncErr) {
-          // Non-blocking — RevenueCat is the source of truth for store purchases
-          console.warn("RC → Appwrite sync failed:", syncErr);
-        }
-        navigation.reset({ index: 0, routes: [{ name: "MainTabs" }] });
+      if (!selectedPackage) {
+        const offerings = await revenueCatService.getOfferings();
+        const pkgs = offerings.current?.availablePackages ?? [];
+        const fallbackPackages: Record<PlanType, PurchasesPackage | null> = {
+          monthly:
+            pkgs.find(
+              (p) =>
+                p.packageType === PACKAGE_TYPE.MONTHLY ||
+                p.product.identifier.toLowerCase().includes("month")
+            ) ?? null,
+          annual:
+            pkgs.find(
+              (p) =>
+                p.packageType === PACKAGE_TYPE.ANNUAL ||
+                p.product.identifier.toLowerCase().includes("annual") ||
+                p.product.identifier.toLowerCase().includes("yearly")
+            ) ?? null,
+        };
+        setRcPackages(fallbackPackages);
+        selectedPackage = fallbackPackages[selectedPlan];
       }
+
+      if (!selectedPackage) {
+        Alert.alert("Plan Unavailable", "The selected plan is not available right now.");
+        return;
+      }
+
+      const customerInfo = await revenueCatService.purchasePackage(selectedPackage);
+      await refreshCustomerInfo();
+
+      if (!revenueCatService.hasActiveEntitlement(customerInfo)) {
+        Alert.alert("Purchase Pending", "Your subscription is still being confirmed. Please try again shortly.");
+        return;
+      }
+
+      // Sync the verified purchase with Appwrite
+      try {
+        const productId = revenueCatService.getOriginalTransactionId(customerInfo);
+        const expirationDate = revenueCatService.getExpirationDate(customerInfo);
+        const provider: PaymentProvider =
+          Platform.OS === "ios" ? "apple_iap" : "google_play";
+
+        await subscriptionService.activateProviderSubscription(user.$id, {
+          planType: selectedPlan,
+          provider,
+          transactionReference: productId,
+          autoRenew: true,
+          subscriptionEndDate: expirationDate ?? undefined,
+        });
+      } catch (syncErr) {
+        // Non-blocking — RevenueCat is the source of truth for store purchases
+        console.warn("Store purchase → Appwrite sync failed:", syncErr);
+      }
+
+      navigation.reset({ index: 0, routes: [{ name: "MainTabs" }] });
     } catch (err: any) {
+      if (err?.userCancelled) {
+        return;
+      }
       Alert.alert("Purchase Error", err.message || "Unable to complete purchase.");
     } finally {
       setIsRCLoading(false);
@@ -155,11 +197,13 @@ const PremiumScreen: React.FC = () => {
           const provider: PaymentProvider =
             Platform.OS === "ios" ? "apple_iap" : "google_play";
 
+          const expirationDate = revenueCatService.getExpirationDate(customerInfo);
           await subscriptionService.activateProviderSubscription(user!.$id, {
             planType,
             provider,
             transactionReference: productId,
             autoRenew: true,
+            subscriptionEndDate: expirationDate ?? undefined,
           });
         } catch (syncErr) {
           console.warn("Store restore → Appwrite sync failed:", syncErr);
@@ -267,14 +311,14 @@ const PremiumScreen: React.FC = () => {
           <View style={styles.paymentOptionsSection}>
             <Text style={styles.paymentOptionsTitle}>Choose how to pay</Text>
 
-            {/* ── RevenueCat Paywall (App Store / Google Play) ─────────────── */}
+            {/* ── Direct store purchase (App Store / Google Play) ──────────── */}
             {revenueCatService.isConfigured() ? (
               <TouchableOpacity
                 style={[
                   Platform.OS === "ios" ? styles.appleButton : styles.googlePlayButton,
                   isRCLoading && styles.paymentButtonDisabled,
                 ]}
-                onPress={handleRevenueCatPaywall}
+                onPress={handleStoreSubscription}
                 activeOpacity={0.85}
                 disabled={isRCLoading}
               >
