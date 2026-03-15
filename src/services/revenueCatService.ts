@@ -9,14 +9,71 @@ import Purchases, {
 import RevenueCatUI, { PAYWALL_RESULT } from 'react-native-purchases-ui';
 import { Platform } from 'react-native';
 import { ENV } from '../config/environment';
+import { PlanType } from '../types/subscription';
 
 export const ENTITLEMENT_ID = 'premium';
 
 const IOS_KEY = ENV.REVENUECAT_IOS_KEY;
 const ANDROID_KEY = ENV.REVENUECAT_ANDROID_KEY;
 
+export interface RevenueCatPackageState {
+  monthly: PurchasesPackage | null;
+  annual: PurchasesPackage | null;
+  hasCurrentOffering: boolean;
+  availablePackageCount: number;
+  errorMessage: string | null;
+}
+
 class RevenueCatService {
   private configured = false;
+
+  private mapPackages(pkgs: PurchasesPackage[]): Pick<RevenueCatPackageState, 'monthly' | 'annual'> {
+    return {
+      monthly:
+        pkgs.find(
+          (p) =>
+            p.packageType === PACKAGE_TYPE.MONTHLY ||
+            p.product.identifier.toLowerCase().includes('month'),
+        ) ?? null,
+      annual:
+        pkgs.find(
+          (p) =>
+            p.packageType === PACKAGE_TYPE.ANNUAL ||
+            p.product.identifier.toLowerCase().includes('yearly') ||
+            p.product.identifier.toLowerCase().includes('annual'),
+        ) ?? null,
+    };
+  }
+
+  private getStoreLabel(): string {
+    return Platform.OS === 'ios' ? 'App Store' : 'Google Play';
+  }
+
+  private getOfferingsErrorMessage(error?: unknown): string {
+    const rawMessage =
+      error instanceof Error
+        ? error.message
+        : typeof error === 'string'
+          ? error
+          : '';
+
+    const normalized = rawMessage.toLowerCase();
+    if (
+      normalized.includes('issue with your configuration') ||
+      normalized.includes('no app store products registered') ||
+      normalized.includes('no play store products registered') ||
+      normalized.includes('why-are-offerings-empty') ||
+      normalized.includes('offerings-empty')
+    ) {
+      return `${this.getStoreLabel()} subscriptions are not configured in RevenueCat for this build yet. Add the store products to the current offering, then try again.`;
+    }
+
+    if (!rawMessage) {
+      return `Unable to load ${this.getStoreLabel()} subscription products right now.`;
+    }
+
+    return rawMessage;
+  }
 
   /** Whether RevenueCat was successfully configured and is usable. */
   isConfigured(): boolean {
@@ -80,32 +137,63 @@ class RevenueCatService {
     return Purchases.getOfferings();
   }
 
+  async getPackageState(): Promise<RevenueCatPackageState> {
+    if (!this.configured) {
+      return {
+        monthly: null,
+        annual: null,
+        hasCurrentOffering: false,
+        availablePackageCount: 0,
+        errorMessage: 'RevenueCat is not configured for this build.',
+      };
+    }
+
+    try {
+      const offerings = await this.getOfferings();
+      const current = offerings.current;
+      const pkgs = current?.availablePackages ?? [];
+      const mappedPackages = this.mapPackages(pkgs);
+
+      return {
+        ...mappedPackages,
+        hasCurrentOffering: Boolean(current),
+        availablePackageCount: pkgs.length,
+        errorMessage: current
+          ? pkgs.length > 0
+            ? null
+            : `${this.getStoreLabel()} subscriptions are not configured in the current RevenueCat offering yet.`
+          : 'RevenueCat does not have a current offering configured for this app yet.',
+      };
+    } catch (error) {
+      return {
+        monthly: null,
+        annual: null,
+        hasCurrentOffering: false,
+        availablePackageCount: 0,
+        errorMessage: this.getOfferingsErrorMessage(error),
+      };
+    }
+  }
+
   /**
    * Resolve the monthly and yearly packages from the current offering.
    * Falls back to identifier substring matching so custom product IDs still work.
    */
   async getProducts(): Promise<{ monthly: PurchasesPackage | null; yearly: PurchasesPackage | null }> {
     try {
-      const offerings = await this.getOfferings();
-      const pkgs = offerings.current?.availablePackages ?? [];
+      const { monthly, annual } = await this.getPackageState();
       return {
-        monthly:
-          pkgs.find(
-            (p) =>
-              p.packageType === PACKAGE_TYPE.MONTHLY ||
-              p.product.identifier.toLowerCase().includes('month'),
-          ) ?? null,
-        yearly:
-          pkgs.find(
-            (p) =>
-              p.packageType === PACKAGE_TYPE.ANNUAL ||
-              p.product.identifier.toLowerCase().includes('yearly') ||
-              p.product.identifier.toLowerCase().includes('annual'),
-          ) ?? null,
+        monthly,
+        yearly: annual,
       };
     } catch {
       return { monthly: null, yearly: null };
     }
+  }
+
+  async getPackageForPlan(planType: PlanType): Promise<PurchasesPackage | null> {
+    const packageState = await this.getPackageState();
+    return packageState[planType];
   }
 
   async purchasePackage(pkg: PurchasesPackage): Promise<CustomerInfo> {

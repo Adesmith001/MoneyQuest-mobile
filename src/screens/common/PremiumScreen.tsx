@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useCallback } from "react";
 import {
   View,
   Text,
@@ -17,10 +17,12 @@ import { useNavigation } from "@react-navigation/native";
 import { StackNavigationProp } from "@react-navigation/stack";
 import { Ionicons } from "@expo/vector-icons";
 import { useSelector } from "react-redux";
-import { PACKAGE_TYPE, PurchasesPackage } from "react-native-purchases";
+import { PurchasesPackage } from "react-native-purchases";
 import { RootState } from "../../store";
 import { subscriptionService } from "../../services/subscriptionService";
-import revenueCatService from "../../services/revenueCatService";
+import revenueCatService, {
+  RevenueCatPackageState,
+} from "../../services/revenueCatService";
 import {
   PaymentProvider,
   PlanType,
@@ -52,32 +54,31 @@ const PremiumScreen: React.FC = () => {
     monthly: null,
     annual: null,
   });
+  const [hasLoadedStorePackages, setHasLoadedStorePackages] = useState(false);
+  const [storeErrorMessage, setStoreErrorMessage] = useState<string | null>(null);
+
+  const loadStorePackages = useCallback(async (): Promise<RevenueCatPackageState> => {
+    const packageState = await revenueCatService.getPackageState();
+    if (packageState.errorMessage) {
+      console.warn("RevenueCat store packages unavailable:", packageState.errorMessage);
+    }
+    setRcPackages({
+      monthly: packageState.monthly,
+      annual: packageState.annual,
+    });
+    setStoreErrorMessage(packageState.errorMessage);
+    setHasLoadedStorePackages(true);
+    return packageState;
+  }, []);
 
   useEffect(() => {
-    // Load RevenueCat offerings on both iOS and Android for store prices
-    if (revenueCatService.isConfigured()) {
-      revenueCatService
-        .getOfferings()
-        .then((offerings) => {
-          const pkgs = offerings.current?.availablePackages ?? [];
-          setRcPackages({
-            monthly:
-              pkgs.find(
-                (p) =>
-                  p.packageType === PACKAGE_TYPE.MONTHLY ||
-                  p.product.identifier.includes("month")
-              ) ?? null,
-            annual:
-              pkgs.find(
-                (p) =>
-                  p.packageType === PACKAGE_TYPE.ANNUAL ||
-                  p.product.identifier.includes("annual")
-              ) ?? null,
-          });
-        })
-        .catch(() => {}); // Fallback to NGN prices on error
+    // Load RevenueCat offerings on both iOS and Android for store prices.
+    if (!revenueCatService.isConfigured()) {
+      setHasLoadedStorePackages(true);
+      return;
     }
-  }, []);
+    void loadStorePackages();
+  }, [loadStorePackages]);
 
   const handleStartTrial = async () => {
     if (!user) {
@@ -117,31 +118,20 @@ const PremiumScreen: React.FC = () => {
     setIsRCLoading(true);
     try {
       let selectedPackage = rcPackages[selectedPlan];
+      let packageState: RevenueCatPackageState | null = null;
 
       if (!selectedPackage) {
-        const offerings = await revenueCatService.getOfferings();
-        const pkgs = offerings.current?.availablePackages ?? [];
-        const fallbackPackages: Record<PlanType, PurchasesPackage | null> = {
-          monthly:
-            pkgs.find(
-              (p) =>
-                p.packageType === PACKAGE_TYPE.MONTHLY ||
-                p.product.identifier.toLowerCase().includes("month")
-            ) ?? null,
-          annual:
-            pkgs.find(
-              (p) =>
-                p.packageType === PACKAGE_TYPE.ANNUAL ||
-                p.product.identifier.toLowerCase().includes("annual") ||
-                p.product.identifier.toLowerCase().includes("yearly")
-            ) ?? null,
-        };
-        setRcPackages(fallbackPackages);
-        selectedPackage = fallbackPackages[selectedPlan];
+        packageState = await loadStorePackages();
+        selectedPackage = packageState[selectedPlan];
       }
 
       if (!selectedPackage) {
-        Alert.alert("Plan Unavailable", "The selected plan is not available right now.");
+        Alert.alert(
+          "Store Subscription Unavailable",
+          packageState?.errorMessage ||
+            storeErrorMessage ||
+            "The selected store plan is not available right now."
+        );
         return;
       }
 
@@ -218,6 +208,10 @@ const PremiumScreen: React.FC = () => {
       setIsRestoring(false);
     }
   };
+
+  const isSelectedPlanStoreReady = Boolean(rcPackages[selectedPlan]);
+  const isStoreButtonDisabled =
+    isRCLoading || (hasLoadedStorePackages && !isSelectedPlanStoreReady);
 
   return (
     <SafeAreaView style={styles.container}>
@@ -316,11 +310,11 @@ const PremiumScreen: React.FC = () => {
               <TouchableOpacity
                 style={[
                   Platform.OS === "ios" ? styles.appleButton : styles.googlePlayButton,
-                  isRCLoading && styles.paymentButtonDisabled,
+                  isStoreButtonDisabled && styles.paymentButtonDisabled,
                 ]}
                 onPress={handleStoreSubscription}
                 activeOpacity={0.85}
-                disabled={isRCLoading}
+                disabled={isStoreButtonDisabled}
               >
                 {isRCLoading ? (
                   <ActivityIndicator color="#FFF" size="small" />
@@ -347,6 +341,13 @@ const PremiumScreen: React.FC = () => {
 
             {/* ── Restore Purchases ────────────────────────────────────────── */}
             {revenueCatService.isConfigured() ? (
+              <>
+                {hasLoadedStorePackages && !isSelectedPlanStoreReady ? (
+                  <Text style={styles.storeErrorText}>
+                    {storeErrorMessage ||
+                      `This ${Platform.OS === "ios" ? "App Store" : "Google Play"} plan is not available right now.`}
+                  </Text>
+                ) : null}
               <TouchableOpacity
                 style={styles.restoreButton}
                 onPress={handleRestoreStorePurchases}
@@ -359,6 +360,7 @@ const PremiumScreen: React.FC = () => {
                   <Text style={styles.restoreButtonText}>Restore Purchases</Text>
                 )}
               </TouchableOpacity>
+              </>
             ) : null}
 
             <Text style={styles.storeComplianceNote}>
@@ -491,7 +493,7 @@ const styles = StyleSheet.create({
     flex: 1,
   },
   paymentButtonDisabled: {
-    opacity: 0.65,
+    opacity: 0.55,
   },
   planSection: {
     marginBottom: 20,
@@ -601,6 +603,11 @@ const styles = StyleSheet.create({
   storeComplianceNote: {
     fontSize: 12,
     color: "rgba(255, 255, 255, 0.8)",
+    lineHeight: 18,
+  },
+  storeErrorText: {
+    fontSize: 12,
+    color: "#FFE7A8",
     lineHeight: 18,
   },
   schoolCodeButton: {
