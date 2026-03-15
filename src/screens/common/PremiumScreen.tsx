@@ -303,13 +303,13 @@ const PremiumScreen: React.FC = () => {
           </View>
 
           <View style={styles.paymentOptionsSection}>
-            <Text style={styles.paymentOptionsTitle}>Choose how to pay</Text>
+            <Text style={styles.paymentOptionsTitle}>Complete your subscription</Text>
 
             {/* ── Direct store purchase (App Store / Google Play) ──────────── */}
             {revenueCatService.isConfigured() ? (
               <TouchableOpacity
                 style={[
-                  Platform.OS === "ios" ? styles.appleButton : styles.googlePlayButton,
+                  styles.subscribeButton,
                   isStoreButtonDisabled && styles.paymentButtonDisabled,
                 ]}
                 onPress={handleStoreSubscription}
@@ -317,23 +317,11 @@ const PremiumScreen: React.FC = () => {
                 disabled={isStoreButtonDisabled}
               >
                 {isRCLoading ? (
-                  <ActivityIndicator color="#FFF" size="small" />
+                  <ActivityIndicator color="#7A3D00" size="small" />
                 ) : (
                   <>
-                    <Ionicons
-                      name={Platform.OS === "ios" ? "logo-apple" : "logo-google"}
-                      size={20}
-                      color="#FFF"
-                    />
-                    <Text
-                      style={
-                        Platform.OS === "ios" ? styles.appleButtonText : styles.googlePlayButtonText
-                      }
-                    >
-                      {Platform.OS === "ios"
-                        ? "Subscribe with App Store"
-                        : "Subscribe with Google Play"}
-                    </Text>
+                    <Ionicons name="card-outline" size={20} color="#7A3D00" />
+                    <Text style={styles.subscribeButtonText}>Subscribe & Pay</Text>
                   </>
                 )}
               </TouchableOpacity>
@@ -560,33 +548,21 @@ const styles = StyleSheet.create({
     fontWeight: "700",
     color: "#FFF",
   },
-  appleButton: {
+  subscribeButton: {
     flexDirection: "row",
     alignItems: "center",
     justifyContent: "center",
-    backgroundColor: "#111111",
+    backgroundColor: "#FFD93D",
     borderRadius: 16,
     paddingVertical: 18,
     gap: 8,
+    borderWidth: 1,
+    borderColor: "rgba(122, 61, 0, 0.2)",
   },
-  appleButtonText: {
+  subscribeButtonText: {
     fontSize: 18,
     fontWeight: "700",
-    color: "#FFF",
-  },
-  googlePlayButton: {
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "center",
-    backgroundColor: "#1A73E8",
-    borderRadius: 16,
-    paddingVertical: 18,
-    gap: 8,
-  },
-  googlePlayButtonText: {
-    fontSize: 18,
-    fontWeight: "700",
-    color: "#FFF",
+    color: "#7A3D00",
   },
   restoreButton: {
     alignItems: "center",
