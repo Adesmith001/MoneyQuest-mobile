@@ -2,6 +2,7 @@ import * as Notifications from 'expo-notifications';
 import * as Device from 'expo-device';
 import { Platform, AppState, AppStateStatus } from 'react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
+import analyticsService from './analytics';
 
 // Configure how notifications should be handled when the app is in foreground
 // Wrap in try-catch to prevent iOS crash if notification system isn't ready
@@ -9,6 +10,8 @@ try {
   Notifications.setNotificationHandler({
     handleNotification: async () => ({
       shouldShowAlert: true,
+      shouldShowBanner: true,
+      shouldShowList: true,
       shouldPlaySound: true,
       shouldSetBadge: true,
     }),
@@ -40,6 +43,13 @@ class NotificationService {
         const { status } = await Notifications.requestPermissionsAsync();
         finalStatus = status;
       }
+
+      await analyticsService.trackEvent('notification_permission_updated', {
+        previous_status: existingStatus,
+        current_status: finalStatus,
+      }, {
+        featureName: 'notifications',
+      });
 
       if (finalStatus !== 'granted') {
         return false;
@@ -138,9 +148,21 @@ class NotificationService {
     try {
       // Set up notification listeners
       this.notificationListener = Notifications.addNotificationReceivedListener(notification => {
+        analyticsService.trackEvent('notification_received', {
+          type: String(notification.request.content.data?.type || 'unknown'),
+          title: notification.request.content.title || '',
+        }, {
+          featureName: 'notifications',
+        }).catch(() => {});
       });
 
       this.responseListener = Notifications.addNotificationResponseReceivedListener(response => {
+        analyticsService.trackEvent('notification_opened', {
+          type: String(response.notification.request.content.data?.type || 'unknown'),
+          title: response.notification.request.content.title || '',
+        }, {
+          featureName: 'notifications',
+        }).catch(() => {});
       });
 
       // Track last app open time
@@ -242,7 +264,10 @@ class NotificationService {
               categoryIdentifier: 'learning',
             }),
           },
-          trigger: scheduledDate,
+          trigger: {
+            type: Notifications.SchedulableTriggerInputTypes.DATE,
+            date: scheduledDate,
+          },
         });
 
         scheduledCount++;
@@ -289,7 +314,9 @@ class NotificationService {
           }),
         },
         trigger: {
+          type: Notifications.SchedulableTriggerInputTypes.TIME_INTERVAL,
           seconds: Math.max(minutesUntilFull * 60, 60), // At least 60 seconds
+          repeats: false,
         },
       });
 
@@ -339,7 +366,9 @@ class NotificationService {
             }),
           },
           trigger: {
+            type: Notifications.SchedulableTriggerInputTypes.TIME_INTERVAL,
             seconds: 24 * 60 * 60, // 24 hours
+            repeats: false,
           },
         });
 
@@ -356,7 +385,9 @@ class NotificationService {
             }),
           },
           trigger: {
+            type: Notifications.SchedulableTriggerInputTypes.TIME_INTERVAL,
             seconds: 48 * 60 * 60, // 48 hours
+            repeats: false,
           },
         });
 

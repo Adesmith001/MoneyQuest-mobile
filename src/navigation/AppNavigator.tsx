@@ -8,8 +8,8 @@ import { SafeAreaProvider } from 'react-native-safe-area-context';
 import { Alert, ActivityIndicator, View, Text } from 'react-native';
 import googleAuthService from '../services/googleAuth';
 import { updateUser } from '../store/slices/authSlice';
-import { completeAppTour } from '../store/slices/tutorialSlice';
 import revenueCatService from '../services/revenueCatService';
+import analyticsService from '../services/analytics';
 
 // ⚡ Import ALL screens directly - lazy loading causes white screen on iOS production
 import LoadingScreen from '../screens/common/LoadingScreen';
@@ -154,6 +154,19 @@ const linking = {
   },
 };
 
+function getActiveRouteName(state: any): string | null {
+  if (!state || !state.routes?.length) {
+    return null;
+  }
+
+  const route = state.routes[state.index ?? 0];
+  if (route.state) {
+    return getActiveRouteName(route.state);
+  }
+
+  return route.name || null;
+}
+
 const AppNavigator: React.FC = () => {
   const { isAuthenticated, isLoading, showWelcomeScreen, user } = useSelector((state: RootState) => state.auth);
   const { hasCompletedAppTour } = useSelector((state: RootState) => state.tutorial);
@@ -179,6 +192,7 @@ const AppNavigator: React.FC = () => {
     if (user?.$id) {
       revenueCatService.identifyUser(user.$id).catch(() => {});
     }
+    analyticsService.identifyUser(user?.$id || null);
   }, [user?.$id]);
 
   // Handle OAuth callbacks
@@ -303,7 +317,20 @@ const AppNavigator: React.FC = () => {
 
   return (
     <SafeAreaProvider>
-      <NavigationContainer linking={linking}>
+      <NavigationContainer
+        linking={linking}
+        onReady={async () => {
+          await analyticsService.trackScreenView(
+            isAuthenticated ? 'MainApp' : 'Welcome',
+          );
+        }}
+        onStateChange={async (state) => {
+          const routeName = getActiveRouteName(state);
+          if (routeName) {
+            await analyticsService.trackScreenView(routeName);
+          }
+        }}
+      >
         <Stack.Navigator screenOptions={{ headerShown: false }}>
           {!isAuthenticated ? (
             // Auth Stack

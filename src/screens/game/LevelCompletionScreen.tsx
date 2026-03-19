@@ -12,6 +12,7 @@ import CustomButton from "../../components/CustomButton";
 import { COLORS, FONT_SIZES, SPACING } from "../../constants";
 import * as StoreReview from 'expo-store-review';
 import AsyncStorage from '@react-native-async-storage/async-storage';
+import analyticsService from '../../services/analytics';
 
 const REVIEW_KEY_PREFIX = 'review_shown_section_';
 
@@ -47,6 +48,12 @@ const LessonCompleteScreen: React.FC<Props> = ({ navigation, route }) => {
           // Mark as shown regardless so we don't re-attempt on error
           await AsyncStorage.setItem(key, 'true');
           if (isAvailable) {
+            analyticsService.trackEvent('review_prompt_requested', {
+              section_id: sectionId,
+            }, {
+              screenName: 'LevelCompletion',
+              featureName: 'store_review',
+            }).catch(() => {});
             // Small delay so the completion screen appears first
             setTimeout(() => {
               StoreReview.requestReview();

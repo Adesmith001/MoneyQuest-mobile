@@ -48,6 +48,7 @@ import ScenarioQuestionComponent from "../../components/questions/ScenarioQuesti
 import MatchingQuestionComponent from "../../components/questions/MatchingQuestion";
 import FillInGapQuestionComponent from "../../components/questions/FillInGapQuestion";
 import cacheService from "../../services/cacheService";
+import analyticsService from "../../services/analytics";
 import { RenderContentWithTables } from "../../utils/tableParser";
 import CoachMark from "../../components/tutorial/CoachMark";
 import { QUESTION_COACH_STEPS } from "../../config/coachMarkSteps";
@@ -599,6 +600,12 @@ const QuestionScreen: React.FC<Props> = ({ navigation, route }) => {
   const handleStartQuiz = () => {
     setStartTime(Date.now());
     setViewMode("quiz");
+    analyticsService
+      .trackLessonStarted(levelId, sectionId, {
+        question_count: questions.length,
+        is_retake: isRetake,
+      })
+      .catch(() => {});
     
     // Background sync when user starts the quiz
     syncUserProgressToAppwrite();
@@ -872,6 +879,17 @@ const QuestionScreen: React.FC<Props> = ({ navigation, route }) => {
           timeSpentMinutes,
           xpGained            // <-- actual per-question XP accumulated this session
         );
+
+        await analyticsService.trackLessonCompleted(levelId, sectionId, {
+          passed: result.passed,
+          accuracy,
+          time_spent_minutes: timeSpentMinutes,
+          xp_gained: xpGained,
+          question_count: questions.length,
+          questions_correct: correctAnswersCount,
+          total_attempts: totalAttempts,
+          is_retake: isRetake,
+        });
 
         // Use the XP values that were actually committed to Appwrite (fresh DB read + xpGained)
         const { xp: newXP, monthlyXP: newMonthlyXP, totalXP: newTotalXP } = result.writtenXP;
@@ -1243,6 +1261,15 @@ const QuestionScreen: React.FC<Props> = ({ navigation, route }) => {
         reason,
         flaggedBy || user?.$id
       );
+
+      await analyticsService.trackEvent('question_flagged', {
+        question_type: questionType,
+        level_id: levelId,
+        reason,
+      }, {
+        screenName: 'Question',
+        featureName: 'question_flag',
+      });
 
       setIsFlagged(true);
     } catch (error) {

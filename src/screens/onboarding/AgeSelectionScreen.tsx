@@ -8,6 +8,7 @@ import {
   TextInput,
 } from 'react-native';
 import CustomButton from '../../components/CustomButton';
+import analyticsService, { getAgeGroup } from '../../services/analytics';
 
 interface Props {
   navigation: any;
@@ -30,6 +31,12 @@ const AgeSelectionScreen: React.FC<Props> = ({ navigation, route }) => {
     const finalAge = Math.max(7, Math.min(150, rawAge));
     setAge(finalAge);
     setAgeText(String(finalAge));
+    analyticsService
+      .trackOnboardingStep('age_selection', {
+        age: finalAge,
+        age_group: getAgeGroup(finalAge),
+      })
+      .catch(() => {});
     navigation.navigate('LearningLimitSelection', {
       registrationData: route.params.registrationData,
       age: finalAge,

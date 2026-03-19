@@ -2,6 +2,7 @@ import { ID, Query, Permission, Role } from 'react-native-appwrite';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { databases } from './appwrite';
 import { ENV } from '../config/environment';
+import analyticsService from './analytics';
 
 const APPWRITE_DATABASE_ID = ENV.APPWRITE_DATABASE_ID;
 const APPWRITE_SUBSCRIPTIONS_COLLECTION_ID = ENV.APPWRITE_SUBSCRIPTIONS_COLLECTION_ID;
@@ -112,6 +113,16 @@ class SubscriptionService {
       const created = response as unknown as Subscription;
       // Persist locally so next check works offline
       await this.saveSubscriptionLocally(created);
+      analyticsService.identifyUser(userId);
+      await analyticsService.trackEvent('trial_started', {
+        plan_type: created.planType,
+        amount: created.amount,
+        currency: created.currency,
+      }, {
+        featureName: 'subscription',
+        valueNumber: created.amount,
+        valueText: created.planType,
+      });
       return created;
     } catch (error: any) {
       console.error('Error creating trial subscription:', error);
@@ -307,6 +318,18 @@ class SubscriptionService {
 
       const activated = response as unknown as Subscription;
       await this.saveSubscriptionLocally(activated);
+      analyticsService.identifyUser(userId);
+      await analyticsService.trackEvent('subscription_activated', {
+        plan_type: activated.planType,
+        payment_provider: activated.paymentProvider || activation.provider,
+        amount: activated.amount,
+        currency: activated.currency,
+        auto_renew: activated.autoRenew,
+      }, {
+        featureName: 'subscription',
+        valueNumber: activated.amount,
+        valueText: activated.planType,
+      });
       return activated;
     } catch (error: any) {
       console.error('Error activating provider subscription:', error);
@@ -363,6 +386,17 @@ class SubscriptionService {
 
       const cancelled = response as unknown as Subscription;
       await this.saveSubscriptionLocally(cancelled);
+      analyticsService.identifyUser(userId);
+      await analyticsService.trackEvent('subscription_cancelled', {
+        plan_type: cancelled.planType,
+        payment_provider: cancelled.paymentProvider || 'unknown',
+        amount: cancelled.amount,
+        currency: cancelled.currency,
+      }, {
+        featureName: 'subscription',
+        valueNumber: cancelled.amount,
+        valueText: cancelled.planType,
+      });
       return cancelled;
     } catch (error: any) {
       console.error('Error cancelling subscription:', error);
@@ -625,6 +659,17 @@ class SubscriptionService {
 
       // Save locally for offline access
       await this.saveSubscriptionLocally(activated);
+      analyticsService.identifyUser(userId);
+      await analyticsService.trackEvent('premium_code_redeemed', {
+        code_type: 'premium',
+        plan_type: activated.planType,
+        amount: activated.amount,
+        currency: activated.currency,
+      }, {
+        featureName: 'premium_code',
+        valueNumber: activated.amount,
+        valueText: activated.planType,
+      });
 
       return {
         success: true,

@@ -9,6 +9,7 @@ declare module '@env' {
   export const APPWRITE_LEVELS_COLLECTION_ID: string;
   export const APPWRITE_USER_PROGRESS_COLLECTION_ID: string;
   export const APPWRITE_STREAKS_COLLECTION_ID: string;
+  export const APPWRITE_ANALYTICS_COLLECTION_ID: string;
   export const APPWRITE_STORAGE_BUCKET_ID: string;
   export const APPWRITE_AI_FUNCTION_ID: string;
   export const APPWRITE_LEADERBOARD_FUNCTION_ID: string;
@@ -24,6 +25,7 @@ declare module '@env' {
   export const MONEYQUEST_API_BASE_URL: string;
   export const KORAPAY_PUBLIC_KEY: string;
   export const KORAPAY_API_URL: string;
+  export const OPENAI_API_KEY: string;
   export const REVENUECAT_IOS_KEY: string;
   export const REVENUECAT_ANDROID_KEY: string;
 }

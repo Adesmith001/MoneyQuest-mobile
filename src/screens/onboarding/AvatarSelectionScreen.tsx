@@ -13,6 +13,7 @@ import { useDispatch, useSelector } from 'react-redux';
 import { signUpWithOnboarding } from '../../store/slices/authSlice';
 import { RootState, AppDispatch } from '../../store';
 import { avatars, getAvatarById } from '../../utils/avatarUtils'; // Import from the new utility file
+import analyticsService from '../../services/analytics';
 
 interface Props {
   navigation: any;
@@ -28,6 +29,11 @@ const AvatarSelectionScreen: React.FC<Props> = ({ navigation, route }) => {
     if (!selectedAvatar) return;
     
     const { registrationData, age, learningLimit, mainGoal, referralSource } = route.params;
+    analyticsService
+      .trackOnboardingStep('avatar_selection', {
+        avatar_id: selectedAvatar,
+      })
+      .catch(() => {});
     
     try {
       // Create account with all registration and onboarding data

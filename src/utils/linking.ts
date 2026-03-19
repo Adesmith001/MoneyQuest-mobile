@@ -1,9 +1,20 @@
 import { Linking, Alert } from 'react-native';
+import analyticsService from '../services/analytics';
 
 const FEEDBACK_FORM_URL = 'https://forms.office.com/r/hKQQsxFzij';
 
 export const openFeedbackForm = async () => {
   try {
+    await analyticsService.trackEvent('bug_report_opened', {
+      destination: 'office_form',
+    }, {
+      featureName: 'feedback_form',
+    });
+    await analyticsService.trackEvent('support_link_opened', {
+      destination: 'office_form',
+    }, {
+      featureName: 'support',
+    });
     const supported = await Linking.canOpenURL(FEEDBACK_FORM_URL);
     if (supported) {
       await Linking.openURL(FEEDBACK_FORM_URL);

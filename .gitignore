@@ -42,6 +42,7 @@ yarn-error.*
 
 # MoneyQuest demo project
 MoneyQuestProject-demo/
+moneyquest-dashboard/
 crash logs/
 documentation/
 

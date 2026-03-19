@@ -5,6 +5,7 @@ import googleAuthService from '../../services/googleAuth';
 import { updateStreakOnLogin, resetStreakState } from './streakSlice';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import revenueCatService from '../../services/revenueCatService';
+import analyticsService from '../../services/analytics';
 
 const initialState: AuthState = {
   user: null,
@@ -22,6 +23,12 @@ export const signIn = createAsyncThunk(
       await AuthService.signIn(email, password);
       const currentUser = await AuthService.getCurrentUser();
       const userDocument = await AuthService.getUserDocument(currentUser.$id);
+      analyticsService.identifyUser(currentUser.$id);
+      await analyticsService.trackEvent('login_succeeded', {
+        auth_provider: 'email',
+        has_onboarding: Boolean(userDocument?.avatar && userDocument?.learningLimit && userDocument?.mainGoal),
+        ...analyticsService.buildUserProperties(userDocument),
+      });
       
       // Update streak on login (silently fail if there are permission issues)
       if (userDocument?.$id) {
@@ -35,6 +42,10 @@ export const signIn = createAsyncThunk(
       revenueCatService.identifyUser(currentUser.$id).catch(() => {});
       return { currentUser, userDocument };
     } catch (error: any) {
+      await analyticsService.trackEvent('login_failed', {
+        auth_provider: 'email',
+        reason: error?.message || 'unknown',
+      });
       return rejectWithValue(error.message);
     }
   }
@@ -50,6 +61,12 @@ export const signUp = createAsyncThunk(
     username?: string;
   }, { rejectWithValue }) => {
     try {
+      await analyticsService.trackEvent('sign_up_started', {
+        auth_provider: 'email',
+        source: 'basic_sign_up',
+        has_phone_number: Boolean(phoneNumber),
+        has_username: Boolean(username),
+      });
       // Step 1: Create the account
       await AuthService.createAccount(email, password, name, phoneNumber, username);
       
@@ -59,10 +76,21 @@ export const signUp = createAsyncThunk(
       // Step 3: Get the current user (session is now established)
       const currentUser = await AuthService.getCurrentUser();
       const userDocument = await AuthService.getUserDocument(currentUser.$id);
+      analyticsService.identifyUser(currentUser.$id);
+      await analyticsService.trackEvent('sign_up_completed', {
+        auth_provider: 'email',
+        source: 'basic_sign_up',
+        ...analyticsService.buildUserProperties(userDocument),
+      });
       // Identify the new user with RevenueCat (non-blocking)
       revenueCatService.identifyUser(currentUser.$id).catch(() => {});
       return { currentUser, userDocument };
     } catch (error: any) {
+      await analyticsService.trackEvent('sign_up_failed', {
+        auth_provider: 'email',
+        source: 'basic_sign_up',
+        reason: error?.message || 'unknown',
+      });
       return rejectWithValue(error.message);
     }
   }
@@ -72,6 +100,8 @@ export const signOut = createAsyncThunk(
   'auth/signOut',
   async (_, { rejectWithValue, dispatch }) => {
     try {
+      await analyticsService.endSession('logout');
+      analyticsService.identifyUser(null);
       await AuthService.signOut();
       // Reset streak state on sign out
       dispatch(resetStreakState());
@@ -124,13 +154,26 @@ export const handleOAuthCallback = createAsyncThunk(
       
       if (result.success && result.user) {
         await AsyncStorage.setItem("userId", result.user.$id);
+        analyticsService.identifyUser(result.user.$id);
+        await analyticsService.trackEvent('oauth_login_succeeded', {
+          auth_provider: 'google',
+          ...analyticsService.buildUserProperties(result.user),
+        });
         // Link the Appwrite user ID to RevenueCat so store purchases are accessible
         revenueCatService.identifyUser(result.user.$id).catch(() => {});
         return result.user;
       } else {
+        await analyticsService.trackEvent('oauth_login_failed', {
+          auth_provider: 'google',
+          reason: result.error || 'OAuth callback failed',
+        });
         return rejectWithValue(result.error || "OAuth callback failed");
       }
     } catch (error: any) {
+      await analyticsService.trackEvent('oauth_login_failed', {
+        auth_provider: 'google',
+        reason: error?.message || 'OAuth callback failed',
+      });
       return rejectWithValue(error.message || "OAuth callback failed");
     }
   }
@@ -279,6 +322,12 @@ export const signUpWithOnboarding = createAsyncThunk(
   }, { rejectWithValue }) => {
     try {
       const fullName = `${registrationData.firstName} ${registrationData.lastName}`;
+      await analyticsService.trackEvent('sign_up_started', {
+        auth_provider: 'email',
+        source: 'onboarding_registration',
+        has_phone_number: Boolean(registrationData.phoneNumber),
+        has_username: Boolean(registrationData.username),
+      });
       
       // Create account with all data including onboarding
       const result = await AuthService.createAccountWithOnboarding({
@@ -289,9 +338,34 @@ export const signUpWithOnboarding = createAsyncThunk(
         phoneNumber: registrationData.phoneNumber,
         ...onboardingData
       });
+      analyticsService.identifyUser(result.userDocument?.$id || null);
+      const analyticsProperties = analyticsService.buildUserProperties({
+        $id: result.userDocument?.$id,
+        age: onboardingData.age,
+        referralSource: onboardingData.referralSource,
+        learningLimit: onboardingData.learningLimit,
+        avatar: onboardingData.avatar,
+      });
+      await analyticsService.trackEvent('sign_up_completed', {
+        auth_provider: 'email',
+        source: 'onboarding_registration',
+        ...analyticsProperties,
+      });
+      await analyticsService.trackEvent('onboarding_completed', {
+        source: 'email_sign_up',
+        ...analyticsProperties,
+        main_goal_count: onboardingData.mainGoal
+          ? onboardingData.mainGoal.split(',').filter(Boolean).length
+          : 0,
+      });
       
       return result;
     } catch (error: any) {
+      await analyticsService.trackEvent('sign_up_failed', {
+        auth_provider: 'email',
+        source: 'onboarding_registration',
+        reason: error?.message || 'unknown',
+      });
       return rejectWithValue(error.message);
     }
   }
@@ -317,6 +391,20 @@ export const completeOAuthOnboarding = createAsyncThunk(
       // Update existing user document with onboarding data
       await AuthService.updateUserOnboarding(userId, onboardingData);
       const updatedUser = await AuthService.getUserDocument(userId);
+      analyticsService.identifyUser(userId);
+      await analyticsService.trackEvent('onboarding_completed', {
+        source: 'oauth',
+        ...analyticsService.buildUserProperties(updatedUser || {
+          $id: userId,
+          age: onboardingData.age,
+          referralSource: onboardingData.referralSource,
+          learningLimit: onboardingData.learningLimit,
+          avatar: onboardingData.avatar,
+        }),
+        main_goal_count: onboardingData.mainGoal
+          ? onboardingData.mainGoal.split(',').filter(Boolean).length
+          : 0,
+      });
       return updatedUser;
     } catch (error: any) {
       return rejectWithValue(error.message);

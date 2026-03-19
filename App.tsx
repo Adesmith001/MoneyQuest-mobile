@@ -5,13 +5,14 @@ import { PersistGate } from 'redux-persist/integration/react';
 import { store, persistor } from './src/store';
 import AppNavigator from './src/navigation/AppNavigator';
 import * as Linking from 'expo-linking';
-import { Alert, Platform, ErrorUtils, View, Text, StyleSheet, LogBox } from 'react-native';
+import { Alert, Platform, ErrorUtils, View, Text, StyleSheet, LogBox, AppState } from 'react-native';
 import * as Font from 'expo-font';
 import * as NavigationBar from 'expo-navigation-bar';
 import LoadingScreen from './src/components/LoadingScreen';
 import notificationService from './src/services/notifications';
 import soundService from './src/services/soundService';
 import revenueCatService from './src/services/revenueCatService';
+import analyticsService from './src/services/analytics';
 
 // Ignore specific warnings that don't affect functionality
 LogBox.ignoreLogs([
@@ -23,6 +24,12 @@ LogBox.ignoreLogs([
 if (ErrorUtils) {
   ErrorUtils.setGlobalHandler((error, isFatal) => {
     console.error('Global error handler:', error);
+    analyticsService
+      .trackError(isFatal ? 'fatal_error' : 'app_error', error, {
+        source: 'global_error_handler',
+        fatal: isFatal,
+      })
+      .catch(() => {});
     if (isFatal) {
       console.error('FATAL ERROR:', error);
       // Log to error tracking service here (e.g., Sentry)
@@ -104,6 +111,8 @@ function AppContent() {
   useEffect(() => {
     async function prepare() {
       try {
+        await analyticsService.initialize();
+        await analyticsService.startSession('app_open');
 
         if (Platform.OS === 'android') {
           try {
@@ -167,6 +176,17 @@ function AppContent() {
     }, 5000);
     
     return () => clearTimeout(failsafe);
+  }, []);
+
+  useEffect(() => {
+    const subscription = AppState.addEventListener('change', (nextState) => {
+      analyticsService.handleAppStateChange(nextState).catch(() => {});
+    });
+
+    return () => {
+      subscription.remove();
+      analyticsService.endSession('shutdown').catch(() => {});
+    };
   }, []);
 
   useEffect(() => {

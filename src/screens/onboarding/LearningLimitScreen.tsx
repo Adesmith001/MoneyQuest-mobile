@@ -9,6 +9,7 @@ import {
 } from 'react-native';
 import SelectionButton from '../../components/SelectionButton';
 import CustomButton from '../../components/CustomButton';
+import analyticsService from '../../services/analytics';
 
 interface Props {
   navigation: any;
@@ -28,6 +29,11 @@ const LearningLimitScreen: React.FC<Props> = ({ navigation, route }) => {
   const handleContinue = () => {
     if (!selectedLimit) return;
 
+    analyticsService
+      .trackOnboardingStep('learning_limit_selection', {
+        learning_limit: selectedLimit,
+      })
+      .catch(() => {});
     navigation.navigate('GoalSelection', {
       registrationData: route.params.registrationData,
       age: route.params.age,

@@ -9,6 +9,7 @@ import {
 } from "react-native";
 import SelectionButton from "../../components/SelectionButton";
 import CustomButton from "../../components/CustomButton";
+import analyticsService from "../../services/analytics";
 
 interface Props {
   navigation: any;
@@ -30,6 +31,11 @@ const ReferralSourceScreen: React.FC<Props> = ({ navigation, route }) => {
   const handleContinue = () => {
     if (!selectedSource) return;
 
+    analyticsService
+      .trackOnboardingStep("referral_source_selection", {
+        referral_source: selectedSource,
+      })
+      .catch(() => {});
     navigation.navigate("AvatarSelection", {
       registrationData: route.params.registrationData,
       age: route.params.age,

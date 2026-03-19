@@ -9,6 +9,7 @@ import {
 } from "react-native";
 import SelectionButton from "../../components/SelectionButton";
 import CustomButton from "../../components/CustomButton";
+import analyticsService from "../../services/analytics";
 
 interface Props {
   navigation: any;
@@ -38,6 +39,12 @@ const GoalSelectionScreen: React.FC<Props> = ({ navigation, route }) => {
   const handleContinue = () => {
     if (selectedGoals.length === 0) return;
 
+    analyticsService
+      .trackOnboardingStep("goal_selection", {
+        goal_count: selectedGoals.length,
+        selected_goals: selectedGoals.join(","),
+      })
+      .catch(() => {});
     navigation.navigate("ReferralSource", {
       registrationData: route.params.registrationData,
       age: route.params.age,

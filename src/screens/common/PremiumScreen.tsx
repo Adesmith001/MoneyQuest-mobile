@@ -29,6 +29,7 @@ import {
   SUBSCRIPTION_PLANS,
 } from "../../types/subscription";
 import { useRevenueCat } from "../../hooks/useRevenueCat";
+import analyticsService from "../../services/analytics";
 
 type RootStackParamList = {
   Premium: undefined;
@@ -80,6 +81,19 @@ const PremiumScreen: React.FC = () => {
     void loadStorePackages();
   }, [loadStorePackages]);
 
+  useEffect(() => {
+    analyticsService.identifyUser(user?.$id || null);
+    analyticsService
+      .trackEvent('paywall_viewed', {
+        selected_plan: selectedPlan,
+      }, {
+        screenName: 'Premium',
+        featureName: 'paywall',
+        valueText: selectedPlan,
+      })
+      .catch(() => {});
+  }, [user?.$id]);
+
   const handleStartTrial = async () => {
     if (!user) {
       Alert.alert("Error", "User not found. Please log in again.");
@@ -88,6 +102,14 @@ const PremiumScreen: React.FC = () => {
 
     setIsStartingTrial(true);
     try {
+      await analyticsService.trackEvent('checkout_started', {
+        checkout_type: 'trial',
+        selected_plan: selectedPlan,
+      }, {
+        screenName: 'Premium',
+        featureName: 'trial',
+        valueText: selectedPlan,
+      });
       const existing = await subscriptionService.getUserSubscription(user.$id);
       if (!existing) {
         await subscriptionService.createTrialSubscription(user.$id);
@@ -117,6 +139,15 @@ const PremiumScreen: React.FC = () => {
 
     setIsRCLoading(true);
     try {
+      await analyticsService.trackEvent('checkout_started', {
+        checkout_type: 'store_purchase',
+        selected_plan: selectedPlan,
+        platform: Platform.OS,
+      }, {
+        screenName: 'Premium',
+        featureName: 'store_checkout',
+        valueText: selectedPlan,
+      });
       let selectedPackage = rcPackages[selectedPlan];
       let packageState: RevenueCatPackageState | null = null;
 
@@ -198,6 +229,12 @@ const PremiumScreen: React.FC = () => {
         } catch (syncErr) {
           console.warn("Store restore → Appwrite sync failed:", syncErr);
         }
+        await analyticsService.trackEvent('subscription_restore_succeeded', {
+          payment_provider: Platform.OS === 'ios' ? 'apple_iap' : 'google_play',
+        }, {
+          screenName: 'Premium',
+          featureName: 'restore_purchases',
+        });
         navigation.reset({ index: 0, routes: [{ name: "MainTabs" }] });
         return;
       }
@@ -212,6 +249,20 @@ const PremiumScreen: React.FC = () => {
   const isSelectedPlanStoreReady = Boolean(rcPackages[selectedPlan]);
   const isStoreButtonDisabled =
     isRCLoading || (hasLoadedStorePackages && !isSelectedPlanStoreReady);
+
+  const handleSchoolCodePress = () => {
+    analyticsService.trackFeatureUsage('school_code_entry_opened', {
+      source: 'premium_screen',
+    }).catch(() => {});
+    navigation.navigate("SchoolCodeEntry");
+  };
+
+  const handlePremiumCodePress = () => {
+    analyticsService.trackFeatureUsage('premium_code_entry_opened', {
+      source: 'premium_screen',
+    }).catch(() => {});
+    navigation.navigate("PremiumCodeEntry");
+  };
 
   return (
     <SafeAreaView style={styles.container}>
@@ -376,7 +427,7 @@ const PremiumScreen: React.FC = () => {
           {/* School Code Option */}
           <TouchableOpacity
             style={styles.schoolCodeButton}
-            onPress={() => navigation.navigate("SchoolCodeEntry")}
+            onPress={handleSchoolCodePress}
             activeOpacity={0.7}
           >
             <Ionicons name="school-outline" size={20} color="#FFF" />
@@ -386,7 +437,7 @@ const PremiumScreen: React.FC = () => {
 
           <TouchableOpacity
             style={styles.premiumCodeButton}
-            onPress={() => navigation.navigate("PremiumCodeEntry")}
+            onPress={handlePremiumCodePress}
             activeOpacity={0.7}
           >
             <Ionicons name="ticket-outline" size={20} color="#FFD93D" />
