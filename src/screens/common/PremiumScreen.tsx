@@ -34,7 +34,6 @@ import analyticsService from "../../services/analytics";
 type RootStackParamList = {
   Premium: undefined;
   SchoolCodeEntry: undefined;
-  PremiumCodeEntry: undefined;
   MainTabs: undefined;
 };
 
@@ -57,6 +56,7 @@ const PremiumScreen: React.FC = () => {
   });
   const [hasLoadedStorePackages, setHasLoadedStorePackages] = useState(false);
   const [storeErrorMessage, setStoreErrorMessage] = useState<string | null>(null);
+  const selectedPlanConfig = SUBSCRIPTION_PLANS[selectedPlan];
 
   const loadStorePackages = useCallback(async (): Promise<RevenueCatPackageState> => {
     const packageState = await revenueCatService.getPackageState();
@@ -257,12 +257,9 @@ const PremiumScreen: React.FC = () => {
     navigation.navigate("SchoolCodeEntry");
   };
 
-  const handlePremiumCodePress = () => {
-    analyticsService.trackFeatureUsage('premium_code_entry_opened', {
-      source: 'premium_screen',
-    }).catch(() => {});
-    navigation.navigate("PremiumCodeEntry");
-  };
+  const selectedPlanPriceLabel = rcPackages[selectedPlan]?.product.priceString
+    || `NGN ${selectedPlanConfig.price.toLocaleString()}`;
+  const trialDisclosure = `30-day free trial, then ${selectedPlanPriceLabel}/${selectedPlanConfig.billingCycle} unless canceled before renewal.`;
 
   return (
     <SafeAreaView style={styles.container}>
@@ -287,8 +284,7 @@ const PremiumScreen: React.FC = () => {
           <View style={styles.header}>
             <Text style={styles.title}>Get Premium</Text>
             <Text style={styles.subtitle}>
-              Unlock all the power of this mobile tool and enjoy digital
-              experience like never before!
+              Start your subscription in-app and get full access to MoneyQuest's premium learning experience.
             </Text>
           </View>
 
@@ -405,6 +401,7 @@ const PremiumScreen: React.FC = () => {
             <Text style={styles.storeComplianceNote}>
               Subscriptions are processed through the in-app store on this device.
             </Text>
+            <Text style={styles.trialDisclosureText}>{trialDisclosure}</Text>
           </View>
 
           {/* Free Trial CTA */}
@@ -431,18 +428,8 @@ const PremiumScreen: React.FC = () => {
             activeOpacity={0.7}
           >
             <Ionicons name="school-outline" size={20} color="#FFF" />
-            <Text style={styles.schoolCodeText}>Have a school code?</Text>
+            <Text style={styles.schoolCodeText}>Join with school code</Text>
             <Ionicons name="chevron-forward" size={16} color="#FFF" />
-          </TouchableOpacity>
-
-          <TouchableOpacity
-            style={styles.premiumCodeButton}
-            onPress={handlePremiumCodePress}
-            activeOpacity={0.7}
-          >
-            <Ionicons name="ticket-outline" size={20} color="#FFD93D" />
-            <Text style={styles.premiumCodeText}>Have a premium code?</Text>
-            <Ionicons name="chevron-forward" size={16} color="#FFD93D" />
           </TouchableOpacity>
 
           {/* Privacy Policy & Terms */}
@@ -457,7 +444,7 @@ const PremiumScreen: React.FC = () => {
                   )
                 }
               >
-                Terms & Conditions
+                Terms of Use
               </Text>{" "}
               and{" "}
               <Text
@@ -632,6 +619,11 @@ const styles = StyleSheet.create({
     color: "rgba(255, 255, 255, 0.8)",
     lineHeight: 18,
   },
+  trialDisclosureText: {
+    fontSize: 12,
+    color: "#FFF4D6",
+    lineHeight: 18,
+  },
   storeErrorText: {
     fontSize: 12,
     color: "#FFE7A8",
@@ -651,24 +643,6 @@ const styles = StyleSheet.create({
     fontSize: 15,
     fontWeight: "600",
     color: "#FFF",
-  },
-  premiumCodeButton: {
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "center",
-    paddingVertical: 14,
-    paddingHorizontal: 20,
-    backgroundColor: "rgba(255, 217, 61, 0.14)",
-    borderRadius: 12,
-    borderWidth: 1,
-    borderColor: "rgba(255, 217, 61, 0.45)",
-    gap: 8,
-    marginTop: 10,
-  },
-  premiumCodeText: {
-    fontSize: 15,
-    fontWeight: "600",
-    color: "#FFD93D",
   },
   freeTrialButton: {
     flexDirection: "row",

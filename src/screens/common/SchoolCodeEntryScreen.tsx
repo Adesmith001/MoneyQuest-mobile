@@ -160,7 +160,7 @@ const SchoolCodeEntryScreen: React.FC = () => {
 
           <Text style={styles.confirmationTitle}>Confirm Enrollment</Text>
           <Text style={styles.confirmationSubtitle}>
-            You're about to join with a school subscription
+            You're joining seats that have already been purchased by your institution.
           </Text>
 
           <View style={styles.schoolCard}>
@@ -256,9 +256,9 @@ const SchoolCodeEntryScreen: React.FC = () => {
             <View style={styles.iconWrapper}>
               <Ionicons name="school" size={40} color="#4ECDC4" />
             </View>
-            <Text style={styles.title}>School Code</Text>
+            <Text style={styles.title}>Join your school's existing subscription</Text>
             <Text style={styles.subtitle}>
-              Enter the code provided by your school to unlock premium access
+              Enter the code provided by your school to join your institution's existing student subscription.
             </Text>
           </View>
 
@@ -305,10 +305,10 @@ const SchoolCodeEntryScreen: React.FC = () => {
           </TouchableOpacity>
 
           <View style={styles.helpSection}>
-            <Text style={styles.helpTitle}>Don't have a code?</Text>
+            <Text style={styles.helpTitle}>About school access</Text>
             <Text style={styles.helpText}>
-              Ask your school administrator to provide you with an enrollment code.
-              Schools can purchase bulk subscriptions for their students.
+              This code gives you access to seats your institution already purchased.
+              It does not buy a subscription inside this app.
             </Text>
           </View>
 
@@ -317,7 +317,7 @@ const SchoolCodeEntryScreen: React.FC = () => {
             onPress={() => navigation.navigate('Premium' as never)}
           >
             <Text style={styles.individualLinkText}>
-              Get individual subscription instead
+              Choose an individual in-app subscription instead
             </Text>
             <Ionicons name="chevron-forward" size={16} color="#FF6B35" />
           </TouchableOpacity>
@@ -367,6 +367,7 @@ const styles = StyleSheet.create({
     color: '#FFF',
     marginBottom: 12,
     letterSpacing: -0.5,
+    textAlign: 'center',
   },
   subtitle: {
     fontSize: 16,

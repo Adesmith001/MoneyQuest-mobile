@@ -4,8 +4,8 @@ import {
   Text,
   StyleSheet,
   SafeAreaView,
-  TouchableOpacity,
   ScrollView,
+  Platform,
 } from "react-native";
 import SelectionButton from "../../components/SelectionButton";
 import CustomButton from "../../components/CustomButton";
@@ -21,7 +21,10 @@ const referralOptions = [
   { id: "google", label: "Google" },
   { id: "friends", label: "Friends" },
   { id: "linkedin", label: "LinkedIn" },
-  { id: "playstore-appstore", label: "Playstore / Appstore" },
+  {
+    id: "playstore-appstore",
+    label: Platform.OS === "ios" ? "App Store" : "Play Store",
+  },
   { id: "others", label: "Others" },
 ];
 
