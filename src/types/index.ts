@@ -404,6 +404,7 @@ export interface AuthState {
   user: User | null;
   isAuthenticated: boolean;
   isLoading: boolean;
+  isLoggingOut: boolean;
   error: string | null;
   showWelcomeScreen: boolean;
 }

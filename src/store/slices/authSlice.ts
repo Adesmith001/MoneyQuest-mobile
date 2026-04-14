@@ -11,6 +11,7 @@ const initialState: AuthState = {
   user: null,
   isAuthenticated: false,
   isLoading: false,
+  isLoggingOut: false,
   error: null,
   showWelcomeScreen: false,
 };
@@ -429,6 +430,7 @@ const authSlice = createSlice({
       state.user = null;
       state.error = null;
       state.isLoading = false;
+      state.isLoggingOut = false;
       state.showWelcomeScreen = false;
     },
     completeWelcomeScreen: (state) => {
@@ -473,10 +475,19 @@ const authSlice = createSlice({
         state.error = action.payload as string;
       })
       // Sign Out
+      .addCase(signOut.pending, (state) => {
+        state.isLoggingOut = true;
+        state.error = null;
+      })
       .addCase(signOut.fulfilled, (state) => {
         state.isAuthenticated = false;
         state.user = null;
+        state.isLoggingOut = false;
         state.error = null;
+      })
+      .addCase(signOut.rejected, (state, action) => {
+        state.isLoggingOut = false;
+        state.error = action.payload as string;
       })
       // Google Sign In
       .addCase(signInWithGoogle.pending, (state) => {

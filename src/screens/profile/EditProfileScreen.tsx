@@ -10,6 +10,8 @@ import {
   Switch,
   TextInput,
   Image,
+  Modal,
+  ActivityIndicator,
 } from "react-native";
 import { Ionicons } from '@expo/vector-icons';
 import { useDispatch, useSelector } from "react-redux";
@@ -29,11 +31,12 @@ interface Props {
 
 const EditProfileScreen: React.FC<Props> = ({ navigation }) => {
   const dispatch = useDispatch<AppDispatch>();
-  const { user } = useSelector((state: RootState) => state.auth);
+  const { user, isLoggingOut } = useSelector((state: RootState) => state.auth);
   
   const [notificationEnabled, setNotificationEnabled] = useState(true);
   const [soundEnabled, setSoundEnabled] = useState(true);
   const [isLoadingPermissions, setIsLoadingPermissions] = useState(false);
+  const [isLogoutModalVisible, setIsLogoutModalVisible] = useState(false);
 
   // Editable form state
   const [name, setName] = useState(user?.name || "");
@@ -127,18 +130,16 @@ const EditProfileScreen: React.FC<Props> = ({ navigation }) => {
   };
 
   const handleSignOut = () => {
-    Alert.alert(
-      "Sign Out",
-      "Are you sure you want to sign out?",
-      [
-        { text: "Cancel", style: "cancel" },
-        {
-          text: "Sign Out",
-          style: "destructive",
-          onPress: () => dispatch(signOut()),
-        },
-      ]
-    );
+    setIsLogoutModalVisible(true);
+  };
+
+  const handleConfirmSignOut = async () => {
+    try {
+      await dispatch(signOut()).unwrap();
+    } catch (error: any) {
+      setIsLogoutModalVisible(false);
+      Alert.alert("Error", error?.message || "Failed to sign out. Please try again.");
+    }
   };
 
   return (
@@ -306,7 +307,52 @@ const EditProfileScreen: React.FC<Props> = ({ navigation }) => {
         </View>
       </ScrollView>
 
-
+      <Modal
+        visible={isLogoutModalVisible}
+        transparent
+        animationType="fade"
+        statusBarTranslucent
+        onRequestClose={() => {
+          if (!isLoggingOut) {
+            setIsLogoutModalVisible(false);
+          }
+        }}
+      >
+        <View style={styles.logoutModalOverlay}>
+          <View style={styles.logoutModalCard}>
+            {isLoggingOut ? (
+              <>
+                <ActivityIndicator size="large" color="#FF4500" />
+                <Text style={styles.logoutModalTitle}>Logging Out</Text>
+                <Text style={styles.logoutModalMessage}>
+                  Please wait while we securely sign you out.
+                </Text>
+              </>
+            ) : (
+              <>
+                <Text style={styles.logoutModalTitle}>Sign Out</Text>
+                <Text style={styles.logoutModalMessage}>
+                  Are you sure you want to sign out?
+                </Text>
+                <View style={styles.logoutModalActions}>
+                  <TouchableOpacity
+                    style={styles.logoutCancelButton}
+                    onPress={() => setIsLogoutModalVisible(false)}
+                  >
+                    <Text style={styles.logoutCancelText}>Cancel</Text>
+                  </TouchableOpacity>
+                  <TouchableOpacity
+                    style={styles.logoutConfirmButton}
+                    onPress={handleConfirmSignOut}
+                  >
+                    <Text style={styles.logoutConfirmText}>Sign Out</Text>
+                  </TouchableOpacity>
+                </View>
+              </>
+            )}
+          </View>
+        </View>
+      </Modal>
     </SafeAreaView>
   );
 };
@@ -508,6 +554,75 @@ const styles = StyleSheet.create({
     fontSize: 12,
     color: "#333",
     fontWeight: "500",
+  },
+  logoutModalOverlay: {
+    flex: 1,
+    backgroundColor: "rgba(15, 23, 42, 0.48)",
+    justifyContent: "center",
+    alignItems: "center",
+    paddingHorizontal: 24,
+  },
+  logoutModalCard: {
+    width: "100%",
+    maxWidth: 320,
+    backgroundColor: "#FFFFFF",
+    borderRadius: 24,
+    paddingHorizontal: 24,
+    paddingVertical: 28,
+    alignItems: "center",
+    shadowColor: "#000000",
+    shadowOffset: {
+      width: 0,
+      height: 10,
+    },
+    shadowOpacity: 0.16,
+    shadowRadius: 20,
+    elevation: 12,
+  },
+  logoutModalTitle: {
+    marginTop: 16,
+    fontSize: 22,
+    fontWeight: "700",
+    color: "#1F2937",
+    textAlign: "center",
+  },
+  logoutModalMessage: {
+    marginTop: 10,
+    fontSize: 15,
+    lineHeight: 22,
+    color: "#6B7280",
+    textAlign: "center",
+  },
+  logoutModalActions: {
+    flexDirection: "row",
+    width: "100%",
+    marginTop: 24,
+  },
+  logoutCancelButton: {
+    flex: 1,
+    marginRight: 6,
+    paddingVertical: 14,
+    borderRadius: 16,
+    backgroundColor: "#F3F4F6",
+    alignItems: "center",
+  },
+  logoutCancelText: {
+    fontSize: 16,
+    fontWeight: "600",
+    color: "#374151",
+  },
+  logoutConfirmButton: {
+    flex: 1,
+    marginLeft: 6,
+    paddingVertical: 14,
+    borderRadius: 16,
+    backgroundColor: "#FF4500",
+    alignItems: "center",
+  },
+  logoutConfirmText: {
+    fontSize: 16,
+    fontWeight: "700",
+    color: "#FFFFFF",
   },
 });
 
