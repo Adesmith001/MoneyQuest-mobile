@@ -18,6 +18,25 @@ import {
   RecapSectionResponse,
 } from '../types';
 
+export class ApiHttpError extends Error {
+  status: number;
+  endpoint: string;
+  responseBody: unknown;
+
+  constructor(params: {
+    message: string;
+    status: number;
+    endpoint: string;
+    responseBody?: unknown;
+  }) {
+    super(params.message);
+    this.name = 'ApiHttpError';
+    this.status = params.status;
+    this.endpoint = params.endpoint;
+    this.responseBody = params.responseBody;
+  }
+}
+
 class BackendApiService {
   private baseUrl: string;
   private pendingRequests: Map<string, Promise<any>> = new Map();
@@ -44,16 +63,27 @@ class BackendApiService {
       });
 
       if (!response.ok) {
-        const errorData = await response.json().catch(() => ({}));
-        throw new Error(
-          errorData.detail || `API Error: ${response.status} ${response.statusText}`
-        );
+        const errorData = await response.json().catch(() => null);
+        const errorMessage =
+          (errorData as any)?.detail ||
+          (errorData as any)?.message ||
+          `API Error: ${response.status} ${response.statusText}`;
+
+        throw new ApiHttpError({
+          message: errorMessage,
+          status: response.status,
+          endpoint,
+          responseBody: errorData,
+        });
       }
 
       const data = await response.json();
       return data as T;
     } catch (error) {
       console.error(`API Error [${endpoint}]:`, error);
+      if (error instanceof ApiHttpError) {
+        throw error;
+      }
       throw error;
     }
   }

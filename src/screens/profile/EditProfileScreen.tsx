@@ -227,22 +227,30 @@ const EditProfileScreen: React.FC<Props> = ({ navigation }) => {
         <View style={styles.settingsContainer}>
           <View style={styles.settingRow}>
             <Text style={styles.settingLabel}>Notification</Text>
-            <Switch
-              value={notificationEnabled}
-              onValueChange={handleNotificationToggle}
-              trackColor={{ false: "#E0E0E0", true: "#FF4500" }}
-              thumbColor={"#FFFFFF"}
-            />
+            <View style={styles.switchWrapper}>
+              <Switch
+                value={notificationEnabled}
+                onValueChange={handleNotificationToggle}
+                trackColor={{ false: "#E0E0E0", true: "#FF4500" }}
+                thumbColor={"#FFFFFF"}
+                ios_backgroundColor="#E0E0E0"
+                style={styles.switchControl}
+              />
+            </View>
           </View>
 
           <View style={styles.settingRow}>
             <Text style={styles.settingLabel}>Sound</Text>
-            <Switch
-              value={soundEnabled}
-              onValueChange={handleSoundToggle}
-              trackColor={{ false: "#E0E0E0", true: "#FF4500" }}
-              thumbColor={"#FFFFFF"}
-            />
+            <View style={styles.switchWrapper}>
+              <Switch
+                value={soundEnabled}
+                onValueChange={handleSoundToggle}
+                trackColor={{ false: "#E0E0E0", true: "#FF4500" }}
+                thumbColor={"#FFFFFF"}
+                ios_backgroundColor="#E0E0E0"
+                style={styles.switchControl}
+              />
+            </View>
           </View>
         </View>
 
@@ -404,12 +412,24 @@ const styles = StyleSheet.create({
     alignItems: "center",
     justifyContent: "space-between",
     paddingVertical: 10,
-    paddingRight: Platform.OS === 'ios' ? 4 : 0,
     backgroundColor: "#FFFFFF",
   },
   settingLabel: {
+    flex: 1,
     fontSize: 16,
     color: "#333",
+  },
+  switchWrapper: {
+    minWidth: Platform.OS === 'ios' ? 58 : 52,
+    alignItems: "flex-end",
+    justifyContent: "center",
+    marginLeft: 16,
+    paddingRight: Platform.OS === 'ios' ? 6 : 0,
+  },
+  switchControl: {
+    transform: Platform.OS === 'ios'
+      ? [{ scaleX: 0.95 }, { scaleY: 0.95 }]
+      : [{ scaleX: 1 }, { scaleY: 1 }],
   },
   footer: {
     paddingHorizontal: 20,  

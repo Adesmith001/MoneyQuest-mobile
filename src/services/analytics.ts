@@ -49,7 +49,20 @@ interface TrackEventOptions {
   valueText?: string;
 }
 
+type AnalyticsCoreRecord = {
+  eventName: AnalyticsEventName;
+  userId: string;
+  anonymousId: string;
+  sessionId: string;
+  occurredAt: string;
+  eventDate: string;
+  eventMonth: string;
+  propertiesJson: string;
+};
+
 const ANALYTICS_ANON_KEY = '@moneyquest_analytics_anonymous_id';
+const ANALYTICS_STRING_MAX = 256;
+const ANALYTICS_PROPERTIES_JSON_MAX = 4096;
 
 function getAgeGroup(age?: number): string | undefined {
   if (!age || Number.isNaN(age)) {
@@ -68,6 +81,37 @@ function cleanProperties(properties: TrackableProperties = {}) {
   );
 }
 
+function truncateString(value: string | null | undefined, maxLength: number): string {
+  if (!value) {
+    return '';
+  }
+
+  if (value.length <= maxLength) {
+    return value;
+  }
+
+  return value.slice(0, maxLength);
+}
+
+function serializeProperties(properties: TrackableProperties): string {
+  const serialized = JSON.stringify(properties);
+  if (serialized.length <= ANALYTICS_PROPERTIES_JSON_MAX) {
+    return serialized;
+  }
+
+  const compactFallback = JSON.stringify({
+    truncated: true,
+    keys: Object.keys(properties).slice(0, 25),
+    totalKeys: Object.keys(properties).length,
+  });
+
+  if (compactFallback.length <= ANALYTICS_PROPERTIES_JSON_MAX) {
+    return compactFallback;
+  }
+
+  return '{}';
+}
+
 class AnalyticsService {
   private anonymousId: string | null = null;
   private currentUserId: string | null = null;
@@ -77,6 +121,37 @@ class AnalyticsService {
   private initialized = false;
   private disabled = false;
   private lastTrackedScreenKey: string | null = null;
+
+  private buildCoreRecord(
+    eventName: AnalyticsEventName,
+    occurredAt: string,
+  ): AnalyticsCoreRecord {
+    return {
+      eventName,
+      userId: truncateString(this.currentUserId || 'anonymous', ANALYTICS_STRING_MAX),
+      anonymousId: truncateString(this.anonymousId || 'unknown', ANALYTICS_STRING_MAX),
+      sessionId: truncateString(this.currentSessionId || 'no-session', ANALYTICS_STRING_MAX),
+      occurredAt,
+      eventDate: occurredAt.slice(0, 10),
+      eventMonth: occurredAt.slice(0, 7),
+      propertiesJson: '{}',
+    };
+  }
+
+  private shouldRetryWithCoreRecord(error: any): boolean {
+    const code = error?.code ?? error?.status;
+    const message = `${error?.message || ''}`.toLowerCase();
+
+    return (
+      code === 400 &&
+      (
+        message.includes('unknown attribute') ||
+        message.includes('invalid document structure') ||
+        message.includes('attribute not found') ||
+        message.includes('document_invalid_structure')
+      )
+    );
+  }
 
   private get appVersion() {
     return (
@@ -124,7 +199,7 @@ class AnalyticsService {
       return;
     }
 
-    this.currentSessionId = ID.unique();
+    this.currentSessionId = Crypto.randomUUID();
     this.currentSessionStartedAt = Date.now();
 
     if (reason === 'app_open') {
@@ -266,40 +341,68 @@ class AnalyticsService {
     try {
       const occurredAt = new Date().toISOString();
       const sanitizedProperties = cleanProperties(properties);
-      const record = {
-        eventName,
-        userId: this.currentUserId || 'anonymous',
-        anonymousId: this.anonymousId || 'unknown',
-        sessionId: this.currentSessionId || 'no-session',
-        occurredAt,
-        eventDate: occurredAt.slice(0, 10),
-        eventMonth: occurredAt.slice(0, 7),
-        screenName: options.screenName || this.currentScreenName || 'unknown',
-        featureName: options.featureName || '',
-        platform: Platform.OS,
-        appVersion: this.appVersion,
-        appBuild: this.appBuild,
-        deviceType: Device.deviceType ? String(Device.deviceType) : 'unknown',
-        deviceModel: Device.modelName || 'unknown',
-        osName: Device.osName || Platform.OS,
-        osVersion: Device.osVersion || 'unknown',
+      const coreRecord = this.buildCoreRecord(eventName, occurredAt);
+      const fullRecord = {
+        ...coreRecord,
+        screenName: truncateString(
+          options.screenName || this.currentScreenName || 'unknown',
+          ANALYTICS_STRING_MAX,
+        ),
+        featureName: truncateString(options.featureName || '', ANALYTICS_STRING_MAX),
+        platform: truncateString(Platform.OS, ANALYTICS_STRING_MAX),
+        appVersion: truncateString(this.appVersion, ANALYTICS_STRING_MAX),
+        appBuild: truncateString(this.appBuild, ANALYTICS_STRING_MAX),
+        deviceType: truncateString(
+          Device.deviceType ? String(Device.deviceType) : 'unknown',
+          ANALYTICS_STRING_MAX,
+        ),
+        deviceModel: truncateString(Device.modelName || 'unknown', ANALYTICS_STRING_MAX),
+        osName: truncateString(Device.osName || Platform.OS, ANALYTICS_STRING_MAX),
+        osVersion: truncateString(Device.osVersion || 'unknown', ANALYTICS_STRING_MAX),
         valueNumber: options.valueNumber ?? null,
-        valueText: options.valueText || '',
-        propertiesJson: JSON.stringify(sanitizedProperties),
+        valueText: truncateString(options.valueText || '', ANALYTICS_STRING_MAX),
+        propertiesJson: serializeProperties(sanitizedProperties),
       };
 
-      await databases.createDocument(
-        DB_ID,
-        COLLECTIONS.ANALYTICS_EVENTS,
-        ID.unique(),
-        record,
-      );
+      try {
+        await databases.createDocument(
+          DB_ID,
+          COLLECTIONS.ANALYTICS_EVENTS,
+          ID.unique(),
+          fullRecord,
+        );
+      } catch (error: any) {
+        if (this.shouldRetryWithCoreRecord(error)) {
+          console.warn(
+            'Analytics schema rejected full payload, retrying with core record:',
+            error?.message || error
+          );
+          await databases.createDocument(
+            DB_ID,
+            COLLECTIONS.ANALYTICS_EVENTS,
+            ID.unique(),
+            coreRecord,
+          );
+          return;
+        }
+
+        throw error;
+      }
     } catch (error: any) {
-      const code = error?.code;
-      if (code === 404 || code === 401 || code === 403) {
+      const code = error?.code ?? error?.status;
+      if (code === 404) {
         this.disabled = true;
       }
-      console.warn(`Analytics event skipped: ${eventName}`, error?.message || error);
+
+      console.warn(
+        `Analytics event skipped: ${eventName}`,
+        error?.message || error,
+        {
+          code,
+          collection: COLLECTIONS.ANALYTICS_EVENTS,
+          userId: this.currentUserId || 'anonymous',
+        }
+      );
     }
   }
 

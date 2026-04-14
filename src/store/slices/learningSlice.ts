@@ -31,6 +31,11 @@ const learningSlice = createSlice({
   name: 'learning',
   initialState,
   reducers: {
+    clearLearningCache(state) {
+      state.sections = { data: [], timestamp: null, loading: false };
+      state.levels = {};
+      state.questions = {};
+    },
     setSections(state, action: PayloadAction<BackendSection[]>) {
       state.sections.data = action.payload;
       state.sections.timestamp = Date.now();
@@ -55,6 +60,7 @@ const learningSlice = createSlice({
 });
 
 export const {
+  clearLearningCache,
   setSections,
   setSectionsLoading,
   setLevels,

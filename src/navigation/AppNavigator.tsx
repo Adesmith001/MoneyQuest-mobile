@@ -318,6 +318,7 @@ const AppNavigator: React.FC = () => {
       <NavigationContainer
         linking={linking}
         onReady={async () => {
+          analyticsService.identifyUser(user?.$id || null);
           await analyticsService.trackScreenView(
             isAuthenticated ? 'MainApp' : 'Welcome',
           );
@@ -325,6 +326,7 @@ const AppNavigator: React.FC = () => {
         onStateChange={async (state) => {
           const routeName = getActiveRouteName(state);
           if (routeName) {
+            analyticsService.identifyUser(user?.$id || null);
             await analyticsService.trackScreenView(routeName);
           }
         }}

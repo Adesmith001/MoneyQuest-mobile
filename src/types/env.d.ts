@@ -17,6 +17,7 @@ declare module '@env' {
   export const FACEBOOK_APP_ID: string;
   export const TWITTER_CLIENT_ID: string;
   export const MONEYQUEST_API_BASE_URL: string;
+  export const MONEYQUEST_CACHE_TTL_SECONDS: string;
   export const KORAPAY_PUBLIC_KEY: string;
   export const KORAPAY_API_URL: string;
   export const APPWRITE_SUBSCRIPTIONS_COLLECTION_ID: string;

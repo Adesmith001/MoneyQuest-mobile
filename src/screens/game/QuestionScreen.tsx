@@ -31,11 +31,12 @@ import { RootState } from "../../store";
 import ProgressBar from "../../components/progressBar";
 import CustomButton from "../../components/CustomButton";
 import questionService from "../../services/questions";
-import { backendApi } from "../../services/backendApi";
+import { backendApi, ApiHttpError } from "../../services/backendApi";
 import cachedBackendApi from "../../services/cachedBackendApi";
 import learningService from "../../services/learningService";
 import { databases, DB_ID, COLLECTIONS, Query } from "../../services/appwrite";
 import {
+  BackendSection,
   AnyQuestion,
   GeneratedQuestion,
   ScenarioQuestion,
@@ -62,6 +63,7 @@ interface Props {
       sectionId: string;
       levelTitle: string;
       sectionTitle: string;
+      __cacheRetryAttempted?: boolean;
     };
   };
 }
@@ -196,8 +198,64 @@ const truncateText = (text: string, maxLength: number = 40): string => {
   return text.substring(0, maxLength - 3) + '...';
 };
 
+const normalizeForMatch = (value?: string): string =>
+  (value || '').trim().toLowerCase().replace(/\s+/g, ' ');
+
+const isNotFoundError = (error: unknown): boolean => {
+  if (error instanceof ApiHttpError) {
+    return error.status === 404;
+  }
+
+  const maybeStatus = (error as any)?.status;
+  if (maybeStatus === 404) {
+    return true;
+  }
+
+  const maybeMessage = (error as any)?.message;
+  return typeof maybeMessage === 'string' && maybeMessage.includes('404');
+};
+
+const findRemappedLevelByTitle = async (
+  freshSections: BackendSection[],
+  targetSectionTitle: string,
+  targetLevelTitle: string
+): Promise<{ sectionId: string; levelId: string } | null> => {
+  const normalizedSectionTitle = normalizeForMatch(targetSectionTitle);
+  const normalizedLevelTitle = normalizeForMatch(targetLevelTitle);
+
+  const matchedSection = freshSections.find(
+    section =>
+      !!section.section_id &&
+      normalizeForMatch(section.title) === normalizedSectionTitle
+  );
+
+  if (!matchedSection?.section_id) {
+    return null;
+  }
+
+  const levels = await cachedBackendApi.getLevels(matchedSection.section_id);
+  const matchedLevel = levels.find(
+    level => normalizeForMatch(level.title) === normalizedLevelTitle
+  );
+
+  if (!matchedLevel?.level_id) {
+    return null;
+  }
+
+  return {
+    sectionId: matchedSection.section_id,
+    levelId: matchedLevel.level_id,
+  };
+};
+
 const QuestionScreen: React.FC<Props> = ({ navigation, route }) => {
-  const { levelId, sectionId, levelTitle, sectionTitle } = route.params;
+  const {
+    levelId,
+    sectionId,
+    levelTitle,
+    sectionTitle,
+    __cacheRetryAttempted = false,
+  } = route.params;
   const dispatch = useDispatch();
   const { user } = useSelector((state: RootState) => state.auth);
 
@@ -309,12 +367,11 @@ const QuestionScreen: React.FC<Props> = ({ navigation, route }) => {
   // Load level data and questions from backend
   useEffect(() => {
     async function loadLevelData() {
+      const isRecapLevel = levelId.startsWith('recap_');
+
       try {
         setIsLoading(true);
 
-        // Check if this is a recap level (format: recap_10_source_1)
-        const isRecapLevel = levelId.startsWith('recap_');
-        
         if (isRecapLevel) {
           // Extract recap section number from levelId (e.g., "recap_10_source_1" -> 10)
           const recapMatch = levelId.match(/^recap_(\d+)_source_(\d+)$/);
@@ -511,6 +568,33 @@ const QuestionScreen: React.FC<Props> = ({ navigation, route }) => {
           }
         }
       } catch (error) {
+        const shouldAttemptCacheRecovery =
+          !isRecapLevel && !__cacheRetryAttempted && isNotFoundError(error);
+
+        if (shouldAttemptCacheRecovery) {
+          try {
+            const freshSections = await cachedBackendApi.forceRefreshLearningPath();
+            const remappedLevel = await findRemappedLevelByTitle(
+              freshSections,
+              sectionTitle,
+              levelTitle
+            );
+
+            if (remappedLevel) {
+              navigation.replace("Question", {
+                levelId: remappedLevel.levelId,
+                sectionId: remappedLevel.sectionId,
+                levelTitle,
+                sectionTitle,
+                __cacheRetryAttempted: true,
+              });
+              return;
+            }
+          } catch (recoveryError) {
+            console.warn("Cache recovery for stale level ID failed:", recoveryError);
+          }
+        }
+
         console.error("Failed to load level:", error);
         Alert.alert("Error", "Failed to load content. Please try again.", [
           { text: "Go Back", onPress: () => navigation.goBack() },
@@ -521,7 +605,15 @@ const QuestionScreen: React.FC<Props> = ({ navigation, route }) => {
     }
 
     loadLevelData();
-  }, [levelId, user?.$id]);
+  }, [
+    levelId,
+    sectionId,
+    levelTitle,
+    sectionTitle,
+    user?.$id,
+    __cacheRetryAttempted,
+    navigation,
+  ]);
 
   // Save progress to Appwrite whenever question index changes
   useEffect(() => {

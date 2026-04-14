@@ -1,6 +1,7 @@
-import React, { useEffect, useState } from 'react';
-import { View, Text, StyleSheet, TouchableOpacity } from 'react-native';
+import React, { useEffect, useMemo, useState } from 'react';
+import { View, Text, StyleSheet, TouchableOpacity, Platform } from 'react-native';
 import { useNavigation } from '@react-navigation/native';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useSelector } from 'react-redux';
 import { RootState } from '../store';
 import { subscriptionService } from '../services/subscriptionService';
@@ -33,6 +34,7 @@ const SubscriptionGuard: React.FC<SubscriptionGuardProps> = ({
   showTrialInfo = true 
 }) => {
   const navigation = useNavigation();
+  const insets = useSafeAreaInsets();
   const { user } = useSelector((state: RootState) => state.auth);
   // Default to true so content renders immediately; cache check resolves quickly
   const [hasAccess, setHasAccess] = useState(true);
@@ -42,6 +44,14 @@ const SubscriptionGuard: React.FC<SubscriptionGuardProps> = ({
   const [schoolDaysRemaining, setSchoolDaysRemaining] = useState(0);
   const [subscriptionType, setSubscriptionType] = useState<'individual' | 'school' | null>(null);
   const [showBanner, setShowBanner] = useState(true);
+
+  const floatingBadgePosition = useMemo(
+    () => ({
+      top: Platform.OS === 'ios' ? insets.top + 6 : 50,
+      right: 12 + insets.right,
+    }),
+    [insets.right, insets.top]
+  );
 
   useEffect(() => {
     checkSubscription();
@@ -163,7 +173,7 @@ const SubscriptionGuard: React.FC<SubscriptionGuardProps> = ({
       <>
         {children}
         <TouchableOpacity 
-          style={styles.minimalPill}
+          style={[styles.minimalPill, floatingBadgePosition]}
           onPress={handleUpgradePress}
           activeOpacity={0.9}
         >
@@ -184,7 +194,7 @@ const SubscriptionGuard: React.FC<SubscriptionGuardProps> = ({
     return (
       <>
         {children}
-        <View style={styles.schoolBadge}>
+        <View style={[styles.schoolBadge, floatingBadgePosition]}>
           <Ionicons name="school" size={12} color="#FF6B35" />
           <Text style={styles.schoolText}>School</Text>
         </View>
@@ -197,7 +207,7 @@ const SubscriptionGuard: React.FC<SubscriptionGuardProps> = ({
     return (
       <>
         {children}
-        <View style={styles.premiumBadge}>
+        <View style={[styles.premiumBadge, floatingBadgePosition]}>
           <Ionicons name="diamond" size={12} color="#FF6B35" />
           <Text style={styles.premiumText}>Premium</Text>
         </View>
@@ -273,16 +283,15 @@ const styles = StyleSheet.create({
   },
   minimalPill: {
     position: 'absolute',
-    top: 50,
-    right: 16,
-    backgroundColor: 'rgba(0, 0, 0, 0.75)',
+    backgroundColor: 'rgba(0, 0, 0, 0.5)',
     borderRadius: 20,
     paddingVertical: 8,
-    paddingLeft: 14,
+    paddingLeft: 12,
     paddingRight: 8,
     flexDirection: 'row',
     alignItems: 'center',
     zIndex: 999,
+    maxWidth: 148,
     shadowColor: '#000',
     shadowOffset: { width: 0, height: 2 },
     shadowOpacity: 0.15,
@@ -313,9 +322,7 @@ const styles = StyleSheet.create({
   },
   premiumBadge: {
     position: 'absolute',
-    top: 50,
-    right: 16,
-    backgroundColor: 'rgba(255, 107, 53, 0.15)',
+    backgroundColor: 'rgba(255, 107, 53, 0.08)',
     borderRadius: 16,
     paddingVertical: 6,
     paddingHorizontal: 12,
@@ -332,9 +339,7 @@ const styles = StyleSheet.create({
   },
   schoolBadge: {
     position: 'absolute',
-    top: 50,
-    right: 16,
-    backgroundColor: 'rgba(255, 107, 53, 0.15)',
+    backgroundColor: 'rgba(255, 107, 53, 0.08)',
     borderRadius: 16,
     paddingVertical: 6,
     paddingHorizontal: 12,

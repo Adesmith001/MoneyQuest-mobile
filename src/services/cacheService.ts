@@ -1,5 +1,9 @@
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { BackendSection, BackendLevel } from '../types';
+import { ENV } from '../config/environment';
+
+export const LEARNING_CACHE_VERSION = 2;
+const HARD_FALLBACK_CACHE_TTL_MS = 60 * 60 * 1000;
 
 const CACHE_KEYS = {
   COMPLETED_LEVELS: '@moneyquest_completed_levels',
@@ -9,11 +13,24 @@ const CACHE_KEYS = {
   LEVELS_TIMESTAMP_PREFIX: '@moneyquest_levels_timestamp_',
   QUESTIONS_PREFIX: '@moneyquest_questions_',
   QUESTIONS_TIMESTAMP_PREFIX: '@moneyquest_questions_timestamp_',
+  LEARNING_CACHE_VERSION: '@moneyquest_learning_cache_version',
   BACKGROUND_REFRESH_DONE: '@moneyquest_bg_refresh_done',
 };
 
-// Refresh interval: 3 days in milliseconds
-const REFRESH_INTERVAL = 3 * 24 * 60 * 60 * 1000;
+type CacheInitializationResult = {
+  cacheVersionBumped: boolean;
+};
+
+const getRefreshIntervalMs = (): number => {
+  const rawTtlSeconds = ENV.MONEYQUEST_CACHE_TTL_SECONDS;
+  const ttlSeconds = Number.parseInt(rawTtlSeconds, 10);
+
+  if (!Number.isFinite(ttlSeconds) || ttlSeconds <= 0) {
+    return HARD_FALLBACK_CACHE_TTL_MS;
+  }
+
+  return ttlSeconds * 1000;
+};
 
 class CacheService {
   private initialized = false;
@@ -22,9 +39,32 @@ class CacheService {
    * Initialize cache service
    * Call this on app startup before any cache operations
    */
-  async initialize(): Promise<void> {
-    if (this.initialized) return;
+  async initialize(): Promise<CacheInitializationResult> {
+    if (this.initialized) {
+      return { cacheVersionBumped: false };
+    }
+
+    let cacheVersionBumped = false;
+
+    try {
+      const storedVersion = await AsyncStorage.getItem(
+        CACHE_KEYS.LEARNING_CACHE_VERSION
+      );
+
+      if (storedVersion !== String(LEARNING_CACHE_VERSION)) {
+        await this.clearLearningPathCache();
+        await AsyncStorage.setItem(
+          CACHE_KEYS.LEARNING_CACHE_VERSION,
+          String(LEARNING_CACHE_VERSION)
+        );
+        cacheVersionBumped = true;
+      }
+    } catch (error) {
+      console.error('Failed to initialize learning cache version:', error);
+    }
+
     this.initialized = true;
+    return { cacheVersionBumped };
   }
 
   /**
@@ -124,9 +164,12 @@ class CacheService {
   async isSectionsCacheStale(): Promise<boolean> {
     try {
       const timestampStr = await AsyncStorage.getItem(CACHE_KEYS.SECTIONS_TIMESTAMP);
-      if (!timestampStr) return true;
+      if (!timestampStr) {
+        return true;
+      }
+
       const age = Date.now() - parseInt(timestampStr, 10);
-      return age > REFRESH_INTERVAL;
+      return age > getRefreshIntervalMs();
     } catch {
       return true;
     }
@@ -171,9 +214,12 @@ class CacheService {
   async isLevelsCacheStale(sectionId: string): Promise<boolean> {
     try {
       const timestampStr = await AsyncStorage.getItem(CACHE_KEYS.LEVELS_TIMESTAMP_PREFIX + sectionId);
-      if (!timestampStr) return true;
+      if (!timestampStr) {
+        return true;
+      }
+
       const age = Date.now() - parseInt(timestampStr, 10);
-      return age > REFRESH_INTERVAL;
+      return age > getRefreshIntervalMs();
     } catch {
       return true;
     }
@@ -218,11 +264,45 @@ class CacheService {
   async isQuestionsCacheStale(levelId: string): Promise<boolean> {
     try {
       const timestampStr = await AsyncStorage.getItem(CACHE_KEYS.QUESTIONS_TIMESTAMP_PREFIX + levelId);
-      if (!timestampStr) return true;
+      if (!timestampStr) {
+        return true;
+      }
+
       const age = Date.now() - parseInt(timestampStr, 10);
-      return age > REFRESH_INTERVAL;
+      return age > getRefreshIntervalMs();
     } catch {
       return true;
+    }
+  }
+
+  /**
+   * Clear persisted learning-path cache keys (sections, levels, and questions)
+   * without touching user progress caches like completed levels.
+   */
+  async clearLearningPathCache(): Promise<void> {
+    try {
+      const allKeys = await AsyncStorage.getAllKeys();
+      const dynamicKeys = allKeys.filter(
+        key =>
+          key.startsWith(CACHE_KEYS.LEVELS_PREFIX) ||
+          key.startsWith(CACHE_KEYS.LEVELS_TIMESTAMP_PREFIX) ||
+          key.startsWith(CACHE_KEYS.QUESTIONS_PREFIX) ||
+          key.startsWith(CACHE_KEYS.QUESTIONS_TIMESTAMP_PREFIX)
+      );
+
+      const staticKeys = [
+        CACHE_KEYS.SECTIONS,
+        CACHE_KEYS.SECTIONS_TIMESTAMP,
+        CACHE_KEYS.BACKGROUND_REFRESH_DONE,
+      ];
+
+      const keysToRemove = Array.from(new Set([...staticKeys, ...dynamicKeys]));
+
+      if (keysToRemove.length > 0) {
+        await AsyncStorage.multiRemove(keysToRemove);
+      }
+    } catch (error) {
+      console.error('Failed to clear learning-path cache:', error);
     }
   }
 
