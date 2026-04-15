@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useRef } from "react";
 import {
   View,
   Text,
@@ -22,6 +22,7 @@ import { getAvatarById } from "../../utils/avatarUtils";
 import { databases, DB_ID, COLLECTIONS } from "../../services/appwrite";
 import NotificationService from "../../services/notifications";
 import soundService from "../../services/soundService";
+import Constants from 'expo-constants';
 
 import { Platform, Linking } from 'react-native';
 
@@ -37,6 +38,8 @@ const EditProfileScreen: React.FC<Props> = ({ navigation }) => {
   const [soundEnabled, setSoundEnabled] = useState(true);
   const [isLoadingPermissions, setIsLoadingPermissions] = useState(false);
   const [isLogoutModalVisible, setIsLogoutModalVisible] = useState(false);
+  const adminTapCountRef = useRef(0);
+  const adminTapResetRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   // Editable form state
   const [name, setName] = useState(user?.name || "");
@@ -56,6 +59,14 @@ const EditProfileScreen: React.FC<Props> = ({ navigation }) => {
     };
 
     loadSettings();
+  }, []);
+
+  useEffect(() => {
+    return () => {
+      if (adminTapResetRef.current) {
+        clearTimeout(adminTapResetRef.current);
+      }
+    };
   }, []);
 
   const handleNotificationToggle = async (value: boolean) => {
@@ -141,6 +152,26 @@ const EditProfileScreen: React.FC<Props> = ({ navigation }) => {
       Alert.alert("Error", error?.message || "Failed to sign out. Please try again.");
     }
   };
+
+  const handleAdminVersionTap = () => {
+    adminTapCountRef.current += 1;
+
+    if (adminTapResetRef.current) {
+      clearTimeout(adminTapResetRef.current);
+    }
+
+    if (adminTapCountRef.current >= 7) {
+      adminTapCountRef.current = 0;
+      navigation.navigate("AdminPremiumGrant");
+      return;
+    }
+
+    adminTapResetRef.current = setTimeout(() => {
+      adminTapCountRef.current = 0;
+    }, 1800);
+  };
+
+  const versionLabel = `v${Constants.nativeAppVersion || (Constants.expoConfig as any)?.version || "1.0.0"} (${Constants.nativeBuildVersion || "dev"})`;
 
   return (
     <SafeAreaView style={styles.container}>
@@ -305,6 +336,14 @@ const EditProfileScreen: React.FC<Props> = ({ navigation }) => {
             </TouchableOpacity>
           </View>
         </View>
+
+        <TouchableOpacity
+          style={styles.versionTapTarget}
+          activeOpacity={0.85}
+          onPress={handleAdminVersionTap}
+        >
+          <Text style={styles.versionText}>{versionLabel}</Text>
+        </TouchableOpacity>
       </ScrollView>
 
       <Modal
@@ -554,6 +593,16 @@ const styles = StyleSheet.create({
     fontSize: 12,
     color: "#333",
     fontWeight: "500",
+  },
+  versionTapTarget: {
+    alignItems: "center",
+    paddingHorizontal: 20,
+    paddingBottom: 8,
+  },
+  versionText: {
+    fontSize: 12,
+    color: "#A7A3B8",
+    letterSpacing: 0.3,
   },
   logoutModalOverlay: {
     flex: 1,

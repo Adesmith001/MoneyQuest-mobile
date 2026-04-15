@@ -18,6 +18,9 @@ declare module '@env' {
   export const TWITTER_CLIENT_ID: string;
   export const MONEYQUEST_API_BASE_URL: string;
   export const MONEYQUEST_CACHE_TTL_SECONDS: string;
+  export const APPWRITE_MANUAL_PREMIUM_FUNCTION_ID: string;
+  export const MONEYQUEST_ADMIN_ALLOWLIST_EMAILS: string;
+  export const APPWRITE_ADMINS_COLLECTION_ID: string;
   export const KORAPAY_PUBLIC_KEY: string;
   export const KORAPAY_API_URL: string;
   export const APPWRITE_SUBSCRIPTIONS_COLLECTION_ID: string;

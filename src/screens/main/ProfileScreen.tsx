@@ -172,6 +172,7 @@ const ProfileScreen: React.FC<Props> = ({ navigation }) => {
   const isStoreManagedSubscription =
     subscription?.paymentProvider === 'apple_iap' ||
     subscription?.paymentProvider === 'google_play';
+  const isManualGrantSubscription = subscription?.paymentProvider === 'manual_grant';
 
   const handleManageStoreSubscription = async () => {
     if (subscription?.paymentProvider === 'apple_iap') {
@@ -320,6 +321,16 @@ const ProfileScreen: React.FC<Props> = ({ navigation }) => {
     }
   };
 
+  const getSubscriptionPlanLabel = () => {
+    if (!subscription) return "No subscription";
+
+    if (subscription.paymentProvider === 'manual_grant') {
+      return "Gifted Premium";
+    }
+
+    return subscription.planType === "annual" ? "Annual" : "Monthly";
+  };
+
   const inviteLink = `https://www.nurtureehaven.com/`;
 
   // Get lives directly from Appwrite user object
@@ -427,13 +438,13 @@ const ProfileScreen: React.FC<Props> = ({ navigation }) => {
               {/* Plan Row */}
               <View style={styles.subscriptionRow}>
                 <Text style={styles.subscriptionLabel}>Plan</Text>
-                <Text style={styles.subscriptionValue}>
-                  {subscription.planType === "annual" ? "Annual" : "Monthly"}
-                </Text>
+                <Text style={styles.subscriptionValue}>{getSubscriptionPlanLabel()}</Text>
               </View>
 
               {/* Cancel Button */}
-              {subscription.status === "active" && !isStoreManagedSubscription && (
+              {subscription.status === "active" &&
+                !isStoreManagedSubscription &&
+                !isManualGrantSubscription && (
                 <TouchableOpacity
                   style={styles.cancelSubscriptionButton}
                   onPress={handleCancelSubscription}
@@ -450,6 +461,15 @@ const ProfileScreen: React.FC<Props> = ({ navigation }) => {
                   <Ionicons name="settings-outline" size={16} color="#FF5722" style={{ marginRight: 6 }} />
                   <Text style={styles.renewButtonText}>Manage Subscription</Text>
                 </TouchableOpacity>
+              )}
+
+              {subscription.status === "active" && isManualGrantSubscription && (
+                <View style={styles.autoRenewHint}>
+                  <Ionicons name="gift-outline" size={16} color="#FF5722" />
+                  <Text style={styles.autoRenewHintText}>
+                    Premium was granted by an admin and stays active until its expiry date.
+                  </Text>
+                </View>
               )}
 
               {/* RevenueCat Customer Center for premium users without an Appwrite record */}
@@ -852,9 +872,20 @@ const styles = StyleSheet.create({
     color: '#FFF',
   },
   autoRenewHint: {
-    fontSize: 11,
-    color: '#999',
-    marginTop: 2,
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginTop: 14,
+    paddingVertical: 12,
+    paddingHorizontal: 14,
+    borderRadius: 12,
+    backgroundColor: '#FFF3EC',
+  },
+  autoRenewHintText: {
+    flex: 1,
+    marginLeft: 8,
+    fontSize: 12,
+    color: '#8A4B2A',
+    lineHeight: 18,
   },
   cancelSubscriptionButton: {
     marginTop: 14,

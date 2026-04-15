@@ -2,7 +2,13 @@ export type SubscriptionStatus = 'trial' | 'active' | 'expired' | 'cancelled' | 
 
 export type PlanType = 'monthly' | 'annual';
 
-export type PaymentProvider = 'apple_iap' | 'korapay' | 'google_play' | 'school' | 'none';
+export type PaymentProvider =
+  | 'apple_iap'
+  | 'korapay'
+  | 'google_play'
+  | 'school'
+  | 'none'
+  | 'manual_grant';
 
 export type PaymentSessionStatus = 'pending' | 'requires_action' | 'completed' | 'failed';
 
@@ -38,6 +44,9 @@ export interface Subscription {
   receiptReference?: string;
   korapayTransactionReference?: string;
   korapayCustomerReference?: string;
+  grantedByUserId?: string;
+  grantedByEmail?: string;
+  grantReason?: string;
   amount: number;
   currency: string;
   createdAt: string;
@@ -121,7 +130,7 @@ export const SUBSCRIPTION_PLANS: Record<PlanType, SubscriptionPlan> = {
   monthly: {
     id: 'monthly',
     name: 'Monthly',
-    price: 3500,
+    price: 2000,
     duration: 'Month',
     features: [
       'Unlimited access to all lessons',
@@ -135,7 +144,7 @@ export const SUBSCRIPTION_PLANS: Record<PlanType, SubscriptionPlan> = {
   annual: {
     id: 'annual',
     name: 'Annual',
-    price: 42000,
+    price: 24000,
     duration: 'Year',
     features: [
       'Everything in Monthly',

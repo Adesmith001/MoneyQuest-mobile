@@ -1,0 +1,9 @@
+{
+  "name": "manual-premium-grant",
+  "private": true,
+  "type": "module",
+  "dependencies": {
+    "moneyquest": "file:../..",
+    "node-appwrite": "^22.1.2"
+  }
+}
