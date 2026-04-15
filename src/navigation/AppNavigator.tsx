@@ -44,7 +44,6 @@ import QuestionScreen from '../screens/game/QuestionScreen';
 import LevelCompletionScreen from '../screens/game/LevelCompletionScreen';
 import EditProfileScreen from '../screens/profile/EditProfileScreen';
 import ChangeAvatarScreen from '../screens/profile/ChangeAvatarScreen';
-import AdminPremiumGrantScreen from '../screens/profile/AdminPremiumGrantScreen';
 
 // Simple fallback loading component (no longer using Suspense)
 const SimpleFallback = () => (
@@ -133,7 +132,6 @@ export type RootStackParamList = {
   Settings: undefined;
   EditProfile: undefined;
   ChangeAvatar: undefined;
-  AdminPremiumGrant: undefined;
 };
 
 const Stack = createStackNavigator<RootStackParamList>();
@@ -401,13 +399,6 @@ const AppNavigator: React.FC = () => {
                 <Stack.Screen
                   name="ChangeAvatar"
                   component={ChangeAvatarScreen}
-                  options={{
-                    headerShown: false,
-                  }}
-                />
-                <Stack.Screen
-                  name="AdminPremiumGrant"
-                  component={AdminPremiumGrantScreen}
                   options={{
                     headerShown: false,
                   }}

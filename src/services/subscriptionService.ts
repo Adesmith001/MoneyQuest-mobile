@@ -371,10 +371,6 @@ class SubscriptionService {
         throw new Error('Google Play subscriptions must be managed in the Play Store.');
       }
 
-      if (subscription.paymentProvider === 'manual_grant') {
-        throw new Error('Admin-granted premium cannot be cancelled from the app.');
-      }
-
       const updatedData = {
         status: 'cancelled' as SubscriptionStatus,
         autoRenew: false,
@@ -425,10 +421,6 @@ class SubscriptionService {
 
       if (subscription.paymentProvider === 'google_play') {
         throw new Error('Google Play subscriptions must be managed in the Play Store.');
-      }
-
-      if (subscription.paymentProvider === 'manual_grant') {
-        throw new Error('Admin-granted premium does not support auto-renew changes.');
       }
 
       const response = await databases.updateDocument(

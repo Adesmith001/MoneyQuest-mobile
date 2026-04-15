@@ -7,8 +7,7 @@ export type PaymentProvider =
   | 'korapay'
   | 'google_play'
   | 'school'
-  | 'none'
-  | 'manual_grant';
+  | 'none';
 
 export type PaymentSessionStatus = 'pending' | 'requires_action' | 'completed' | 'failed';
 
@@ -44,9 +43,6 @@ export interface Subscription {
   receiptReference?: string;
   korapayTransactionReference?: string;
   korapayCustomerReference?: string;
-  grantedByUserId?: string;
-  grantedByEmail?: string;
-  grantReason?: string;
   amount: number;
   currency: string;
   createdAt: string;

@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef } from "react";
+import React, { useState, useEffect } from "react";
 import {
   View,
   Text,
@@ -22,7 +22,6 @@ import { getAvatarById } from "../../utils/avatarUtils";
 import { databases, DB_ID, COLLECTIONS } from "../../services/appwrite";
 import NotificationService from "../../services/notifications";
 import soundService from "../../services/soundService";
-import adminPremiumService from "../../services/adminPremiumService";
 import Constants from 'expo-constants';
 
 import { Platform, Linking } from 'react-native';
@@ -39,8 +38,6 @@ const EditProfileScreen: React.FC<Props> = ({ navigation }) => {
   const [soundEnabled, setSoundEnabled] = useState(true);
   const [isLoadingPermissions, setIsLoadingPermissions] = useState(false);
   const [isLogoutModalVisible, setIsLogoutModalVisible] = useState(false);
-  const adminTapCountRef = useRef(0);
-  const adminTapResetRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   // Editable form state
   const [name, setName] = useState(user?.name || "");
@@ -60,14 +57,6 @@ const EditProfileScreen: React.FC<Props> = ({ navigation }) => {
     };
 
     loadSettings();
-  }, []);
-
-  useEffect(() => {
-    return () => {
-      if (adminTapResetRef.current) {
-        clearTimeout(adminTapResetRef.current);
-      }
-    };
   }, []);
 
   const handleNotificationToggle = async (value: boolean) => {
@@ -152,28 +141,6 @@ const EditProfileScreen: React.FC<Props> = ({ navigation }) => {
       setIsLogoutModalVisible(false);
       Alert.alert("Error", error?.message || "Failed to sign out. Please try again.");
     }
-  };
-
-  const handleAdminVersionTap = () => {
-    if (!adminPremiumService.canAccessAdminGrant(user)) {
-      return;
-    }
-
-    adminTapCountRef.current += 1;
-
-    if (adminTapResetRef.current) {
-      clearTimeout(adminTapResetRef.current);
-    }
-
-    if (adminTapCountRef.current >= 7) {
-      adminTapCountRef.current = 0;
-      navigation.navigate("AdminPremiumGrant");
-      return;
-    }
-
-    adminTapResetRef.current = setTimeout(() => {
-      adminTapCountRef.current = 0;
-    }, 1800);
   };
 
   const versionLabel = `v${Constants.nativeAppVersion || (Constants.expoConfig as any)?.version || "1.0.0"} (${Constants.nativeBuildVersion || "dev"})`;
@@ -342,13 +309,9 @@ const EditProfileScreen: React.FC<Props> = ({ navigation }) => {
           </View>
         </View>
 
-        <TouchableOpacity
-          style={styles.versionTapTarget}
-          activeOpacity={0.85}
-          onPress={handleAdminVersionTap}
-        >
+        <View style={styles.versionContainer}>
           <Text style={styles.versionText}>{versionLabel}</Text>
-        </TouchableOpacity>
+        </View>
       </ScrollView>
 
       <Modal
@@ -599,7 +562,7 @@ const styles = StyleSheet.create({
     color: "#333",
     fontWeight: "500",
   },
-  versionTapTarget: {
+  versionContainer: {
     alignItems: "center",
     paddingHorizontal: 20,
     paddingBottom: 8,
