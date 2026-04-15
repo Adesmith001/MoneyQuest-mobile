@@ -32,29 +32,6 @@ export interface ManualGrantResponse {
   message: string;
 }
 
-export interface AdminMember {
-  email: string;
-  userId?: string | null;
-  status: string;
-  source: 'bootstrap' | 'managed';
-  addedByEmail?: string | null;
-  updatedAt?: string | null;
-}
-
-export interface AdminListResponse {
-  success: boolean;
-  admins: AdminMember[];
-  adminCollectionConfigured: boolean;
-  message: string;
-}
-
-export interface AddAdminResponse {
-  success: boolean;
-  applied: boolean;
-  admin: AdminMember;
-  message: string;
-}
-
 function normalizeEmail(value?: string | null): string {
   return `${value || ''}`.trim().toLowerCase();
 }
@@ -74,10 +51,15 @@ class AdminPremiumService {
     return this.adminEmails.includes(normalizeEmail(user?.email));
   }
 
-  private async execute<T>(payload: Record<string, unknown>): Promise<T> {
+  private async execute(action: ManualGrantAction, input: ManualGrantRequest): Promise<ManualGrantResponse> {
     const execution = await functions.createExecution(
       this.functionId,
-      JSON.stringify(payload),
+      JSON.stringify({
+        action,
+        targetEmail: normalizeEmail(input.targetEmail),
+        expiresAt: input.expiresAt,
+        reason: input.reason?.trim() || '',
+      }),
       false,
       '/',
       ExecutionMethod.POST,
@@ -86,35 +68,25 @@ class AdminPremiumService {
       },
     );
 
-    const bodyPayload = execution.responseBody ? JSON.parse(execution.responseBody) : null;
+    const payload = execution.responseBody ? JSON.parse(execution.responseBody) : null;
 
-    if (execution.responseStatusCode >= 400 || !bodyPayload?.success) {
+    if (execution.responseStatusCode >= 400 || !payload?.success) {
       throw new Error(
-        bodyPayload?.message ||
-          bodyPayload?.error ||
-          `Admin action failed (${execution.responseStatusCode})`,
+        payload?.message ||
+          payload?.error ||
+          `Manual premium grant failed (${execution.responseStatusCode})`,
       );
     }
 
-    return bodyPayload as T;
+    return payload as ManualGrantResponse;
   }
 
   async preview(input: ManualGrantRequest): Promise<ManualGrantResponse> {
-    return this.execute<ManualGrantResponse>({
-      action: 'preview',
-      targetEmail: normalizeEmail(input.targetEmail),
-      expiresAt: input.expiresAt,
-      reason: input.reason?.trim() || '',
-    });
+    return this.execute('preview', input);
   }
 
   async grant(input: ManualGrantRequest): Promise<ManualGrantResponse> {
-    const response = await this.execute<ManualGrantResponse>({
-      action: 'grant',
-      targetEmail: normalizeEmail(input.targetEmail),
-      expiresAt: input.expiresAt,
-      reason: input.reason?.trim() || '',
-    });
+    const response = await this.execute('grant', input);
 
     if (response.applied) {
       await analyticsService.trackEvent(
@@ -135,24 +107,6 @@ class AdminPremiumService {
     }
 
     return response;
-  }
-
-  async listAdmins(): Promise<AdminListResponse> {
-    return this.execute<AdminListResponse>({
-      action: 'list_admins',
-    });
-  }
-
-  async addAdmin(adminEmail: string): Promise<AddAdminResponse> {
-    const normalized = normalizeEmail(adminEmail);
-    if (!normalized) {
-      throw new Error('Admin email is required.');
-    }
-
-    return this.execute<AddAdminResponse>({
-      action: 'add_admin',
-      adminEmail: normalized,
-    });
   }
 }
 

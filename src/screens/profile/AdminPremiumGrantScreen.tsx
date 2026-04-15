@@ -10,8 +10,9 @@ import {
   TouchableOpacity,
   View,
 } from 'react-native';
+import { useSelector } from 'react-redux';
+import { RootState } from '../../store';
 import adminPremiumService, {
-  AdminMember,
   ManualGrantRequest,
   ManualGrantResponse,
 } from '../../services/adminPremiumService';
@@ -48,11 +49,8 @@ function isValidGrantDate(value: string): boolean {
   return !Number.isNaN(parsed.getTime());
 }
 
-function isValidEmail(value: string): boolean {
-  return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(value.trim());
-}
-
 const AdminPremiumGrantScreen: React.FC<Props> = ({ navigation }) => {
+  const { user } = useSelector((state: RootState) => state.auth);
   const [targetEmail, setTargetEmail] = useState('');
   const [expiresAt, setExpiresAt] = useState('');
   const [reason, setReason] = useState('');
@@ -60,33 +58,27 @@ const AdminPremiumGrantScreen: React.FC<Props> = ({ navigation }) => {
   const [isPreviewing, setIsPreviewing] = useState(false);
   const [isGranting, setIsGranting] = useState(false);
 
-  const [adminEmail, setAdminEmail] = useState('');
-  const [admins, setAdmins] = useState<AdminMember[]>([]);
-  const [isLoadingAdmins, setIsLoadingAdmins] = useState(false);
-  const [isAddingAdmin, setIsAddingAdmin] = useState(false);
-  const [adminCollectionConfigured, setAdminCollectionConfigured] = useState(true);
-
-  const loadAdmins = async () => {
-    setIsLoadingAdmins(true);
-    try {
-      const response = await adminPremiumService.listAdmins();
-      setAdmins(response.admins || []);
-      setAdminCollectionConfigured(response.adminCollectionConfigured);
-    } catch (error: any) {
-      Alert.alert('Access Denied', error?.message || 'You are not allowed to use this admin tool.', [
-        {
-          text: 'OK',
-          onPress: () => navigation.goBack(),
-        },
-      ]);
-    } finally {
-      setIsLoadingAdmins(false);
-    }
-  };
+  const canAccess = adminPremiumService.canAccessAdminGrant(user);
 
   useEffect(() => {
-    loadAdmins();
-  }, []);
+    if (canAccess) {
+      return;
+    }
+
+    Alert.alert('Access Denied', 'Only configured admin emails can use this tool.', [
+      {
+        text: 'OK',
+        onPress: () => {
+          if (navigation.canGoBack?.()) {
+            navigation.goBack();
+            return;
+          }
+
+          navigation.navigate('MainTabs');
+        },
+      },
+    ]);
+  }, [canAccess, navigation]);
 
   const buildRequest = (): ManualGrantRequest | null => {
     const normalizedEmail = targetEmail.trim().toLowerCase();
@@ -142,36 +134,14 @@ const AdminPremiumGrantScreen: React.FC<Props> = ({ navigation }) => {
     try {
       const response = await adminPremiumService.grant(request);
       setPreview(response);
-      Alert.alert(response.applied ? 'Premium Granted' : 'No Change Needed', response.message);
+      Alert.alert(
+        response.applied ? 'Premium Granted' : 'No Change Needed',
+        response.message,
+      );
     } catch (error: any) {
       Alert.alert('Grant Failed', error?.message || 'Unable to apply this premium grant.');
     } finally {
       setIsGranting(false);
-    }
-  };
-
-  const handleAddAdmin = async () => {
-    const normalized = adminEmail.trim().toLowerCase();
-    if (!normalized) {
-      Alert.alert('Missing Email', 'Enter an email to add as admin.');
-      return;
-    }
-
-    if (!isValidEmail(normalized)) {
-      Alert.alert('Invalid Email', 'Enter a valid admin email address.');
-      return;
-    }
-
-    setIsAddingAdmin(true);
-    try {
-      const result = await adminPremiumService.addAdmin(normalized);
-      Alert.alert(result.applied ? 'Admin Added' : 'No Change Needed', result.message);
-      setAdminEmail('');
-      await loadAdmins();
-    } catch (error: any) {
-      Alert.alert('Add Admin Failed', error?.message || 'Unable to add admin.');
-    } finally {
-      setIsAddingAdmin(false);
     }
   };
 
@@ -194,8 +164,7 @@ const AdminPremiumGrantScreen: React.FC<Props> = ({ navigation }) => {
         <View style={styles.heroCard}>
           <Text style={styles.heroTitle}>Grant Premium Access</Text>
           <Text style={styles.heroSubtitle}>
-            This admin tool runs through a secure backend function and only extends access when the
-            new expiry is later.
+            Admin access is controlled by `MONEYQUEST_ADMIN_ALLOWLIST_EMAILS`.
           </Text>
         </View>
 
@@ -223,7 +192,7 @@ const AdminPremiumGrantScreen: React.FC<Props> = ({ navigation }) => {
             autoCorrect={false}
           />
           <Text style={styles.helperText}>
-            Premium access stays active until the end of this day.
+            Premium access will remain active until the end of this day.
           </Text>
         </View>
 
@@ -268,77 +237,39 @@ const AdminPremiumGrantScreen: React.FC<Props> = ({ navigation }) => {
         {preview && (
           <View style={styles.previewCard}>
             <Text style={styles.previewTitle}>Grant Preview</Text>
+
             <View style={styles.previewRow}>
               <Text style={styles.previewLabel}>User</Text>
               <Text style={styles.previewValue}>
                 {preview.targetUser.name || 'Unknown'} ({preview.targetUser.email})
               </Text>
             </View>
+
             <View style={styles.previewRow}>
               <Text style={styles.previewLabel}>Current Access</Text>
               <Text style={styles.previewValue}>{preview.currentAccessSource}</Text>
             </View>
+
             <View style={styles.previewRow}>
               <Text style={styles.previewLabel}>Previous Expiry</Text>
-              <Text style={styles.previewValue}>{formatDateLabel(preview.previousEffectiveEndDate)}</Text>
+              <Text style={styles.previewValue}>
+                {formatDateLabel(preview.previousEffectiveEndDate)}
+              </Text>
             </View>
+
             <View style={styles.previewRow}>
               <Text style={styles.previewLabel}>Final Expiry</Text>
               <Text style={styles.previewValue}>{formatDateLabel(preview.finalEffectiveEndDate)}</Text>
             </View>
+
             <View style={styles.previewRow}>
               <Text style={styles.previewLabel}>Action</Text>
               <Text style={styles.previewValue}>{preview.action}</Text>
             </View>
+
             <Text style={styles.previewMessage}>{preview.message}</Text>
           </View>
         )}
-
-        <View style={styles.adminCard}>
-          <Text style={styles.previewTitle}>Admin Access</Text>
-          {!adminCollectionConfigured && (
-            <Text style={styles.adminWarning}>
-              Admin table is not configured yet. Add `admin_users` in Appwrite to manage admins in-app.
-            </Text>
-          )}
-          <TextInput
-            style={styles.input}
-            value={adminEmail}
-            onChangeText={setAdminEmail}
-            placeholder="newadmin@email.com"
-            keyboardType="email-address"
-            autoCapitalize="none"
-            autoCorrect={false}
-          />
-          <TouchableOpacity
-            style={[styles.addAdminButton, isAddingAdmin && styles.disabledButton]}
-            onPress={handleAddAdmin}
-            disabled={isAddingAdmin}
-          >
-            {isAddingAdmin ? (
-              <ActivityIndicator size="small" color="#FFFFFF" />
-            ) : (
-              <Text style={styles.addAdminText}>Add Admin</Text>
-            )}
-          </TouchableOpacity>
-
-          {isLoadingAdmins ? (
-            <ActivityIndicator size="small" color="#211E54" style={{ marginTop: 12 }} />
-          ) : (
-            <View style={styles.adminList}>
-              {admins.length === 0 ? (
-                <Text style={styles.emptyAdminsText}>No admins returned yet.</Text>
-              ) : (
-                admins.map((admin) => (
-                  <View key={`${admin.source}:${admin.email}`} style={styles.adminRow}>
-                    <Text style={styles.adminEmail}>{admin.email}</Text>
-                    <Text style={styles.adminMeta}>{admin.source}</Text>
-                  </View>
-                ))
-              )}
-            </View>
-          )}
-        </View>
       </ScrollView>
     </SafeAreaView>
   );
@@ -464,7 +395,6 @@ const styles = StyleSheet.create({
     padding: 18,
     borderWidth: 1,
     borderColor: '#F2DED4',
-    marginBottom: 20,
   },
   previewTitle: {
     fontSize: 18,
@@ -492,59 +422,6 @@ const styles = StyleSheet.create({
     color: '#4B4761',
     fontSize: 14,
     lineHeight: 20,
-  },
-  adminCard: {
-    backgroundColor: '#FFFFFF',
-    borderRadius: 18,
-    padding: 18,
-    borderWidth: 1,
-    borderColor: '#F2DED4',
-  },
-  adminWarning: {
-    color: '#B45309',
-    fontSize: 13,
-    lineHeight: 18,
-    marginBottom: 10,
-  },
-  addAdminButton: {
-    marginTop: 12,
-    backgroundColor: '#211E54',
-    minHeight: 48,
-    borderRadius: 24,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  addAdminText: {
-    color: '#FFFFFF',
-    fontSize: 15,
-    fontWeight: '700',
-  },
-  adminList: {
-    marginTop: 14,
-    borderTopWidth: 1,
-    borderTopColor: '#F5E7DF',
-    paddingTop: 10,
-  },
-  emptyAdminsText: {
-    color: '#7A768E',
-    fontSize: 13,
-  },
-  adminRow: {
-    paddingVertical: 8,
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-  },
-  adminEmail: {
-    flex: 1,
-    color: '#1E1E1E',
-    fontSize: 14,
-    marginRight: 8,
-  },
-  adminMeta: {
-    color: '#7A768E',
-    fontSize: 12,
-    textTransform: 'uppercase',
   },
 });
 

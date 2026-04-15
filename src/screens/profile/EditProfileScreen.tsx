@@ -22,6 +22,7 @@ import { getAvatarById } from "../../utils/avatarUtils";
 import { databases, DB_ID, COLLECTIONS } from "../../services/appwrite";
 import NotificationService from "../../services/notifications";
 import soundService from "../../services/soundService";
+import adminPremiumService from "../../services/adminPremiumService";
 import Constants from 'expo-constants';
 
 import { Platform, Linking } from 'react-native';
@@ -154,6 +155,10 @@ const EditProfileScreen: React.FC<Props> = ({ navigation }) => {
   };
 
   const handleAdminVersionTap = () => {
+    if (!adminPremiumService.canAccessAdminGrant(user)) {
+      return;
+    }
+
     adminTapCountRef.current += 1;
 
     if (adminTapResetRef.current) {
