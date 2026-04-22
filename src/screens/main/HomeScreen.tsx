@@ -11,7 +11,9 @@ import {
   Alert,
   Animated,
 } from "react-native";
+import AsyncStorage from '@react-native-async-storage/async-storage';
 import Svg, { Path } from "react-native-svg";
+import { Ionicons } from '@expo/vector-icons';
 import { useSelector, useDispatch } from "react-redux";
 import { RootState } from "../../store";
 import { getAvatarById } from "../../utils/avatarUtils";
@@ -27,6 +29,7 @@ import { getDecorationsForSection } from "../../config/sectionDecorations";
 import CoachMark from "../../components/tutorial/CoachMark";
 import { HOME_COACH_STEPS } from "../../config/coachMarkSteps";
 import { markHomeTourSeen } from "../../store/slices/tutorialSlice";
+import notificationService from "../../services/notifications";
 
 interface Props {
   navigation: any;
@@ -50,6 +53,7 @@ interface Section {
 }
 
 const { width: screenWidth, height: screenHeight } = Dimensions.get("window");
+const SECTION_IDS_CACHE_KEY = '@moneyquest_last_section_ids';
 
 const HomeScreen: React.FC<Props> = ({ navigation }) => {
   const { user } = useSelector((state: RootState) => state.auth);
@@ -59,7 +63,11 @@ const HomeScreen: React.FC<Props> = ({ navigation }) => {
   const [sections, setSections] = useState<Section[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [completedLevels, setCompletedLevels] = useState<Set<string>>(new Set());
-  const [hasScrolledToCurrentSection, setHasScrolledToCurrentSection] = useState(false);
+  const [isContentStale, setIsContentStale] = useState(false);
+  const [isRefreshingContent, setIsRefreshingContent] = useState(false);
+  const [hasNewSectionsAvailable, setHasNewSectionsAvailable] = useState(false);
+  const [isSectionDropdownOpen, setIsSectionDropdownOpen] = useState(false);
+  const [activeSectionIndex, setActiveSectionIndex] = useState(0);
 
   // Coach marks
   const [coachStep, setCoachStep] = useState(0);
@@ -78,12 +86,14 @@ const HomeScreen: React.FC<Props> = ({ navigation }) => {
 
   // Ref for horizontal scroll to scroll to user's current section
   const horizontalScrollRef = useRef<ScrollView>(null);
+  const hasInitializedSectionPositionRef = useRef(false);
 
   // Animation values for parallax scrolling (one per section)
   const scrollYValues = useRef<{ [key: string]: Animated.Value }>({});
   
   // Pulse animation for current level node
   const pulseAnim = useRef(new Animated.Value(1)).current;
+  const newSectionBadgePulse = useRef(new Animated.Value(1)).current;
 
   // Initialize scroll animation values for each section
   useEffect(() => {
@@ -113,6 +123,91 @@ const HomeScreen: React.FC<Props> = ({ navigation }) => {
     pulseAnimation.start();
     return () => pulseAnimation.stop();
   }, [pulseAnim]);
+
+  useEffect(() => {
+    if (!hasNewSectionsAvailable) {
+      newSectionBadgePulse.setValue(1);
+      return;
+    }
+
+    const badgePulseAnimation = Animated.loop(
+      Animated.sequence([
+        Animated.timing(newSectionBadgePulse, {
+          toValue: 1.04,
+          duration: 1400,
+          useNativeDriver: true,
+        }),
+        Animated.timing(newSectionBadgePulse, {
+          toValue: 1,
+          duration: 1400,
+          useNativeDriver: true,
+        }),
+      ])
+    );
+
+    badgePulseAnimation.start();
+    return () => badgePulseAnimation.stop();
+  }, [hasNewSectionsAvailable, newSectionBadgePulse]);
+
+  const refreshStaleState = React.useCallback(async () => {
+    try {
+      const stale = await cacheService.isSectionsCacheStale();
+      setIsContentStale(stale);
+    } catch {
+      setIsContentStale(true);
+    }
+  }, []);
+
+  const notifyOnNewSections = React.useCallback(
+    async (backendSections: Array<{ section_id?: string; title: string }>) => {
+      try {
+        const currentSectionIds = backendSections
+          .map((section) => section.section_id)
+          .filter((id): id is string => !!id);
+
+        const previousRaw = await AsyncStorage.getItem(SECTION_IDS_CACHE_KEY);
+        const previousIds = previousRaw ? (JSON.parse(previousRaw) as string[]) : [];
+        const newSectionIds = currentSectionIds.filter((id) => !previousIds.includes(id));
+
+        if (hasInitiallyLoadedRef.current && newSectionIds.length > 0) {
+          const firstNewSection = backendSections.find(
+            (section) => section.section_id === newSectionIds[0]
+          );
+          await notificationService.sendSectionCreatedNotification(
+            firstNewSection?.title || 'New section'
+          );
+        }
+
+        await AsyncStorage.setItem(SECTION_IDS_CACHE_KEY, JSON.stringify(currentSectionIds));
+      } catch (error) {
+        console.warn('Failed to detect new sections:', error);
+      }
+    },
+    []
+  );
+
+  const checkForNewSectionsAvailability = React.useCallback(async () => {
+    if (!user?.$id || !hasInitiallyLoadedRef.current) {
+      return;
+    }
+
+    try {
+      const latestSections = await backendApi.getSections();
+      const latestSectionIds = latestSections
+        .map((section) => section.section_id)
+        .filter((id): id is string => !!id);
+
+      const previousRaw = await AsyncStorage.getItem(SECTION_IDS_CACHE_KEY);
+      const knownSectionIds = previousRaw
+        ? (JSON.parse(previousRaw) as string[])
+        : sections.map((section) => section.id);
+
+      const hasNew = latestSectionIds.some((id) => !knownSectionIds.includes(id));
+      setHasNewSectionsAvailable(hasNew);
+    } catch (error) {
+      console.warn('Failed to check for new sections:', error);
+    }
+  }, [sections, user?.$id]);
 
   // ─────────────────────────────────────────────────────────────────────────
   // Main data-fetch function — stable useCallback so it can be used in both
@@ -211,6 +306,12 @@ const HomeScreen: React.FC<Props> = ({ navigation }) => {
 
           // Get all sections (documents) from backend with caching
           const backendSections = await cachedBackendApi.getSections();
+          await notifyOnNewSections(backendSections);
+
+          if (user?.$id) {
+            notificationService.syncAdminBroadcasts(user.$id).catch(() => {});
+          }
+
           // Find the first valid section ID for the "default unlock" logic
           const firstValidSectionId = backendSections.find(s => s.section_id)?.section_id;
 
@@ -337,18 +438,26 @@ const HomeScreen: React.FC<Props> = ({ navigation }) => {
           hasInitiallyLoadedRef.current = true;
           setHasInitiallyLoaded(true);
 
-          // Scroll to user's current section after loading
-          if (!hasScrolledToCurrentSection && user?.currentSectionId && sectionsData.length > 0) {
-            const currentSectionIndex = sectionsData.findIndex(s => s.id === user.currentSectionId);
-            if (currentSectionIndex > 0) {
-              setTimeout(() => {
-                horizontalScrollRef.current?.scrollTo({
-                  x: currentSectionIndex * screenWidth,
-                  animated: false,
-                });
-                setHasScrolledToCurrentSection(true);
-              }, 100);
-            }
+          // Set the initial horizontal position only once per screen mount.
+          if (!hasInitializedSectionPositionRef.current && sectionsData.length > 0) {
+            const userSectionIndex = user?.currentSectionId
+              ? sectionsData.findIndex((s) => s.id === user.currentSectionId)
+              : -1;
+            const initialIndex =
+              activeSectionIndex >= 0 && activeSectionIndex < sectionsData.length
+                ? activeSectionIndex
+                : userSectionIndex >= 0
+                  ? userSectionIndex
+                  : 0;
+
+            setActiveSectionIndex(initialIndex);
+            setTimeout(() => {
+              horizontalScrollRef.current?.scrollTo({
+                x: initialIndex * screenWidth,
+                animated: false,
+              });
+              hasInitializedSectionPositionRef.current = true;
+            }, 100);
           }
         } catch (error) {
           console.error('Failed to fetch learning path:', error);
@@ -358,9 +467,34 @@ const HomeScreen: React.FC<Props> = ({ navigation }) => {
           );
         } finally {
           setIsLoading(false);
+          await refreshStaleState();
           isFetchingRef.current = false;
         }
-  }, [user?.$id, user?.currentLevelId, user?.currentSectionId, dispatch]);
+  }, [activeSectionIndex, user?.$id, user?.currentLevelId, user?.currentSectionId, dispatch, notifyOnNewSections, refreshStaleState]);
+
+  const handleManualRefresh = React.useCallback(async () => {
+    if (isRefreshingContent || !user?.$id) {
+      return;
+    }
+
+    setIsRefreshingContent(true);
+    try {
+      await cachedBackendApi.forceRefreshLearningPath();
+      cachedBackendApi.resetSessionTracking();
+      isFetchingRef.current = false;
+      retryCountRef.current = 0;
+      await fetchLearningPath();
+      await notificationService.syncAdminBroadcasts(user.$id);
+      Alert.alert('Updated', 'Content is now up to date.');
+    } catch (error) {
+      console.error('Manual refresh failed:', error);
+      Alert.alert('Refresh failed', 'Could not refresh content right now. Please try again.');
+    } finally {
+      setIsRefreshingContent(false);
+      await refreshStaleState();
+      await checkForNewSectionsAvailability();
+    }
+  }, [checkForNewSectionsAvailability, fetchLearningPath, isRefreshingContent, refreshStaleState, user?.$id]);
 
   // ── Trigger 1: runs on mount AND whenever user.$id / progress keys change.
   // This guarantees the fetch fires even if Redux Persist hydrates user AFTER
@@ -373,7 +507,89 @@ const HomeScreen: React.FC<Props> = ({ navigation }) => {
   useFocusEffect(
     React.useCallback(() => {
       fetchLearningPath();
-    }, [fetchLearningPath])
+      checkForNewSectionsAvailability();
+    }, [checkForNewSectionsAvailability, fetchLearningPath])
+  );
+
+  useEffect(() => {
+    refreshStaleState();
+  }, [refreshStaleState]);
+
+  const navigateToLevel = React.useCallback(
+    async (node: LevelNode, sectionIndex: number) => {
+      if (!node.isUnlocked && !node.isCurrent && !node.isCompleted) {
+        return;
+      }
+
+      if (user) {
+        const { lives } = livesService.calculateCurrentLives(
+          user.lives !== undefined && user.lives !== null ? user.lives : 5,
+          user.lastLifeRegenTime || new Date().toISOString()
+        );
+
+        if (lives === 0) {
+          const timeRemaining = livesService.getTimeUntilNextLife(
+            0,
+            user.lastLifeRegenTime || new Date().toISOString()
+          );
+          const timeFormatted = livesService.formatTimeRemaining(timeRemaining);
+
+          Alert.alert(
+            'No Lives Available',
+            `You have 0 lives remaining. Your next life will regenerate in ${timeFormatted}.`,
+            [{ text: 'OK', style: 'default' }]
+          );
+          return;
+        }
+      }
+
+      try {
+        if (user?.$id) {
+          const progressUpdate = {
+            currentLevelId: node.levelId,
+            currentSectionId: node.sectionId,
+            currentSection: sectionIndex + 1,
+          };
+          await databases.updateDocument(
+            DB_ID,
+            COLLECTIONS.USERS,
+            user.$id,
+            progressUpdate
+          );
+          dispatch(updateUser(progressUpdate));
+        }
+      } catch (error) {
+        console.error('Failed to update progress:', error);
+      }
+
+      navigation.navigate('Question', {
+        levelId: node.levelId,
+        sectionId: node.sectionId,
+        levelTitle: node.levelTitle,
+        sectionTitle: node.sectionTitle,
+      });
+    },
+    [dispatch, navigation, user]
+  );
+
+  const scrollToSection = React.useCallback((sectionIndex: number) => {
+    horizontalScrollRef.current?.scrollTo({
+      x: sectionIndex * screenWidth,
+      animated: true,
+    });
+    setActiveSectionIndex(sectionIndex);
+    setIsSectionDropdownOpen(false);
+  }, []);
+
+  const sectionPickerItems = React.useMemo(
+    () =>
+      sections.map((section, sectionIndex) => ({
+        key: section.id,
+        sectionIndex,
+        sectionTitle: section.title,
+        levelCount: section.levels.length,
+      })),
+    [sections]
   );
 
   // Calculate level progress based on user's current position
@@ -436,59 +652,8 @@ const HomeScreen: React.FC<Props> = ({ navigation }) => {
   ) => {
     const isLeftSide = index % 2 === 0;
 
-    const handleNodePress = async () => {
-      if (node.isUnlocked || node.isCurrent) {
-        // Check if user has lives before allowing them to start a level
-        if (user) {
-          const { lives } = livesService.calculateCurrentLives(
-            user.lives !== undefined && user.lives !== null ? user.lives : 5,
-            user.lastLifeRegenTime || new Date().toISOString()
-          );
-
-          if (lives === 0) {
-            // Calculate time until next life
-            const timeRemaining = livesService.getTimeUntilNextLife(
-              0,
-              user.lastLifeRegenTime || new Date().toISOString()
-            );
-            const timeFormatted = livesService.formatTimeRemaining(timeRemaining);
-
-            Alert.alert(
-              'No Lives Available',
-              `You have 0 lives remaining. Your next life will regenerate in ${timeFormatted}.`,
-              [{ text: 'OK', style: 'default' }]
-            );
-            return; // Don't navigate
-          }
-        }
-
-        // Update user's current progress in Appwrite and Redux
-        try {
-          if (user?.$id) {
-            const progressUpdate = {
-              currentLevelId: node.levelId,
-              currentSectionId: node.sectionId,
-              currentSection: sectionIndex + 1,
-            };
-            await databases.updateDocument(
-              DB_ID,
-              COLLECTIONS.USERS,
-              user.$id,
-              progressUpdate
-            );
-            dispatch(updateUser(progressUpdate));
-          }
-        } catch (error) {
-          console.error('Failed to update progress:', error);
-        }
-
-        navigation.navigate("Question", {
-          levelId: node.levelId,
-          sectionId: node.sectionId,
-          levelTitle: node.levelTitle,
-          sectionTitle: node.sectionTitle,
-        });
-      }
+    const handleNodePress = () => {
+      void navigateToLevel(node, sectionIndex);
     };
 
     return (
@@ -654,9 +819,28 @@ const HomeScreen: React.FC<Props> = ({ navigation }) => {
         <View style={styles.sectionHeaderContainer}>
           <View style={styles.sectionHeader}>
             <View style={styles.sectionHeaderContent}>
-              <Text style={styles.sectionTitle}>
-                {section.title}
-              </Text>
+              <TouchableOpacity
+                style={styles.sectionTitleButton}
+                activeOpacity={0.85}
+                onPress={() =>
+                  setIsSectionDropdownOpen((prev) =>
+                    activeSectionIndex === sectionIndex ? !prev : true
+                  )
+                }
+              >
+                <Text style={styles.sectionTitle} numberOfLines={1}>
+                  {section.title}
+                </Text>
+                <Ionicons
+                  name={
+                    isSectionDropdownOpen && activeSectionIndex === sectionIndex
+                      ? 'chevron-up'
+                      : 'chevron-down'
+                  }
+                  size={18}
+                  color="#FFFFFF"
+                />
+              </TouchableOpacity>
               <Text style={styles.sectionSubtitle}>
                 {section.levels.length} {section.levels.length === 1 ? 'Level' : 'Levels'}
               </Text>
@@ -668,6 +852,36 @@ const HomeScreen: React.FC<Props> = ({ navigation }) => {
               />
             </View>
           </View>
+
+          {isSectionDropdownOpen && activeSectionIndex === sectionIndex && (
+            <View style={styles.sectionDropdownPanel}>
+              <Text style={styles.sectionDropdownTitle}>Sections</Text>
+              <ScrollView style={styles.sectionDropdownList} showsVerticalScrollIndicator={false}>
+                {sectionPickerItems.map((item) => (
+                  <TouchableOpacity
+                    key={item.key}
+                    style={[
+                      styles.sectionDropdownItem,
+                      item.sectionIndex === activeSectionIndex && styles.sectionDropdownItemActive,
+                    ]}
+                    activeOpacity={0.85}
+                    onPress={() => scrollToSection(item.sectionIndex)}
+                  >
+                    <Text style={styles.sectionDropdownItemTitle} numberOfLines={1}>
+                      {item.sectionTitle}
+                    </Text>
+                    <Text style={styles.sectionDropdownItemMeta}>
+                      {item.levelCount} {item.levelCount === 1 ? 'Level' : 'Levels'}
+                    </Text>
+                  </TouchableOpacity>
+                ))}
+
+                {sectionPickerItems.length === 0 && (
+                  <Text style={styles.sectionDropdownEmptyText}>No sections available yet.</Text>
+                )}
+              </ScrollView>
+            </View>
+          )}
         </View>
 
         {/* Scrollable Levels with scroll tracking */}
@@ -749,9 +963,49 @@ const HomeScreen: React.FC<Props> = ({ navigation }) => {
         pagingEnabled
         showsHorizontalScrollIndicator={false}
         style={styles.scrollView}
+        onMomentumScrollEnd={(event) => {
+          const nextIndex = Math.round(event.nativeEvent.contentOffset.x / screenWidth);
+          if (nextIndex >= 0 && nextIndex < sections.length) {
+            setActiveSectionIndex(nextIndex);
+            setIsSectionDropdownOpen(false);
+          }
+        }}
       >
         {sections.map((section, index) => renderSection(section, index))}
       </ScrollView>
+
+      {isContentStale && (
+        <TouchableOpacity
+          style={[styles.refreshFab, isRefreshingContent && styles.refreshFabDisabled]}
+          onPress={handleManualRefresh}
+          disabled={isRefreshingContent}
+          activeOpacity={0.85}
+        >
+          <Text style={styles.refreshFabIcon}>{isRefreshingContent ? '...' : '↻'}</Text>
+        </TouchableOpacity>
+      )}
+
+      {hasNewSectionsAvailable && (
+        <Animated.View
+          style={[
+            styles.newSectionBadgeWrap,
+            isContentStale && styles.newSectionBadgeWithRefresh,
+            { transform: [{ scale: newSectionBadgePulse }] },
+          ]}
+        >
+          <TouchableOpacity
+            style={styles.newSectionBadge}
+            onPress={handleManualRefresh}
+            disabled={isRefreshingContent}
+            activeOpacity={0.9}
+          >
+            <Ionicons name="sparkles" size={14} color="#FFFFFF" />
+            <Text style={styles.newSectionBadgeText}>
+              {isRefreshingContent ? 'Refreshing...' : 'New Section Available'}
+            </Text>
+          </TouchableOpacity>
+        </Animated.View>
+      )}
 
       {/* Coach marks for first-time users */}
       <CoachMark
@@ -767,7 +1021,7 @@ const HomeScreen: React.FC<Props> = ({ navigation }) => {
           dispatch(markHomeTourSeen());
           setCoachStep(0);
         }}
-      />
+      /> 
     </SafeAreaView>
   );
 };
@@ -842,10 +1096,16 @@ const styles = StyleSheet.create({
   sectionHeaderContent: {
     flex: 1,
   },
+  sectionTitleButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+  },
   sectionTitle: {
     fontSize: 24,
     fontWeight: "bold",
     color: "#FFFFFF",
+    flexShrink: 1,
   },
   sectionSubtitle: {
     fontSize: 16,
@@ -1036,6 +1296,116 @@ const styles = StyleSheet.create({
     color: '#FFFFFF',
     fontSize: 16,
     fontWeight: '600',
+  },
+  refreshFab: {
+    position: 'absolute',
+    right: 20,
+    bottom: 96,
+    width: 54,
+    height: 54,
+    borderRadius: 27,
+    backgroundColor: '#FF6B35',
+    justifyContent: 'center',
+    alignItems: 'center',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 3 },
+    shadowOpacity: 0.25,
+    shadowRadius: 6,
+    elevation: 8,
+    zIndex: 100,
+  },
+  refreshFabDisabled: {
+    opacity: 0.7,
+  },
+  refreshFabIcon: {
+    color: '#FFFFFF',
+    fontSize: 24,
+    fontWeight: '700',
+  },
+  newSectionBadge: {
+    backgroundColor: '#0EA5A4',
+    borderRadius: 18,
+    paddingHorizontal: 12,
+    paddingVertical: 10,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.18,
+    shadowRadius: 5,
+    elevation: 6,
+    overflow: 'hidden',
+  },
+  newSectionBadgeWrap: {
+    position: 'absolute',
+    right: 20,
+    bottom: 96,
+    zIndex: 100,
+  },
+  newSectionBadgeWithRefresh: {
+    bottom: 160,
+  },
+  newSectionBadgeText: {
+    color: '#FFFFFF',
+    fontSize: 12,
+    fontWeight: '700',
+  },
+  sectionDropdownPanel: {
+    marginTop: 10,
+    backgroundColor: '#FFFFFF',
+    borderRadius: 16,
+    borderWidth: 2,
+    borderColor: '#FFB085',
+    paddingHorizontal: 10,
+    paddingVertical: 10,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 6 },
+    shadowOpacity: 0.16,
+    shadowRadius: 12,
+    elevation: 8,
+    maxHeight: screenHeight * 0.4,
+  },
+  sectionDropdownTitle: {
+    fontSize: 13,
+    fontWeight: '800',
+    color: '#FF6B35',
+    marginBottom: 8,
+    paddingHorizontal: 4,
+  },
+  sectionDropdownList: {
+    maxHeight: screenHeight * 0.32,
+  },
+  sectionDropdownItem: {
+    borderRadius: 12,
+    paddingHorizontal: 10,
+    paddingVertical: 9,
+    marginBottom: 8,
+    backgroundColor: '#FFF4ED',
+    borderWidth: 1,
+    borderColor: '#FFD7C2',
+  },
+  sectionDropdownItemActive: {
+    backgroundColor: '#FFE6D6',
+    borderColor: '#FF9B6B',
+  },
+  sectionDropdownItemTitle: {
+    fontSize: 13,
+    fontWeight: '700',
+    color: '#8A320F',
+    marginBottom: 2,
+  },
+  sectionDropdownItemMeta: {
+    fontSize: 11,
+    color: '#B45309',
+    fontWeight: '600',
+  },
+  sectionDropdownEmptyText: {
+    textAlign: 'center',
+    color: '#B45309',
+    fontSize: 12,
+    marginTop: 8,
+    marginBottom: 4,
   },
 });
 

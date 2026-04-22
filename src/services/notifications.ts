@@ -3,6 +3,8 @@ import * as Device from 'expo-device';
 import { Platform, AppState, AppStateStatus } from 'react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import analyticsService from './analytics';
+import { databases, DB_ID, Query } from './appwrite';
+import { ENV } from '../config/environment';
 
 // Configure how notifications should be handled when the app is in foreground
 // Wrap in try-catch to prevent iOS crash if notification system isn't ready
@@ -20,11 +22,197 @@ try {
   console.warn('Failed to set notification handler:', error);
 }
 
+const NOTIFICATION_KEYS = {
+  LAST_APP_OPEN_TIME: 'lastAppOpenTime',
+  LAST_APP_OPEN_DAY: 'lastAppOpenDay',
+  USER_ENABLED: '@moneyquest_notifications_enabled',
+  SEEN_BROADCAST_IDS: '@moneyquest_seen_broadcast_ids',
+  LAST_ERROR_FINGERPRINT: '@moneyquest_last_error_fingerprint',
+  LAST_ERROR_TIMESTAMP: '@moneyquest_last_error_timestamp',
+} as const;
+
+const DAY_END_REMINDER_HOUR = 20;
+const ERROR_NOTIFICATION_THROTTLE_MS = 5 * 60 * 1000;
+
+type NotificationPermissionStatus = 'granted' | 'denied' | 'undetermined';
+
+type BroadcastDocument = {
+  $id: string;
+  title?: string;
+  message?: string;
+  body?: string;
+  status?: string;
+  priority?: string;
+  audience?: string;
+  startsAt?: string;
+  startAt?: string;
+  expiresAt?: string;
+  expires_at?: string;
+  updatedAt?: string;
+  $updatedAt?: string;
+  version?: number;
+};
+
 class NotificationService {
   private appStateSubscription: any = null;
   private lastAppOpenTime: number = Date.now();
   private notificationListener: any = null;
   private responseListener: any = null;
+  private initialized = false;
+  private currentUserId: string | null = null;
+
+  setCurrentUserId(userId: string | null): void {
+    this.currentUserId = userId;
+  }
+
+  private getDateKey(date: Date): string {
+    const year = date.getFullYear();
+    const month = String(date.getMonth() + 1).padStart(2, '0');
+    const day = String(date.getDate()).padStart(2, '0');
+    return `${year}-${month}-${day}`;
+  }
+
+  private async getNotificationPreference(): Promise<boolean> {
+    try {
+      const stored = await AsyncStorage.getItem(NOTIFICATION_KEYS.USER_ENABLED);
+      if (stored === null) {
+        return true;
+      }
+      return stored === 'true';
+    } catch {
+      return true;
+    }
+  }
+
+  async setNotificationPreference(enabled: boolean): Promise<void> {
+    try {
+      await AsyncStorage.setItem(NOTIFICATION_KEYS.USER_ENABLED, enabled ? 'true' : 'false');
+    } catch (error) {
+      console.error('Failed to persist notification preference:', error);
+    }
+  }
+
+  async getNotificationToggleState(): Promise<{
+    preferenceEnabled: boolean;
+    permissionStatus: NotificationPermissionStatus;
+    effectiveEnabled: boolean;
+  }> {
+    const [preferenceEnabled, permissionStatus] = await Promise.all([
+      this.getNotificationPreference(),
+      this.getPermissionsStatus(),
+    ]);
+
+    return {
+      preferenceEnabled,
+      permissionStatus,
+      effectiveEnabled: preferenceEnabled && permissionStatus === 'granted',
+    };
+  }
+
+  private async shouldScheduleNotifications(): Promise<boolean> {
+    const [preferenceEnabled, permissionStatus] = await Promise.all([
+      this.getNotificationPreference(),
+      this.getPermissionsStatus(),
+    ]);
+    return preferenceEnabled && permissionStatus === 'granted';
+  }
+
+  private async getSeenBroadcastIds(): Promise<Set<string>> {
+    try {
+      const raw = await AsyncStorage.getItem(NOTIFICATION_KEYS.SEEN_BROADCAST_IDS);
+      if (!raw) return new Set<string>();
+      const parsed = JSON.parse(raw) as string[];
+      return new Set(parsed);
+    } catch {
+      return new Set<string>();
+    }
+  }
+
+  private async saveSeenBroadcastIds(ids: Set<string>): Promise<void> {
+    try {
+      await AsyncStorage.setItem(
+        NOTIFICATION_KEYS.SEEN_BROADCAST_IDS,
+        JSON.stringify(Array.from(ids))
+      );
+    } catch (error) {
+      console.error('Failed to save seen broadcast ids:', error);
+    }
+  }
+
+  private getBroadcastFingerprint(broadcast: BroadcastDocument): string {
+    return `${broadcast.$id}:${String(
+      broadcast.version ?? broadcast.updatedAt ?? broadcast.$updatedAt ?? ''
+    )}`;
+  }
+
+  private isBroadcastActive(broadcast: BroadcastDocument, now: Date): boolean {
+    const status = (broadcast.status || 'active').toLowerCase();
+    if (status !== 'active') {
+      return false;
+    }
+
+    const startsAt = broadcast.startsAt || broadcast.startAt;
+    if (startsAt) {
+      const start = new Date(startsAt);
+      if (!Number.isNaN(start.getTime()) && now < start) {
+        return false;
+      }
+    }
+
+    const expiresAt = broadcast.expiresAt || broadcast.expires_at;
+    if (expiresAt) {
+      const end = new Date(expiresAt);
+      if (!Number.isNaN(end.getTime()) && now > end) {
+        return false;
+      }
+    }
+
+    const audience = (broadcast.audience || 'everyone').toLowerCase();
+    return audience === 'everyone' || audience === 'all' || audience === 'authenticated';
+  }
+
+  private async shouldSendErrorNotification(fingerprint: string): Promise<boolean> {
+    try {
+      const [lastFingerprint, lastTsStr] = await Promise.all([
+        AsyncStorage.getItem(NOTIFICATION_KEYS.LAST_ERROR_FINGERPRINT),
+        AsyncStorage.getItem(NOTIFICATION_KEYS.LAST_ERROR_TIMESTAMP),
+      ]);
+
+      if (!lastFingerprint || !lastTsStr) {
+        return true;
+      }
+
+      const lastTs = parseInt(lastTsStr, 10);
+      if (!Number.isFinite(lastTs)) {
+        return true;
+      }
+
+      if (lastFingerprint === fingerprint && Date.now() - lastTs < ERROR_NOTIFICATION_THROTTLE_MS) {
+        return false;
+      }
+
+      return true;
+    } catch {
+      return true;
+    }
+  }
+
+  private async markErrorNotificationSent(fingerprint: string): Promise<void> {
+    try {
+      await Promise.all([
+        AsyncStorage.setItem(NOTIFICATION_KEYS.LAST_ERROR_FINGERPRINT, fingerprint),
+        AsyncStorage.setItem(NOTIFICATION_KEYS.LAST_ERROR_TIMESTAMP, Date.now().toString()),
+      ]);
+    } catch {
+      // Non-fatal best-effort storage
+    }
+  }
+
+  private async scheduleConfiguredNotifications() {
+    await this.scheduleDailyReminder();
+    await this.scheduleEngagementNotifications();
+    await this.scheduleDayEndInactivityReminder();
+  }
 
   /**
    * Request notification permissions (works for both iOS and Android)
@@ -123,6 +311,30 @@ class NotificationService {
         showBadge: true,
       });
 
+      // Admin broadcasts channel
+      await Notifications.setNotificationChannelAsync('admin-broadcasts', {
+        name: 'Admin Broadcasts',
+        importance: Notifications.AndroidImportance.HIGH,
+        vibrationPattern: [0, 250, 250, 250],
+        lightColor: '#FF6B35',
+        sound: 'default',
+        enableLights: true,
+        enableVibrate: true,
+        showBadge: true,
+      });
+
+      // App alerts channel
+      await Notifications.setNotificationChannelAsync('app-alerts', {
+        name: 'App Alerts',
+        importance: Notifications.AndroidImportance.HIGH,
+        vibrationPattern: [0, 250, 250, 250],
+        lightColor: '#FF6B35',
+        sound: 'default',
+        enableLights: true,
+        enableVibrate: true,
+        showBadge: true,
+      });
+
     } catch (error) {
       console.error('Failed to setup Android channels:', error);
     }
@@ -131,10 +343,16 @@ class NotificationService {
   /**
    * Get current permission status
    */
-  async getPermissionsStatus(): Promise<'granted' | 'denied' | 'undetermined'> {
+  async getPermissionsStatus(): Promise<NotificationPermissionStatus> {
     try {
       const { status } = await Notifications.getPermissionsAsync();
-      return status;
+      if (status === 'granted') {
+        return 'granted';
+      }
+      if (status === 'denied') {
+        return 'denied';
+      }
+      return 'undetermined';
     } catch (error) {
       console.error('Failed to get permissions status:', error);
       return 'undetermined';
@@ -145,6 +363,10 @@ class NotificationService {
    * Initialize notification listeners and app state tracking
    */
   async initialize() {
+    if (this.initialized) {
+      return;
+    }
+
     try {
       // Set up notification listeners
       this.notificationListener = Notifications.addNotificationReceivedListener(notification => {
@@ -170,6 +392,7 @@ class NotificationService {
 
       // Set up app state listener for engagement tracking
       this.appStateSubscription = AppState.addEventListener('change', this.handleAppStateChange);
+      this.initialized = true;
 
     } catch (error) {
       console.error('Failed to initialize notification service:', error);
@@ -182,9 +405,17 @@ class NotificationService {
   private handleAppStateChange = async (nextAppState: AppStateStatus) => {
     if (nextAppState === 'active') {
       await this.updateLastAppOpenTime();
-      // Reschedule daily reminders and engagement notifications when app opens
-      await this.scheduleDailyReminder();
-      await this.scheduleEngagementNotifications();
+
+      if (!(await this.shouldScheduleNotifications())) {
+        return;
+      }
+
+      // Reschedule user-facing notifications when app opens
+      await this.scheduleConfiguredNotifications();
+
+      if (this.currentUserId) {
+        await this.syncAdminBroadcasts(this.currentUserId);
+      }
     }
   };
 
@@ -194,7 +425,11 @@ class NotificationService {
   private async updateLastAppOpenTime() {
     try {
       const now = Date.now();
-      await AsyncStorage.setItem('lastAppOpenTime', now.toString());
+      const dayKey = this.getDateKey(new Date(now));
+      await Promise.all([
+        AsyncStorage.setItem(NOTIFICATION_KEYS.LAST_APP_OPEN_TIME, now.toString()),
+        AsyncStorage.setItem(NOTIFICATION_KEYS.LAST_APP_OPEN_DAY, dayKey),
+      ]);
       this.lastAppOpenTime = now;
     } catch (error) {
       console.error('Failed to update last app open time:', error);
@@ -206,12 +441,31 @@ class NotificationService {
    */
   private async getLastAppOpenTime(): Promise<number> {
     try {
-      const time = await AsyncStorage.getItem('lastAppOpenTime');
+      const time = await AsyncStorage.getItem(NOTIFICATION_KEYS.LAST_APP_OPEN_TIME);
       return time ? parseInt(time) : Date.now();
     } catch (error) {
       console.error('Failed to get last app open time:', error);
       return Date.now();
     }
+  }
+
+  async enableNotificationsFromSettings(): Promise<boolean> {
+    await this.setNotificationPreference(true);
+
+    const hasPermission = await this.requestPermissions();
+    if (!hasPermission) {
+      await this.setNotificationPreference(false);
+      await this.cancelAllNotifications();
+      return false;
+    }
+
+    await this.scheduleConfiguredNotifications();
+    return true;
+  }
+
+  async disableNotificationsFromSettings(): Promise<void> {
+    await this.setNotificationPreference(false);
+    await this.cancelAllNotifications();
   }
 
   /**
@@ -220,6 +474,10 @@ class NotificationService {
    */
   async scheduleDailyReminder() {
     try {
+      if (!(await this.shouldScheduleNotifications())) {
+        return;
+      }
+
       // Cancel existing learning reminders
       await this.cancelNotificationsByType('learning-reminder');
 
@@ -288,6 +546,10 @@ class NotificationService {
    */
   async scheduleLifeFullNotification(minutesUntilFull: number) {
     try {
+      if (!(await this.shouldScheduleNotifications())) {
+        return;
+      }
+
       // Cancel existing life-full notifications
       const scheduled = await Notifications.getAllScheduledNotificationsAsync();
       for (const notification of scheduled) {
@@ -330,6 +592,10 @@ class NotificationService {
    */
   async scheduleEngagementNotifications() {
     try {
+      if (!(await this.shouldScheduleNotifications())) {
+        return;
+      }
+
       // Cancel existing engagement notifications
       const scheduled = await Notifications.getAllScheduledNotificationsAsync();
       for (const notification of scheduled) {
@@ -403,15 +669,22 @@ class NotificationService {
   async sendImmediateNotification(
     title: string, 
     body: string, 
-    channelId: string = 'default'
+    channelId: string = 'default',
+    data: Record<string, any> = {},
+    respectPreference: boolean = true
   ) {
     try {
+      if (respectPreference && !(await this.shouldScheduleNotifications())) {
+        return;
+      }
+
       await Notifications.scheduleNotificationAsync({
         content: {
           title,
           body,
           sound: true,
           badge: 1,
+          data,
           ...(Platform.OS === 'android' && {
             channelId,
             priority: Notifications.AndroidNotificationPriority.HIGH,
@@ -423,6 +696,153 @@ class NotificationService {
 
     } catch (error) {
       console.error('Failed to send notification:', error);
+    }
+  }
+
+  async sendSectionActiveNotification(sectionTitle: string): Promise<void> {
+    const title = 'New Section Unlocked!';
+    const body = sectionTitle
+      ? `${sectionTitle} is now active. Keep your momentum going.`
+      : 'A new section is now active. Keep your momentum going.';
+    await this.sendImmediateNotification(
+      title,
+      body,
+      'default',
+      { type: 'section-active', sectionTitle }
+    );
+  }
+
+  async sendSectionCreatedNotification(sectionTitle: string): Promise<void> {
+    const title = 'New Content Available';
+    const body = sectionTitle
+      ? `A new section was added: ${sectionTitle}. Tap to refresh and explore.`
+      : 'A new section was added. Tap to refresh and explore.';
+    await this.sendImmediateNotification(
+      title,
+      body,
+      'admin-broadcasts',
+      { type: 'section-created', sectionTitle }
+    );
+  }
+
+  async sendAppErrorNotification(errorMessage: string): Promise<void> {
+    const fingerprint = errorMessage
+      .trim()
+      .toLowerCase()
+      .replace(/\s+/g, ' ')
+      .slice(0, 140);
+
+    if (!(await this.shouldSendErrorNotification(fingerprint))) {
+      return;
+    }
+
+    await this.sendImmediateNotification(
+      'MoneyQuest Alert',
+      'Something is wrong in the app right now. Please try again shortly.',
+      'app-alerts',
+      { type: 'app-error' }
+    );
+
+    await this.markErrorNotificationSent(fingerprint);
+  }
+
+  async scheduleDayEndInactivityReminder() {
+    try {
+      if (!(await this.shouldScheduleNotifications())) {
+        return;
+      }
+
+      await this.cancelNotificationsByType('day-end-inactive');
+
+      const now = new Date();
+      const targetDate = new Date(now);
+      targetDate.setDate(targetDate.getDate() + 1);
+      targetDate.setHours(DAY_END_REMINDER_HOUR, 0, 0, 0);
+
+      await Notifications.scheduleNotificationAsync({
+        content: {
+          title: 'Your day is almost over ⏰',
+          body: 'You have not opened MoneyQuest today. Complete a lesson before the day ends.',
+          sound: true,
+          badge: 1,
+          data: {
+            type: 'day-end-inactive',
+            scheduledForDay: this.getDateKey(targetDate),
+          },
+          ...(Platform.OS === 'android' && {
+            channelId: 'engagement',
+          }),
+        },
+        trigger: {
+          type: Notifications.SchedulableTriggerInputTypes.DATE,
+          date: targetDate,
+        },
+      });
+    } catch (error) {
+      console.error('Failed to schedule day-end inactivity reminder:', error);
+    }
+  }
+
+  async syncAdminBroadcasts(userId?: string): Promise<void> {
+    if (!userId) {
+      return;
+    }
+
+    const collectionId = ENV.APPWRITE_BROADCASTS_COLLECTION_ID;
+    if (!collectionId) {
+      return;
+    }
+
+    try {
+      if (!(await this.shouldScheduleNotifications())) {
+        return;
+      }
+
+      const seenBroadcasts = await this.getSeenBroadcastIds();
+      const now = new Date();
+
+      const response = await databases.listDocuments(DB_ID, collectionId, [
+        Query.orderDesc('createdAt'),
+        Query.limit(25),
+      ]);
+
+      const broadcasts = response.documents as unknown as BroadcastDocument[];
+      let hasUpdates = false;
+
+      for (const broadcast of broadcasts) {
+        if (!this.isBroadcastActive(broadcast, now)) {
+          continue;
+        }
+
+        const fingerprint = this.getBroadcastFingerprint(broadcast);
+        if (seenBroadcasts.has(fingerprint)) {
+          continue;
+        }
+
+        const title = broadcast.title || 'MoneyQuest Update';
+        const body = broadcast.message || broadcast.body || 'A new announcement is available.';
+        const channelId = broadcast.priority === 'high' ? 'app-alerts' : 'admin-broadcasts';
+
+        await this.sendImmediateNotification(
+          title,
+          body,
+          channelId,
+          {
+            type: 'admin-broadcast',
+            broadcastId: broadcast.$id,
+            priority: broadcast.priority || 'normal',
+          }
+        );
+
+        seenBroadcasts.add(fingerprint);
+        hasUpdates = true;
+      }
+
+      if (hasUpdates) {
+        await this.saveSeenBroadcastIds(seenBroadcasts);
+      }
+    } catch (error) {
+      console.error('Failed to sync admin broadcasts:', error);
     }
   }
 
@@ -474,11 +894,17 @@ class NotificationService {
   async setupAllNotifications() {
     try {
       await this.initialize();
+
+      const isEnabledByUser = await this.getNotificationPreference();
+      if (!isEnabledByUser) {
+        await this.cancelAllNotifications();
+        return false;
+      }
+
       const hasPermission = await this.requestPermissions();
       
       if (hasPermission) {
-        await this.scheduleDailyReminder();
-        await this.scheduleEngagementNotifications();
+        await this.scheduleConfiguredNotifications();
         return true;
       } else {
         return false;
@@ -502,6 +928,7 @@ class NotificationService {
     if (this.appStateSubscription) {
       this.appStateSubscription.remove();
     }
+    this.initialized = false;
   }
 }
 

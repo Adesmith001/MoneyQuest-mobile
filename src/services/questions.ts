@@ -14,7 +14,7 @@ class QuestionService {
   /**
    * Get questions for a specific level from backend API
    * @param levelId - Backend level UUID
-   * @param numQuestions - Number of questions to fetch (default: 10)
+   * @param numQuestions - Number of questions to fetch (default: 5)
    * @param difficulty - Difficulty level
    * @param questionType - Type of questions to fetch
    * @param randomize - Whether to randomize questions
@@ -22,7 +22,7 @@ class QuestionService {
    */
   async getQuestionsForLevel(
     levelId: string,
-    numQuestions: number = 10,
+    numQuestions: number = 5,
     difficulty: 'easy' | 'medium' | 'hard' | 'mixed' = 'mixed',
     questionType: 'mcq' | 'scenario' | 'matching' | 'fill_in_gap' | 'mixed' = 'mixed',
     randomize: boolean = true
@@ -235,25 +235,28 @@ class QuestionService {
 
   /**
    * Get mixed question types with balanced distribution
-   * 3 MCQ, 3 Scenario, 2 Matching, 2 Fill-in-Gap = 10 questions
+   * 1 MCQ, 1 Scenario, 1 Matching, 2 Fill-in-Gap = 5 questions
    */
   private async getMixedQuestions(levelId: string, numQuestions: number, randomize: boolean): Promise<AnyQuestion[]> {
     try {
-      // Define the distribution for 10 questions
+      // Define the baseline distribution for 5 questions
       const distribution = {
-        mcq: 3,
-        scenario: 3,
-        matching: 2,
+        mcq: 1,
+        scenario: 1,
+        matching: 1,
         fillInGap: 2
       };
 
-      // Adjust distribution if numQuestions is different from 10
-      if (numQuestions !== 10) {
-        const ratio = numQuestions / 10;
-        distribution.mcq = Math.round(3 * ratio);
-        distribution.scenario = Math.round(3 * ratio);
-        distribution.matching = Math.round(2 * ratio);
-        distribution.fillInGap = numQuestions - (distribution.mcq + distribution.scenario + distribution.matching);
+      // Adjust distribution proportionally if numQuestions differs from baseline
+      if (numQuestions !== 5) {
+        const ratio = numQuestions / 5;
+        distribution.mcq = Math.max(0, Math.round(1 * ratio));
+        distribution.scenario = Math.max(0, Math.round(1 * ratio));
+        distribution.matching = Math.max(0, Math.round(1 * ratio));
+        distribution.fillInGap = Math.max(
+          0,
+          numQuestions - (distribution.mcq + distribution.scenario + distribution.matching)
+        );
       }
 
       // Fetch all question types in parallel

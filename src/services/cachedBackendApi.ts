@@ -48,7 +48,8 @@ class CachedBackendApiService {
       const { cacheVersionBumped } = await cacheService.initialize();
 
       if (cacheVersionBumped) {
-        store.dispatch(clearLearningCache());
+        // Keep in-memory learning/progress UI state intact; only reset fetch-session
+        // guards so subsequent calls can repopulate from the migrated cache/backend.
         this.resetSessionTracking();
       }
     } catch (error) {
@@ -227,7 +228,7 @@ class CachedBackendApiService {
 
   async getQuestions(
     levelId: string,
-    numQuestions: number = 10,
+    numQuestions: number = 5,
     _difficulty: 'easy' | 'medium' | 'hard' | 'mixed' = 'mixed'
   ): Promise<any[]> {
     if (this.sessionFetchedQuestions.has(levelId)) {

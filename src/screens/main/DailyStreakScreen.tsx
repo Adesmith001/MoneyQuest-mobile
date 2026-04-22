@@ -81,7 +81,9 @@ const DailyStreakScreen: React.FC = () => {
               />
             </MaskedView>
 
-            <Text style={styles.streakLabel}>day streak</Text>
+            <Text style={styles.streakLabel}>
+              {currentStreak > 2 ? "days streak" : "day streak"}
+            </Text>
 
             <View style={styles.calendarContainer}>
               {week.map((day, index) => {

@@ -9,6 +9,9 @@ import { schoolService } from '../services/schoolService';
 import revenueCatService from '../services/revenueCatService';
 import { Subscription } from '../types/subscription';
 import { SchoolStudent } from '../types/school';
+import { AdminAccessGrant } from '../types/accessGrant';
+import { accessGrantService } from '../services/accessGrantService';
+import notificationService from '../services/notifications';
 import { Ionicons } from '@expo/vector-icons';
 
 interface SubscriptionGuardProps {
@@ -40,9 +43,11 @@ const SubscriptionGuard: React.FC<SubscriptionGuardProps> = ({
   const [hasAccess, setHasAccess] = useState(true);
   const [subscription, setSubscription] = useState<Subscription | null>(null);
   const [schoolEnrollment, setSchoolEnrollment] = useState<SchoolStudent | null>(null);
+  const [accessGrant, setAccessGrant] = useState<AdminAccessGrant | null>(null);
   const [trialDaysRemaining, setTrialDaysRemaining] = useState(0);
   const [schoolDaysRemaining, setSchoolDaysRemaining] = useState(0);
-  const [subscriptionType, setSubscriptionType] = useState<'individual' | 'school' | null>(null);
+  const [grantDaysRemaining, setGrantDaysRemaining] = useState(0);
+  const [subscriptionType, setSubscriptionType] = useState<'individual' | 'school' | 'grant' | null>(null);
   const [showBanner, setShowBanner] = useState(true);
 
   const floatingBadgePosition = useMemo(
@@ -59,9 +64,13 @@ const SubscriptionGuard: React.FC<SubscriptionGuardProps> = ({
 
   const checkSubscription = async () => {
     if (!user) {
+      notificationService.setCurrentUserId(null);
       setHasAccess(false);
       return;
     }
+
+    notificationService.setCurrentUserId(user.$id);
+    notificationService.syncAdminBroadcasts(user.$id).catch(() => {});
 
     // ── Step 1: school subscription (still needs network; gracefully skips if offline) ──
     try {
@@ -69,7 +78,9 @@ const SubscriptionGuard: React.FC<SubscriptionGuardProps> = ({
       if (schoolResult.hasAccess) {
         setHasAccess(true);
         setSchoolEnrollment(schoolResult.enrollment);
+        setAccessGrant(null);
         setSchoolDaysRemaining(schoolResult.daysRemaining);
+        setGrantDaysRemaining(0);
         setSubscriptionType('school');
         // Background-refresh individual cache too, fire-and-forget
         subscriptionService.refreshSubscriptionCache(user.$id);
@@ -79,15 +90,34 @@ const SubscriptionGuard: React.FC<SubscriptionGuardProps> = ({
       // Offline — skip school check, fall through to individual cache
     }
 
-    // ── Step 2: individual subscription via local cache (offline-first) ──
+    // ── Step 2: temporary admin access grant (offline-first) ──
+    try {
+      const grantResult = await accessGrantService.hasActiveGrant(user.$id);
+      if (grantResult.hasAccess && grantResult.grant) {
+        setHasAccess(true);
+        setAccessGrant(grantResult.grant);
+        setGrantDaysRemaining(grantResult.daysRemaining);
+        setSchoolEnrollment(null);
+        setSchoolDaysRemaining(0);
+        setSubscriptionType('grant');
+        subscriptionService.refreshSubscriptionCache(user.$id).catch(() => {});
+        return;
+      }
+    } catch {
+      // Offline and no cache — continue to individual subscription flow
+    }
+
+    // ── Step 3: individual subscription via local cache (offline-first) ──
     const { hasAccess: localAccess, subscription: localSub, trialDaysRemaining: localDays } =
       await subscriptionService.checkLocalSubscriptionAccess(user.$id);
 
     setHasAccess(localAccess);
     setSubscription(localSub);
+    setAccessGrant(null);
+    setGrantDaysRemaining(0);
     setSubscriptionType(localAccess ? 'individual' : null);
     setTrialDaysRemaining(localDays);
-      // ── Step 3: RevenueCat entitlement check (store subscribers without Appwrite record) ──
+      // ── Step 4: RevenueCat entitlement check (store subscribers without Appwrite record) ──
       // Runs when the user has no local cache (e.g. fresh install, new device).
       // If RevenueCat says they have premium, grant access and trigger an async Appwrite sync.
       if (!localAccess && localSub === null && revenueCatService.isConfigured()) {
@@ -129,7 +159,7 @@ const SubscriptionGuard: React.FC<SubscriptionGuardProps> = ({
       setTimeout(() => navigation.navigate('Premium' as never), 500);
     }
 
-    // ── Step 3: background network refresh (fire-and-forget) ──
+    // ── Step 5: background network refresh (fire-and-forget) ──
     // Keeps the local cache up-to-date for future offline sessions.
     subscriptionService.refreshSubscriptionCache(user.$id).then(async () => {
       // Re-read updated cache and silently update UI state
@@ -137,6 +167,7 @@ const SubscriptionGuard: React.FC<SubscriptionGuardProps> = ({
         await subscriptionService.checkLocalSubscriptionAccess(user.$id);
       setHasAccess(updated);
       setSubscription(updatedSub);
+      setAccessGrant(null);
       setTrialDaysRemaining(updatedDays);
     }).catch(() => { /* offline — keep current state */ });
   };
@@ -197,6 +228,19 @@ const SubscriptionGuard: React.FC<SubscriptionGuardProps> = ({
         <View style={[styles.schoolBadge, floatingBadgePosition]}>
           <Ionicons name="school" size={12} color="#FF6B35" />
           <Text style={styles.schoolText}>School</Text>
+        </View>
+      </>
+    );
+  }
+
+  // Show admin grant badge for temporary access grants
+  if (subscriptionType === 'grant' && accessGrant) {
+    return (
+      <>
+        {children}
+        <View style={[styles.grantBadge, floatingBadgePosition]}>
+          <Ionicons name="key" size={12} color="#FF6B35" />
+          <Text style={styles.grantText}>Grant {grantDaysRemaining}d</Text>
         </View>
       </>
     );
@@ -348,6 +392,23 @@ const styles = StyleSheet.create({
     zIndex: 999,
   },
   schoolText: {
+    fontSize: 11,
+    fontWeight: '700',
+    color: '#FF6B35',
+    marginLeft: 5,
+    letterSpacing: 0.5,
+  },
+  grantBadge: {
+    position: 'absolute',
+    backgroundColor: 'rgba(255, 107, 53, 0.08)',
+    borderRadius: 16,
+    paddingVertical: 6,
+    paddingHorizontal: 12,
+    flexDirection: 'row',
+    alignItems: 'center',
+    zIndex: 999,
+  },
+  grantText: {
     fontSize: 11,
     fontWeight: '700',
     color: '#FF6B35',

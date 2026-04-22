@@ -47,29 +47,33 @@ const EditProfileScreen: React.FC<Props> = ({ navigation }) => {
   // Load current settings on mount
   useEffect(() => {
     const loadSettings = async () => {
-      // Load notification status
-      const permissionStatus = await NotificationService.getPermissionsStatus();
-      setNotificationEnabled(permissionStatus === 'granted');
+      try {
+        const notificationState = await NotificationService.getNotificationToggleState();
+        setNotificationEnabled(notificationState.effectiveEnabled);
 
-      // Load sound status
-      const soundStatus = soundService.getSoundEnabled();
-      setSoundEnabled(soundStatus);
+        await soundService.initialize();
+        const soundStatus = soundService.getSoundEnabled();
+        setSoundEnabled(soundStatus);
+      } catch (error) {
+        console.error('Failed to load settings:', error);
+      }
     };
 
     loadSettings();
   }, []);
 
   const handleNotificationToggle = async (value: boolean) => {
+    if (isLoadingPermissions) {
+      return;
+    }
+
+    setIsLoadingPermissions(true);
+
     if (value) {
-      // Request permissions
-      setIsLoadingPermissions(true);
-      const granted = await NotificationService.requestPermissions();
-      setIsLoadingPermissions(false);
+      const granted = await NotificationService.enableNotificationsFromSettings();
 
       if (granted) {
         setNotificationEnabled(true);
-        // Schedule daily reminders
-        await NotificationService.scheduleDailyReminder();
         Alert.alert('Success', 'Notifications enabled! You will receive daily reminders.');
       } else {
         setNotificationEnabled(false);
@@ -90,20 +94,21 @@ const EditProfileScreen: React.FC<Props> = ({ navigation }) => {
         );
       }
     } else {
-      // Disable notifications
-      await NotificationService.cancelAllNotifications();
+      await NotificationService.disableNotificationsFromSettings();
       setNotificationEnabled(false);
       Alert.alert('Disabled', 'Notifications have been turned off.');
     }
+
+    setIsLoadingPermissions(false);
   };
 
-  const handleSoundToggle = (value: boolean) => {
+  const handleSoundToggle = async (value: boolean) => {
     setSoundEnabled(value);
-    soundService.setSoundEnabled(value);
+    await soundService.setSoundEnabled(value);
     
     // Play a test sound when enabling
     if (value) {
-      soundService.playSound('click');
+      soundService.playSound('click').catch(() => {});
     }
   };
 
@@ -235,6 +240,7 @@ const EditProfileScreen: React.FC<Props> = ({ navigation }) => {
               <Switch
                 value={notificationEnabled}
                 onValueChange={handleNotificationToggle}
+                disabled={isLoadingPermissions}
                 trackColor={{ false: "#E0E0E0", true: "#FF4500" }}
                 thumbColor={"#FFFFFF"}
                 ios_backgroundColor="#E0E0E0"

@@ -19,10 +19,60 @@ const initialState: LeaderboardState = {
   currentUserRank: null,
 };
 
+const STREAK_QUERY_BATCH_SIZE = 100;
+
+const toStreakNumber = (value: unknown): number => {
+  const normalized = Number(value);
+  return Number.isFinite(normalized) ? normalized : 0;
+};
+
+const buildStreakMapForUserIds = async (userIds: string[]): Promise<Map<string, number>> => {
+  const streakMap = new Map<string, number>();
+  const uniqueUserIds = Array.from(new Set(userIds.filter(Boolean)));
+
+  if (uniqueUserIds.length === 0) {
+    return streakMap;
+  }
+
+  for (let index = 0; index < uniqueUserIds.length; index += STREAK_QUERY_BATCH_SIZE) {
+    const chunk = uniqueUserIds.slice(index, index + STREAK_QUERY_BATCH_SIZE);
+
+    try {
+      const response = await databases.listDocuments(
+        DB_ID,
+        COLLECTIONS.STREAKS,
+        [
+          Query.equal('userId', chunk),
+          Query.limit(STREAK_QUERY_BATCH_SIZE),
+        ]
+      );
+
+      response.documents.forEach((doc: any) => {
+        const userId = String(doc.userId || '');
+        if (!userId) {
+          return;
+        }
+
+        const weeklyValue = toStreakNumber(doc.weeklyStreak ?? doc.streak ?? 0);
+        const previousValue = streakMap.get(userId) ?? 0;
+
+        if (weeklyValue >= previousValue) {
+          streakMap.set(userId, weeklyValue);
+        }
+      });
+    } catch (error) {
+      console.warn('Failed to load streak data for leaderboard users:', error);
+    }
+  }
+
+  return streakMap;
+};
+
 const buildLeaderboardEntries = (
   documents: any[],
   currentMonth: number,
-  currentYear: number
+  currentYear: number,
+  streakMap?: Map<string, number>
 ): LeaderboardEntry[] =>
   documents.map((doc: any, index: number) => ({
     $id: doc.$id,
@@ -31,6 +81,8 @@ const buildLeaderboardEntries = (
     avatar: doc.avatar || '',
     profilePicture: doc.profilePicture || '',
     monthlyXP: doc.monthlyXP || 0,
+    // Always prefer streak collection value (same source as Streak screen)
+    streak: streakMap?.get(doc.$id) ?? 0,
     rank: index + 1,
     month: `${currentMonth}`,
     year: currentYear,
@@ -39,19 +91,26 @@ const buildLeaderboardEntries = (
 const buildLeaderboardEntriesFromTable = (
   documents: any[],
   currentMonth: number,
-  currentYear: number
+  currentYear: number,
+  streakMap?: Map<string, number>
 ): LeaderboardEntry[] =>
-  documents.map((doc: any, index: number) => ({
-    $id: doc.$id,
-    userId: doc.userId || doc.$id,
-    userName: doc.userName || 'Anonymous',
-    avatar: '',
-    profilePicture: doc.profilePicture || '',
-    monthlyXP: doc.monthlyXP || 0,
-    rank: doc.rank || index + 1,
-    month: `${currentMonth}`,
-    year: currentYear,
-  }));
+  documents.map((doc: any, index: number) => {
+    const userId = doc.userId || doc.$id;
+
+    return {
+      $id: doc.$id,
+      userId,
+      userName: doc.userName || 'Anonymous',
+      avatar: '',
+      profilePicture: doc.profilePicture || '',
+      monthlyXP: doc.monthlyXP || 0,
+      // Always prefer streak collection value (same source as Streak screen)
+      streak: streakMap?.get(userId) ?? 0,
+      rank: doc.rank || index + 1,
+      month: `${currentMonth}`,
+      year: currentYear,
+    };
+  });
 
 const syncLeaderboardSnapshot = async (entries: LeaderboardEntry[]) => {
   if (entries.length === 0) {
@@ -84,6 +143,7 @@ const syncLeaderboardSnapshot = async (entries: LeaderboardEntry[]) => {
       userName: entry.userName,
       profilePicture: entry.profilePicture || '',
       monthlyXP: entry.monthlyXP,
+      streak: entry.streak ?? 0,
       month: entry.month,
       year: entry.year,
       rank: entry.rank,
@@ -105,6 +165,7 @@ const syncLeaderboardSnapshot = async (entries: LeaderboardEntry[]) => {
       existing.userName !== payload.userName ||
       (existing.profilePicture || '') !== payload.profilePicture ||
       (existing.monthlyXP || 0) !== payload.monthlyXP ||
+      (existing.streak || 0) !== payload.streak ||
       `${existing.month}` !== payload.month ||
       Number(existing.year || 0) !== payload.year ||
       Number(existing.rank || 0) !== payload.rank;
@@ -144,10 +205,14 @@ export const fetchLeaderboard = createAsyncThunk(
         ]
       );
 
+      const userIds = response.documents.map((doc: any) => String(doc.$id || '')).filter(Boolean);
+      const streakMap = await buildStreakMapForUserIds(userIds);
+
       const leaderboardEntries = buildLeaderboardEntries(
         response.documents,
         currentMonth,
-        currentYear
+        currentYear,
+        streakMap
       );
 
       try {
@@ -173,10 +238,16 @@ export const fetchLeaderboard = createAsyncThunk(
           ]
         );
 
+        const snapshotUserIds = snapshotResponse.documents
+          .map((doc: any) => String(doc.userId || doc.$id || ''))
+          .filter(Boolean);
+        const streakMap = await buildStreakMapForUserIds(snapshotUserIds);
+
         return buildLeaderboardEntriesFromTable(
           snapshotResponse.documents,
           currentMonth,
-          currentYear
+          currentYear,
+          streakMap
         );
       } catch (snapshotError: any) {
         return rejectWithValue(
@@ -195,6 +266,9 @@ export const updateUserRank = createAsyncThunk(
       const currentMonth = currentDate.getMonth() + 1;
       const currentYear = currentDate.getFullYear();
       const monthKey = `${currentMonth}`;
+      const user = await databases.getDocument(DB_ID, COLLECTIONS.USERS, userId);
+      const streakMap = await buildStreakMapForUserIds([userId]);
+      const weeklyStreak = streakMap.get(userId) ?? 0;
 
       // Check if user already has a leaderboard entry for this month
       const existingEntry = await databases.listDocuments(
@@ -216,11 +290,11 @@ export const updateUserRank = createAsyncThunk(
           entryId,
           {
             monthlyXP: xp,
+            streak: weeklyStreak,
           }
         );
       } else {
         // Create new entry
-        const user = await databases.getDocument(DB_ID, COLLECTIONS.USERS, userId);
         await databases.createDocument(
           DB_ID,
           COLLECTIONS.LEADERBOARD,
@@ -230,6 +304,7 @@ export const updateUserRank = createAsyncThunk(
             userName: user.username || user.name || 'Anonymous',
             profilePicture: user.profilePicture || '',
             monthlyXP: xp,
+            streak: weeklyStreak,
             month: monthKey,
             year: currentYear,
             rank: 1, // Appwrite column enforces a minimum rank of 1

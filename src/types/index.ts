@@ -159,6 +159,7 @@ export interface LeaderboardEntry {
   avatar?: string;       
   profilePicture?: string; 
   monthlyXP: number;
+  streak?: number;
   rank: number;
   month: string;
   year: number;

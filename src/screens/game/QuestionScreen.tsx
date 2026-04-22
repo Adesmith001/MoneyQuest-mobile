@@ -50,6 +50,7 @@ import MatchingQuestionComponent from "../../components/questions/MatchingQuesti
 import FillInGapQuestionComponent from "../../components/questions/FillInGapQuestion";
 import cacheService from "../../services/cacheService";
 import analyticsService from "../../services/analytics";
+import notificationService from "../../services/notifications";
 import { RenderContentWithTables } from "../../utils/tableParser";
 import CoachMark from "../../components/tutorial/CoachMark";
 import { QUESTION_COACH_STEPS } from "../../config/coachMarkSteps";
@@ -69,8 +70,8 @@ interface Props {
 }
 
 /**
- * Mix and limit questions to exactly 10 with specified distribution:
- * 3 scenario, 3 MCQ, 2 fill in the gaps, 2 matching
+ * Mix and limit questions to exactly 5 with specified distribution:
+ * 2 fill in the gaps, 1 MCQ, 1 scenario, 1 matching
  */
 const mixAndLimitQuestions = (questions: AnyQuestion[]): AnyQuestion[] => {
   // Separate questions by type
@@ -81,10 +82,10 @@ const mixAndLimitQuestions = (questions: AnyQuestion[]): AnyQuestion[] => {
 
   // Target counts for each type
   const targetCounts = {
-    scenario: 3,
-    mcq: 3,
+    scenario: 1,
+    mcq: 1,
     fillGap: 2,
-    matching: 2,
+    matching: 1,
   };
 
   // Helper to shuffle and take N items
@@ -105,14 +106,14 @@ const mixAndLimitQuestions = (questions: AnyQuestion[]): AnyQuestion[] => {
     ...selectedMatching,
   ];
 
-  const remainingNeeded = 10 - selectedQuestions.length;
+  const remainingNeeded = 5 - selectedQuestions.length;
   if (remainingNeeded > 0) {
     const usedIds = new Set(selectedQuestions.map(q => JSON.stringify(q)));
     const remaining = questions.filter(q => !usedIds.has(JSON.stringify(q)));
     selectedQuestions.push(...shuffleAndTake(remaining, remainingNeeded));
   }
 
-  return selectedQuestions.slice(0, 10);
+  return selectedQuestions.slice(0, 5);
 };
 
 /**
@@ -504,7 +505,7 @@ const QuestionScreen: React.FC<Props> = ({ navigation, route }) => {
           // Get questions for this level with caching
           const levelQuestions = await cachedBackendApi.getQuestions(
             levelId,
-            10,
+            5,
             "mixed"
           );
           
@@ -513,7 +514,7 @@ const QuestionScreen: React.FC<Props> = ({ navigation, route }) => {
             .map(q => normalizeQuestion(q))
             .filter((q): q is AnyQuestion => q !== null);
           
-          // Mix and limit to exactly 10 questions with proper distribution
+          // Mix and limit to exactly 5 questions with proper distribution
           const mixedQuestions = mixAndLimitQuestions(normalizedQuestions);
           setQuestions(mixedQuestions);
         }
@@ -1042,6 +1043,7 @@ const QuestionScreen: React.FC<Props> = ({ navigation, route }) => {
         // Determine next level: check if this was the last level in the section
         let nextLevelToUnlock = result.next_level_id;
         let nextSectionId = sectionId;
+        let nextSectionTitle: string | null = null;
 
         if (result.passed && !result.next_level_id) {
           // No next level returned means we're at the end of the current section
@@ -1060,6 +1062,7 @@ const QuestionScreen: React.FC<Props> = ({ navigation, route }) => {
                 if (nextSectionLevels.length > 0) {
                   nextLevelToUnlock = nextSectionLevels[0].level_id;
                   nextSectionId = nextSection.section_id;
+                  nextSectionTitle = nextSection.title;
                 }
               }
             } else {
@@ -1143,6 +1146,15 @@ const QuestionScreen: React.FC<Props> = ({ navigation, route }) => {
           user.$id,
           updateData
         );
+
+        const transitionedToNewSection =
+          result.passed && nextLevelToUnlock && nextSectionId !== sectionId;
+
+        if (transitionedToNewSection) {
+          notificationService
+            .sendSectionActiveNotification(nextSectionTitle || 'New section')
+            .catch(() => {});
+        }
 
         // Silently refresh leaderboard so the user's new rank is visible immediately
         dispatch(fetchLeaderboard({ silent: true }) as any);

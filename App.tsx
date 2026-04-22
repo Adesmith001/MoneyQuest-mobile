@@ -13,6 +13,7 @@ import notificationService from './src/services/notifications';
 import soundService from './src/services/soundService';
 import revenueCatService from './src/services/revenueCatService';
 import analyticsService from './src/services/analytics';
+import appUpdateService from './src/services/appUpdateService';
 
 // Ignore specific warnings that don't affect functionality
 LogBox.ignoreLogs([
@@ -30,9 +31,11 @@ if (ErrorUtils) {
         fatal: isFatal,
       })
       .catch(() => {});
+    notificationService
+      .sendAppErrorNotification(error?.message || 'Unknown app error')
+      .catch(() => {});
     if (isFatal) {
       console.error('FATAL ERROR:', error);
-      // Log to error tracking service here (e.g., Sentry)
       Alert.alert(
         'Unexpected Error',
         'The app encountered an unexpected error. Please restart the app.',
@@ -94,6 +97,9 @@ class ErrorBoundary extends React.Component<
 
   componentDidCatch(error: Error, errorInfo: React.ErrorInfo) {
     console.error('🔴 ErrorBoundary details:', error, errorInfo);
+    notificationService
+      .sendAppErrorNotification(error?.message || 'Rendering error')
+      .catch(() => {});
   }
 
   render() {
@@ -163,6 +169,9 @@ function AppContent() {
         notificationService.setupAllNotifications().catch(err => {
           console.warn('⚠️ Notification setup failed (non-blocking):', err);
         });
+
+        // Check for Play Store updates in the background (Android only)
+        appUpdateService.checkForStoreUpdate(true).catch(() => {});
       }
     }
 
@@ -181,6 +190,9 @@ function AppContent() {
   useEffect(() => {
     const subscription = AppState.addEventListener('change', (nextState) => {
       analyticsService.handleAppStateChange(nextState).catch(() => {});
+      if (nextState === 'active') {
+        appUpdateService.checkForStoreUpdate().catch(() => {});
+      }
     });
 
     return () => {

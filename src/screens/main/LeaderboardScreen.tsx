@@ -12,15 +12,14 @@ import { useSelector, useDispatch } from 'react-redux';
 import { useFocusEffect } from '@react-navigation/native';
 import { RootState } from '../../store';
 import { fetchLeaderboard } from '../../store/slices/leaderboardSlice';
-import { updateUser } from '../../store/slices/authSlice';
 import { LeaderboardEntry } from '../../types';
 import { getAvatarById } from '../../utils/avatarUtils';
 import { Ionicons } from '@expo/vector-icons';
-import levelProgressService from '../../services/levelProgress';
 
 const POLL_INTERVAL_MS = 30_000;
 
 const crownImage = require('../../../assets/crown.png');
+const streakImage = require('../../../assets/streakIcon.png');
 
 const LeaderboardScreen: React.FC = () => {
   const dispatch = useDispatch();
@@ -32,8 +31,6 @@ const LeaderboardScreen: React.FC = () => {
   // Keep stable refs so the interval always calls the latest dispatch
   const dispatchRef = useRef(dispatch);
   dispatchRef.current = dispatch;
-  const currentUserRef = useRef(currentUser);
-  currentUserRef.current = currentUser;
 
   useFocusEffect(
     useCallback(() => {
@@ -117,7 +114,13 @@ const LeaderboardScreen: React.FC = () => {
         <Text style={styles.podiumName} numberOfLines={1}>
           {player.userName}
         </Text>
-        <Text style={styles.podiumXP}>{player.monthlyXP} XP</Text>
+        <View style={styles.metricsRow}>
+          <Text style={styles.podiumXP}>{player.monthlyXP} XP</Text>
+          <View style={styles.streakInline}>
+            <Image source={streakImage} style={styles.streakIcon} resizeMode="contain" />
+            <Text style={styles.streakValue}>{player.streak ?? 0}</Text>
+          </View>
+        </View>
       </View>
     );
   };
@@ -148,7 +151,13 @@ const LeaderboardScreen: React.FC = () => {
         <Text style={styles.listName} numberOfLines={1}>
           {item.userName}
         </Text>
-        <Text style={styles.listXP}>{item.monthlyXP} XP</Text>
+        <View style={styles.metricsRow}>
+          <Text style={styles.listXP}>{item.monthlyXP} XP</Text>
+          <View style={styles.streakInline}>
+            <Image source={streakImage} style={styles.streakIcon} resizeMode="contain" />
+            <Text style={styles.streakValue}>{item.streak ?? 0}</Text>
+          </View>
+        </View>
       </View>
     );
   };
@@ -323,6 +332,28 @@ const styles = StyleSheet.create({
     fontWeight: '600',
     color: '#6C757D',
     marginTop: 2,
+  },
+  metricsRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    flexWrap: 'wrap',
+    gap: 8,
+    marginTop: 6,
+  },
+  streakInline: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 3,
+  },
+  streakIcon: {
+    width: 16,
+    height: 16,
+  },
+  streakValue: {
+    fontSize: 12,
+    fontWeight: '700',
+    color: '#FF6B35',
   },
 
   /* ── list (rank 4+) ──────────────── */
