@@ -206,6 +206,20 @@ export const getCurrentMonthKey = (): string => {
   return `${year}-${month}`;
 };
 
+export const normalizeMonthKey = (monthKey?: string | null): string | null => {
+  if (!monthKey) {
+    return null;
+  }
+
+  const match = /^(\d{4})-(\d{1,2})$/.exec(monthKey.trim());
+  if (!match) {
+    return null;
+  }
+
+  const [, year, month] = match;
+  return `${year}-${month.padStart(2, '0')}`;
+};
+
 /**
  * Get month name from month key
  * @param monthKey - Month key (e.g., "2025-11")

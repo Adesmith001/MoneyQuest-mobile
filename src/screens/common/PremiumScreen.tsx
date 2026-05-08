@@ -259,7 +259,7 @@ const PremiumScreen: React.FC = () => {
 
   const selectedPlanPriceLabel = rcPackages[selectedPlan]?.product.priceString
     || `NGN ${selectedPlanConfig.price.toLocaleString()}`;
-  const trialDisclosure = `30-day free trial, then ${selectedPlanPriceLabel}/${selectedPlanConfig.billingCycle} unless canceled before renewal.`;
+  const trialDisclosure = `14-day free trial, then ${selectedPlanPriceLabel}/${selectedPlanConfig.billingCycle} unless canceled before renewal.`;
 
   return (
     <SafeAreaView style={styles.container}>

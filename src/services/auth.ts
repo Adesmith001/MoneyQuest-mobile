@@ -14,6 +14,7 @@ import * as WebBrowser from "expo-web-browser";
 import * as Linking from "expo-linking";
 import { backendApi } from "./backendApi";
 import { levelProgressService } from "./levelProgress";
+import { getCurrentMonthKey, normalizeMonthKey } from "../utils";
 
 class AuthService {
 
@@ -230,6 +231,27 @@ class AuthService {
         userId
       );
 
+      const currentMonthKey = getCurrentMonthKey();
+      const needsMonthlyReset =
+        normalizeMonthKey(userDoc.lastMonthlyReset) !== currentMonthKey;
+
+      if (needsMonthlyReset) {
+        const resetPayload = {
+          monthlyXP: 0,
+          lastMonthlyReset: currentMonthKey,
+          updatedAt: new Date().toISOString(),
+        };
+
+        try {
+          await databases.updateDocument(DB_ID, COLLECTIONS.USERS, userId, resetPayload);
+        } catch (resetError) {
+          console.error("Monthly XP reset error:", resetError);
+        }
+
+        userDoc.monthlyXP = 0;
+        userDoc.lastMonthlyReset = currentMonthKey;
+      }
+
       // Type-safe conversion from Appwrite document to User interface
       const user: User = {
         $id: userDoc.$id,
@@ -253,6 +275,7 @@ class AuthService {
         correctAnswers: userDoc.correctAnswers || 0,
         monthlyXP: userDoc.monthlyXP || 0,
         totalXP: userDoc.totalXP || 0,
+        lastMonthlyReset: userDoc.lastMonthlyReset,
         lives: userDoc.lives !== undefined && userDoc.lives !== null ? userDoc.lives : 5,
         lastLifeRegenTime: userDoc.lastLifeRegenTime || new Date().toISOString(),
         currentLevelId: userDoc.currentLevelId,

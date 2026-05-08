@@ -1,157 +1,129 @@
-# API Caching System - Usage Guide
+# Learning Cache System
 
 ## Overview
-Your app now implements a **3-tier caching strategy** for sections, levels, and questions with a **30-day cache duration**. This significantly reduces API calls and improves performance.
 
-## Caching Layers
+MoneyQuest uses a mixed in-memory and persistent cache for learning-path data.
 
-### 1. Redux Store (Fastest - In-Memory)
-- First check, instant access
-- Lost on app restart
-- Persisted via redux-persist
+The current implementation lives in:
 
-### 2. AsyncStorage (Persistent - Offline)
-- Second check, very fast
-- Survives app restarts
-- Survives for 30 days
+- [src/services/cacheService.ts](/abs/path/c:/Users/USER/Downloads/Documents/Codes/MoneyQuest/src/services/cacheService.ts:1)
+- [src/services/cachedBackendApi.ts](/abs/path/c:/Users/USER/Downloads/Documents/Codes/MoneyQuest/src/services/cachedBackendApi.ts:1)
+- [src/store/slices/learningSlice.ts](/abs/path/c:/Users/USER/Downloads/Documents/Codes/MoneyQuest/src/store/slices/learningSlice.ts:1)
 
-### 3. Backend API (Authoritative)
-- Only called if cache is expired or missing
-- Data is saved to both Redux and AsyncStorage
+## What Is Cached
 
-## Cache Duration
-**30 days** for all learning content (sections, levels, questions)
+### Persisted
 
-## How to Use
+- Sections
+- Levels per section
+- Completed level IDs
+- Cache version metadata
 
-### Standard Usage (Recommended)
-Use `cachedBackendApi` instead of `backendApi` for sections, levels, and questions:
+### Not persisted the same way
 
-```typescript
-import cachedBackendApi from '../../services/cachedBackendApi';
+- Questions are requested through `backendApi.getLevelQuestions(...)`
+- Question requests are session-deduplicated
+- `hasCachedQuestions()` currently returns `false`
 
-// Get sections (cached)
-const sections = await cachedBackendApi.getSections();
+So sections and levels have the strongest cache behavior; questions are lighter-weight.
 
-// Get levels (cached)
-const levels = await cachedBackendApi.getLevels(sectionId);
+## Cache Layers
 
-// Get questions (cached)
-const questions = await cachedBackendApi.getQuestions(levelId, 10, 'mixed');
-```
+### Redux store
 
-### Force Refresh (When Needed)
-If you need to bypass cache and fetch fresh data:
+- Fastest read path
+- Used first for sections and levels
+- Includes timestamps in the learning slice
 
-```typescript
-// Force refresh sections
-const sections = await cachedBackendApi.refreshSections();
+### AsyncStorage
 
-// Force refresh levels
-const levels = await cachedBackendApi.refreshLevels(sectionId);
+- Persistent fallback for sections, levels, and completed level IDs
+- Used when Redux does not have valid data
 
-// Force refresh questions
-const questions = await cachedBackendApi.refreshQuestions(levelId, 10, 'mixed');
-```
+### Backend API
 
-### Manual Cache Management
+- Used when cache is missing or stale
+- Also used as refresh fallback before stale cached data is discarded
 
-```typescript
-import cacheService from '../../services/cacheService';
+## TTL and Freshness
 
-// Clear all learning content cache
-await cacheService.clearLearningCache();
+Cache freshness is controlled by `MONEYQUEST_CACHE_TTL_SECONDS`.
 
-// Clear specific items
-await cacheService.invalidateSections();
-await cacheService.invalidateLevels(sectionId);
-await cacheService.invalidateQuestions(levelId);
-```
+Current behavior:
 
-### Redux Actions
+- If the env value is valid and greater than `0`, that TTL is used
+- Otherwise the code falls back to `60 * 60 * 1000` ms, which is `1 hour`
+- The default env fallback in `environment.ts` is `259200` seconds, which is `3 days`
 
-```typescript
-import { 
-  clearLearningCache, 
-  invalidateSections,
-  invalidateLevels,
-  invalidateQuestions
-} from '../store/slices/learningSlice';
-import { useDispatch } from 'react-redux';
+In practice, the normal configured TTL is 3 days unless overridden.
 
-const dispatch = useDispatch();
+## Initialization and Versioning
 
-// Clear all Redux cache
-dispatch(clearLearningCache());
+`cacheService.initialize()` checks `LEARNING_CACHE_VERSION`.
 
-// Invalidate specific caches
-dispatch(invalidateSections());
-dispatch(invalidateLevels(sectionId));
-dispatch(invalidateQuestions(levelId));
-```
+If the stored version differs:
 
-## Files Modified
+- learning-path cache is cleared
+- the new version is written
+- fetch-session tracking is reset
 
-### New Files Created
-- `src/store/slices/learningSlice.ts` - Redux slice for learning content
-- `src/services/cachedBackendApi.ts` - Cached API wrapper
+This avoids stale persisted structures surviving schema or behavior changes.
 
-### Files Enhanced
-- `src/services/cacheService.ts` - Added sections, levels, questions caching
-- `src/services/backendApi.ts` - Added request deduplication
-- `src/store/index.ts` - Added learning slice to Redux store
+## Read Flow
 
-### Files Updated to Use Caching
-- `src/screens/main/HomeScreen.tsx`
-- `src/screens/game/QuestionScreen.tsx`
-- `src/services/auth.ts`
-- `src/services/levelProgress.ts`
-- `src/services/learningService.ts`
-- `src/services/questions.ts`
+### Sections
 
-## Benefits
+`cachedBackendApi.getSections()` currently does:
 
-1. **Reduced API Calls**: Data cached for 30 days
-2. **Faster Loading**: Instant access from Redux/AsyncStorage
-3. **Offline Support**: Works even without internet (if cached)
-4. **Bandwidth Savings**: Fewer network requests
-5. **Better UX**: Smoother, faster app experience
-6. **Request Deduplication**: Multiple simultaneous requests for same data are merged
+1. Initialize cache if needed
+2. Read Redux sections and timestamp
+3. If Redux is fresh, return it
+4. If Redux is stale, try backend refresh and fall back to stale Redux on failure
+5. If Redux is empty, try AsyncStorage
+6. If AsyncStorage is stale, try backend refresh and fall back to stale storage on failure
+7. If nothing exists, fetch from backend and persist
 
-## Cache Logs
+### Levels
 
-The system logs cache operations to help with debugging:
+`cachedBackendApi.getLevels(sectionId)` follows the same pattern per section ID.
 
-```
-✅ Sections from Redux cache
-✅ Levels for abc123 from AsyncStorage cache (5 days old)
-🌐 Fetching questions for xyz789 from API
-💾 Questions for xyz789 saved to cache
-📦 Sections cache age: 12 days, valid: true
-```
+### Questions
 
-## When to Force Refresh
+`cachedBackendApi.getQuestions(levelId, ...)` currently:
 
-Force refresh should be used sparingly, only when:
-- User explicitly requests fresh data (pull-to-refresh)
-- You know backend data has changed
-- After content updates/uploads
-- For admin/testing purposes
+- prevents duplicate in-session requests for the same level
+- waits briefly if a request is already in flight
+- fetches from backend
+- returns the response questions array
 
-## Cache Expiry
+It does not currently persist questions to Redux or AsyncStorage the way the older docs implied.
 
-Caches automatically expire after **30 days**. When expired:
-- Old data is ignored
-- Fresh data is fetched from API
-- New cache timestamp is set
+## Manual Refresh
 
-## Testing Cache
+`cachedBackendApi.forceRefreshLearningPath()`:
 
-To test the caching system:
+- fetches fresh sections
+- clears persisted learning-path cache
+- clears Redux learning cache
+- stores the refreshed sections
+- fetches and stores levels for each section
 
-1. First load: Should fetch from API
-2. Second load: Should use cached data
-3. After 30 days: Should fetch fresh data
-4. Offline: Should work with cached data
+Use this when the backend learning structure has changed and you want a full client refresh.
 
-Check console logs to verify cache behavior.
+## Cache Clearing
+
+`cacheService.clearLearningPathCache()` removes:
+
+- persisted sections
+- persisted level caches
+- persisted question cache keys and timestamps
+- background-refresh flags
+
+It intentionally does not remove user progress caches like completed levels.
+
+## Practical Implications
+
+- Learning screens can work from cached sections and levels after app restart
+- Stale cached data is still used if refresh fails, which improves resilience
+- Question content remains backend-driven per request
+- Cache behavior is environment-sensitive through the TTL setting

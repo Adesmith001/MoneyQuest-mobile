@@ -54,6 +54,9 @@ interface Section {
 
 const { width: screenWidth, height: screenHeight } = Dimensions.get("window");
 const SECTION_IDS_CACHE_KEY = '@moneyquest_last_section_ids';
+const LAST_NEW_SECTION_CHECK_KEY = '@moneyquest_last_new_section_check_at';
+const NOTIFIED_SECTION_IDS_CACHE_KEY = '@moneyquest_notified_section_ids';
+const NEW_SECTION_CHECK_INTERVAL_MS = 15 * 60 * 1000;
 
 const HomeScreen: React.FC<Props> = ({ navigation }) => {
   const { user } = useSelector((state: RootState) => state.auth);
@@ -170,12 +173,22 @@ const HomeScreen: React.FC<Props> = ({ navigation }) => {
         const newSectionIds = currentSectionIds.filter((id) => !previousIds.includes(id));
 
         if (hasInitiallyLoadedRef.current && newSectionIds.length > 0) {
-          const firstNewSection = backendSections.find(
-            (section) => section.section_id === newSectionIds[0]
-          );
-          await notificationService.sendSectionCreatedNotification(
-            firstNewSection?.title || 'New section'
-          );
+          const notifiedRaw = await AsyncStorage.getItem(NOTIFIED_SECTION_IDS_CACHE_KEY);
+          const notifiedIds = notifiedRaw ? (JSON.parse(notifiedRaw) as string[]) : [];
+          const unnotifiedSectionId = newSectionIds.find((id) => !notifiedIds.includes(id));
+
+          if (unnotifiedSectionId) {
+            const firstNewSection = backendSections.find(
+              (section) => section.section_id === unnotifiedSectionId
+            );
+            await notificationService.sendSectionCreatedNotification(
+              firstNewSection?.title || 'New section'
+            );
+            await AsyncStorage.setItem(
+              NOTIFIED_SECTION_IDS_CACHE_KEY,
+              JSON.stringify([...new Set([...notifiedIds, unnotifiedSectionId])])
+            );
+          }
         }
 
         await AsyncStorage.setItem(SECTION_IDS_CACHE_KEY, JSON.stringify(currentSectionIds));
@@ -186,12 +199,24 @@ const HomeScreen: React.FC<Props> = ({ navigation }) => {
     []
   );
 
-  const checkForNewSectionsAvailability = React.useCallback(async () => {
+  const checkForNewSectionsAvailability = React.useCallback(async (force: boolean = false) => {
     if (!user?.$id || !hasInitiallyLoadedRef.current) {
       return;
     }
 
     try {
+      const lastCheckedAtRaw = await AsyncStorage.getItem(LAST_NEW_SECTION_CHECK_KEY);
+      const lastCheckedAt = lastCheckedAtRaw ? Number.parseInt(lastCheckedAtRaw, 10) : 0;
+
+      if (
+        !force &&
+        Number.isFinite(lastCheckedAt) &&
+        lastCheckedAt > 0 &&
+        Date.now() - lastCheckedAt < NEW_SECTION_CHECK_INTERVAL_MS
+      ) {
+        return;
+      }
+
       const latestSections = await backendApi.getSections();
       const latestSectionIds = latestSections
         .map((section) => section.section_id)
@@ -202,8 +227,30 @@ const HomeScreen: React.FC<Props> = ({ navigation }) => {
         ? (JSON.parse(previousRaw) as string[])
         : sections.map((section) => section.id);
 
-      const hasNew = latestSectionIds.some((id) => !knownSectionIds.includes(id));
+      const newSectionIds = latestSectionIds.filter((id) => !knownSectionIds.includes(id));
+      const hasNew = newSectionIds.length > 0;
       setHasNewSectionsAvailable(hasNew);
+
+      if (hasNew) {
+        const notifiedRaw = await AsyncStorage.getItem(NOTIFIED_SECTION_IDS_CACHE_KEY);
+        const notifiedIds = notifiedRaw ? (JSON.parse(notifiedRaw) as string[]) : [];
+        const unnotifiedSectionId = newSectionIds.find((id) => !notifiedIds.includes(id));
+
+        if (unnotifiedSectionId) {
+          const newSection = latestSections.find(
+            (section) => section.section_id === unnotifiedSectionId
+          );
+          await notificationService.sendSectionCreatedNotification(
+            newSection?.title || 'New section'
+          );
+          await AsyncStorage.setItem(
+            NOTIFIED_SECTION_IDS_CACHE_KEY,
+            JSON.stringify([...new Set([...notifiedIds, unnotifiedSectionId])])
+          );
+        }
+      }
+
+      await AsyncStorage.setItem(LAST_NEW_SECTION_CHECK_KEY, Date.now().toString());
     } catch (error) {
       console.warn('Failed to check for new sections:', error);
     }
@@ -480,11 +527,13 @@ const HomeScreen: React.FC<Props> = ({ navigation }) => {
     setIsRefreshingContent(true);
     try {
       await cachedBackendApi.forceRefreshLearningPath();
+      await AsyncStorage.setItem(LAST_NEW_SECTION_CHECK_KEY, Date.now().toString());
       cachedBackendApi.resetSessionTracking();
       isFetchingRef.current = false;
       retryCountRef.current = 0;
       await fetchLearningPath();
       await notificationService.syncAdminBroadcasts(user.$id);
+      setHasNewSectionsAvailable(false);
       Alert.alert('Updated', 'Content is now up to date.');
     } catch (error) {
       console.error('Manual refresh failed:', error);
@@ -514,6 +563,12 @@ const HomeScreen: React.FC<Props> = ({ navigation }) => {
   useEffect(() => {
     refreshStaleState();
   }, [refreshStaleState]);
+
+  useEffect(() => {
+    if (hasInitiallyLoaded) {
+      checkForNewSectionsAvailability(true);
+    }
+  }, [checkForNewSectionsAvailability, hasInitiallyLoaded]);
 
   const navigateToLevel = React.useCallback(
     async (node: LevelNode, sectionIndex: number) => {
@@ -839,13 +894,14 @@ const HomeScreen: React.FC<Props> = ({ navigation }) => {
                   }
                   size={18}
                   color="#FFFFFF"
+                  style={styles.sectionChevron}
                 />
               </TouchableOpacity>
               <Text style={styles.sectionSubtitle}>
                 {section.levels.length} {section.levels.length === 1 ? 'Level' : 'Levels'}
               </Text>
             </View>
-            <View style={styles.bookIcon}>
+            <View style={styles.bookIconBadge}>
               <Image
                 source={require("../../../assets/bookIcon.png")}
                 style={styles.bookIconImage}
@@ -974,22 +1030,31 @@ const HomeScreen: React.FC<Props> = ({ navigation }) => {
         {sections.map((section, index) => renderSection(section, index))}
       </ScrollView>
 
-      {isContentStale && (
-        <TouchableOpacity
-          style={[styles.refreshFab, isRefreshingContent && styles.refreshFabDisabled]}
-          onPress={handleManualRefresh}
-          disabled={isRefreshingContent}
-          activeOpacity={0.85}
-        >
-          <Text style={styles.refreshFabIcon}>{isRefreshingContent ? '...' : '↻'}</Text>
-        </TouchableOpacity>
-      )}
+      <TouchableOpacity
+        style={[
+          styles.refreshFab,
+          hasNewSectionsAvailable && styles.refreshFabHighlighted,
+          isRefreshingContent && styles.refreshFabDisabled,
+        ]}
+        onPress={handleManualRefresh}
+        disabled={isRefreshingContent}
+        activeOpacity={0.85}
+      >
+        <Ionicons
+          name={isRefreshingContent ? 'sync' : 'refresh'}
+          size={24}
+          color="#FFFFFF"
+        />
+        {hasNewSectionsAvailable && !isRefreshingContent && (
+          <View style={styles.refreshFabDot} />
+        )}
+      </TouchableOpacity>
 
-      {hasNewSectionsAvailable && (
+      {hasNewSectionsAvailable && !isContentStale && (
         <Animated.View
           style={[
             styles.newSectionBadgeWrap,
-            isContentStale && styles.newSectionBadgeWithRefresh,
+            styles.newSectionBadgeAboveRefresh,
             { transform: [{ scale: newSectionBadgePulse }] },
           ]}
         >
@@ -1099,25 +1164,36 @@ const styles = StyleSheet.create({
   sectionTitleButton: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 8,
+    gap: 6,
   },
   sectionTitle: {
-    fontSize: 24,
+    fontSize: 17,
     fontWeight: "bold",
     color: "#FFFFFF",
     flexShrink: 1,
+    textTransform: "uppercase",
+  },
+  sectionChevron: {
+    marginTop: 1,
   },
   sectionSubtitle: {
-    fontSize: 16,
-    color: "#FFFFFF",
-    marginTop: 2,
+    fontSize: 12,
+    color: "rgba(255,255,255,0.92)",
+    marginTop: 4,
+    fontWeight: "600",
   },
-  bookIcon: {
+  bookIconBadge: {
     marginLeft: 12,
+    width: 42,
+    height: 42,
+    borderRadius: 14,
+    backgroundColor: "rgba(255,255,255,0.2)",
+    alignItems: "center",
+    justifyContent: "center",
   },
   bookIconImage: {
-    width: 28,
-    height: 28,
+    width: 22,
+    height: 22,
     resizeMode: "contain",
   },
   starIcon: {
@@ -1127,7 +1203,8 @@ const styles = StyleSheet.create({
   },
   levelsContainer: {
     paddingHorizontal: 0,
-    marginTop: 20,
+    marginTop: 10,
+    paddingBottom: 28,
   },
   levelContainer: {
     height: 150,
@@ -1317,10 +1394,17 @@ const styles = StyleSheet.create({
   refreshFabDisabled: {
     opacity: 0.7,
   },
-  refreshFabIcon: {
-    color: '#FFFFFF',
-    fontSize: 24,
-    fontWeight: '700',
+  refreshFabHighlighted: {
+    backgroundColor: '#0EA5A4',
+  },
+  refreshFabDot: {
+    position: 'absolute',
+    top: 10,
+    right: 10,
+    width: 10,
+    height: 10,
+    borderRadius: 5,
+    backgroundColor: '#FFFFFF',
   },
   newSectionBadge: {
     backgroundColor: '#0EA5A4',
@@ -1343,7 +1427,7 @@ const styles = StyleSheet.create({
     bottom: 96,
     zIndex: 100,
   },
-  newSectionBadgeWithRefresh: {
+  newSectionBadgeAboveRefresh: {
     bottom: 160,
   },
   newSectionBadgeText: {
@@ -1354,51 +1438,53 @@ const styles = StyleSheet.create({
   sectionDropdownPanel: {
     marginTop: 10,
     backgroundColor: '#FFFFFF',
-    borderRadius: 16,
-    borderWidth: 2,
-    borderColor: '#FFB085',
-    paddingHorizontal: 10,
-    paddingVertical: 10,
+    borderRadius: 24,
+    borderWidth: 1,
+    borderColor: '#F6D5C8',
+    paddingHorizontal: 12,
+    paddingTop: 12,
+    paddingBottom: 8,
     shadowColor: '#000',
-    shadowOffset: { width: 0, height: 6 },
-    shadowOpacity: 0.16,
-    shadowRadius: 12,
-    elevation: 8,
-    maxHeight: screenHeight * 0.4,
+    shadowOffset: { width: 0, height: 8 },
+    shadowOpacity: 0.12,
+    shadowRadius: 16,
+    elevation: 10,
+    maxHeight: screenHeight * 0.34,
   },
   sectionDropdownTitle: {
     fontSize: 13,
     fontWeight: '800',
-    color: '#FF6B35',
-    marginBottom: 8,
-    paddingHorizontal: 4,
+    color: '#A14A1C',
+    marginBottom: 6,
+    paddingHorizontal: 6,
   },
   sectionDropdownList: {
-    maxHeight: screenHeight * 0.32,
+    maxHeight: screenHeight * 0.26,
   },
   sectionDropdownItem: {
-    borderRadius: 12,
-    paddingHorizontal: 10,
-    paddingVertical: 9,
-    marginBottom: 8,
-    backgroundColor: '#FFF4ED',
+    borderRadius: 18,
+    paddingHorizontal: 14,
+    paddingVertical: 12,
+    marginBottom: 6,
+    backgroundColor: '#FFFFFF',
     borderWidth: 1,
-    borderColor: '#FFD7C2',
+    borderColor: 'transparent',
   },
   sectionDropdownItemActive: {
-    backgroundColor: '#FFE6D6',
-    borderColor: '#FF9B6B',
+    backgroundColor: '#FCE0D4',
+    borderColor: '#E8BAA8',
   },
   sectionDropdownItemTitle: {
-    fontSize: 13,
+    fontSize: 15,
     fontWeight: '700',
-    color: '#8A320F',
-    marginBottom: 2,
+    color: '#2C211B',
+    marginBottom: 3,
+    textTransform: 'uppercase',
   },
   sectionDropdownItemMeta: {
-    fontSize: 11,
-    color: '#B45309',
-    fontWeight: '600',
+    fontSize: 12,
+    color: '#7B6A63',
+    fontWeight: '500',
   },
   sectionDropdownEmptyText: {
     textAlign: 'center',

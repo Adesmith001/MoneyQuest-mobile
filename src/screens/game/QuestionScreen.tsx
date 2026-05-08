@@ -52,6 +52,7 @@ import cacheService from "../../services/cacheService";
 import analyticsService from "../../services/analytics";
 import notificationService from "../../services/notifications";
 import { RenderContentWithTables } from "../../utils/tableParser";
+import { getCurrentMonthKey } from "../../utils";
 import CoachMark from "../../components/tutorial/CoachMark";
 import { QUESTION_COACH_STEPS } from "../../config/coachMarkSteps";
 import { markQuestionGuideSeen } from "../../store/slices/tutorialSlice";
@@ -259,6 +260,7 @@ const QuestionScreen: React.FC<Props> = ({ navigation, route }) => {
   } = route.params;
   const dispatch = useDispatch();
   const { user } = useSelector((state: RootState) => state.auth);
+  const gameHealth = useSelector((state: RootState) => state.game.health);
 
   const { hasSeenQuestionGuide } = useSelector((state: RootState) => state.tutorial);
 
@@ -295,6 +297,7 @@ const QuestionScreen: React.FC<Props> = ({ navigation, route }) => {
     correct: string[];
     incorrect: string[];
   }>({ correct: [], incorrect: [] });
+  const [shouldAutoSubmitMatching, setShouldAutoSubmitMatching] = useState(false);
 
   // Section image URL (displayed in article view)
   const [sectionImageUrl, setSectionImageUrl] = useState<string | null>(null);
@@ -807,17 +810,23 @@ const QuestionScreen: React.FC<Props> = ({ navigation, route }) => {
     // Always increment total attempts for accuracy calculation
     setTotalAttempts(totalAttempts + 1);
 
-    // IMMEDIATE life deduction for incorrect answers - don't wait for API
-    // BUT skip life deduction if this is a retake of an already completed level
-    if (!isCorrect && !isRetake) {
+    // Immediate life deduction for every incorrect answer.
+    if (!isCorrect) {
       soundService.playSound("incorrect"); // Play incorrect sound immediately
 
       // Deduct life IMMEDIATELY using livesService and update Appwrite
       try {
+        const currentLives =
+          gameHealth !== undefined
+            ? gameHealth
+            : user.lives !== undefined && user.lives !== null
+              ? user.lives
+              : 5;
+
         const { lives, lastLifeRegenTime, canContinue } =
           await livesService.deductLife(
             user.$id,
-            user.lives !== undefined && user.lives !== null ? user.lives : 5,
+            currentLives,
             user.lastLifeRegenTime || new Date().toISOString()
           );
 
@@ -853,9 +862,6 @@ const QuestionScreen: React.FC<Props> = ({ navigation, route }) => {
         console.error("Failed to deduct life:", lifeError);
         // Continue anyway - don't block the user
       }
-    } else if (!isCorrect && isRetake) {
-      // Retake mode - just play sound, no life deduction
-      soundService.playSound("incorrect");
     }
 
     try {
@@ -907,12 +913,47 @@ const QuestionScreen: React.FC<Props> = ({ navigation, route }) => {
     }
   };
 
+  useEffect(() => {
+    const currentQuestion = questions[currentQuestionIndex];
+    if (
+      !shouldAutoSubmitMatching ||
+      !currentQuestion ||
+      currentQuestion.question_type !== "matching" ||
+      isCorrectModalVisible ||
+      isIncorrectModalVisible ||
+      isWaitingForNext
+    ) {
+      return;
+    }
+
+    const matchingQuestion = currentQuestion as MatchingQuestion;
+    const hasCompletedAllMatches = Object.keys(matchingQuestion.correct_matches).every(
+      (leftId) => matchingAnswers[leftId] === matchingQuestion.correct_matches[leftId]
+    );
+
+    if (!hasCompletedAllMatches) {
+      return;
+    }
+
+    setShouldAutoSubmitMatching(false);
+    handleSubmit();
+  }, [
+    shouldAutoSubmitMatching,
+    questions,
+    currentQuestionIndex,
+    matchingAnswers,
+    isCorrectModalVisible,
+    isIncorrectModalVisible,
+    isWaitingForNext,
+  ]);
+
   const handleContinue = async () => {
     setCorrectModalVisible(false);
     setIncorrectModalVisible(false);
     setSelectedAnswer("");
     setMatchingAnswers({});
     setFillInGapAnswers({});
+    setShouldAutoSubmitMatching(false);
     setIsFlagged(false); // Reset flag state for next question
     setIsFlagModalVisible(false); // Ensure flag modal is closed
     setIsWaitingForNext(false); // Re-enable the button for next question
@@ -988,8 +1029,7 @@ const QuestionScreen: React.FC<Props> = ({ navigation, route }) => {
         const { xp: newXP, monthlyXP: newMonthlyXP, totalXP: newTotalXP } = result.writtenXP;
 
         // Current month key — used to prevent ProfileScreen from re-triggering monthly reset
-        const now = new Date();
-        const currentMonthKey = `${now.getFullYear()}-${now.getMonth() + 1}`;
+        const currentMonthKey = getCurrentMonthKey();
 
         // updateData only carries fields NOT already written by submitLevelProgress
         const updateData: any = {
@@ -1252,6 +1292,7 @@ const QuestionScreen: React.FC<Props> = ({ navigation, route }) => {
   }
 
   const progress = ((currentQuestionIndex + 1) / questions.length) * 100;
+  const isMatchingQuestionView = currentQuestion.question_type === "matching";
 
   // Determine if user can submit based on question type
   let canSubmit = false;
@@ -1407,6 +1448,7 @@ const QuestionScreen: React.FC<Props> = ({ navigation, route }) => {
               setMatchingAnswers({ ...matchingAnswers, [leftId]: rightId });
             }
           }}
+          onAutoAdvance={() => setShouldAutoSubmitMatching(true)}
           disabled={isCorrectModalVisible || isIncorrectModalVisible}
           showResults={isCorrectModalVisible || isIncorrectModalVisible}
         />
@@ -1481,8 +1523,20 @@ const QuestionScreen: React.FC<Props> = ({ navigation, route }) => {
         />
       </View>
 
-      <ScrollView contentContainerStyle={styles.content}>
-        <View style={styles.questionHeaderRow}>
+      <ScrollView
+        style={styles.quizScrollView}
+        contentContainerStyle={[
+          styles.content,
+          isMatchingQuestionView && styles.matchingContent,
+        ]}
+        showsVerticalScrollIndicator={false}
+      >
+        <View
+          style={[
+            styles.questionHeaderRow,
+            isMatchingQuestionView && styles.matchingQuestionHeaderRow,
+          ]}
+        >
           <TouchableOpacity
             style={styles.flagButton}
             onPress={handleFlagQuestion}
@@ -1504,11 +1558,13 @@ const QuestionScreen: React.FC<Props> = ({ navigation, route }) => {
         {renderQuestion()}
       </ScrollView>
 
-      <View style={styles.footer}>
+      <View style={[styles.footer, isMatchingQuestionView && styles.matchingFooter]}>
         <CustomButton
           title={"Next"}
           onPress={handleSubmit}
           disabled={!canSubmit || isWaitingForNext}
+          size={isMatchingQuestionView ? "small" : "medium"}
+          style={isMatchingQuestionView ? styles.matchingNextButton : undefined}
         />
       </View>
 
@@ -1541,6 +1597,7 @@ const QuestionScreen: React.FC<Props> = ({ navigation, route }) => {
           setMatchingAnswers({});
           setFillInGapAnswers({});
           setMatchingResults({ correct: [], incorrect: [] });
+          setShouldAutoSubmitMatching(false);
         }}
         chosenAnswer={getChosenAnswerText()}
         explanation={getExplanation()}
@@ -1595,9 +1652,9 @@ const styles = StyleSheet.create({
   header: {
     flexDirection: "row",
     alignItems: "center",
-    paddingHorizontal: SPACING.md,
-    paddingTop: 20,
-    paddingBottom: SPACING.sm,
+    paddingHorizontal: SPACING.sm,
+    paddingTop: 12,
+    paddingBottom: 4,
   },
   headerTitle: {
     fontSize: FONT_SIZES.lg,
@@ -1607,6 +1664,7 @@ const styles = StyleSheet.create({
     paddingTop: 10,
     flex: 1,
     flexShrink: 1,
+    textTransform: "uppercase",
   },
   closeButton: {
     fontSize: 22,
@@ -1614,16 +1672,27 @@ const styles = StyleSheet.create({
     marginRight: SPACING.md,
     padding: SPACING.xs,
   },
+  quizScrollView: {
+    flex: 1,
+  },
   content: {
     flexGrow: 1,
     padding: SPACING.md,
-    justifyContent: "center",
+    justifyContent: "flex-start",
+  },
+  matchingContent: {
+    paddingTop: 4,
+    paddingBottom: 12,
+    paddingHorizontal: 12,
   },
   questionHeaderRow: {
     flexDirection: "row",
     justifyContent: "space-between",
     alignItems: "center",
-    marginBottom: SPACING.sm,
+    marginBottom: 8,
+  },
+  matchingQuestionHeaderRow: {
+    marginBottom: 4,
   },
   flagButton: {
     padding: SPACING.xs,
@@ -1632,7 +1701,7 @@ const styles = StyleSheet.create({
     alignItems: "flex-end",
   },
   questionCounterText: {
-    fontSize: 16,
+    fontSize: 14,
     fontWeight: 'bold',
     color: COLORS.primary,
   },
@@ -1710,7 +1779,18 @@ const styles = StyleSheet.create({
   },
   footer: {
     padding: SPACING.md,
-    paddingBottom: SPACING.md + 16,
+    paddingTop: 10,
+    paddingBottom: SPACING.md + 10,
+  },
+  matchingFooter: {
+    paddingHorizontal: 16,
+    paddingTop: 8,
+    paddingBottom: 14,
+  },
+  matchingNextButton: {
+    width: '100%',
+    maxWidth: 280,
+    borderRadius: 14,
   },
   submittingOverlay: {
     position: 'absolute',

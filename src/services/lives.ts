@@ -159,6 +159,15 @@ class LivesService {
     currentLives: number,
     lastRegenTime: string
   ): Promise<{ lives: number; lastLifeRegenTime: string; canContinue: boolean }> {
+    try {
+      const userDoc = await databases.getDocument(DB_ID, COLLECTIONS.USERS, userId);
+      currentLives =
+        userDoc.lives !== undefined && userDoc.lives !== null ? userDoc.lives : currentLives;
+      lastRegenTime = userDoc.lastLifeRegenTime || lastRegenTime;
+    } catch (error) {
+      console.warn('Falling back to local lives state for deduction:', error);
+    }
+
     // First, calculate if any lives have regenerated
     const { lives: updatedLives, lastLifeRegenTime } = this.calculateCurrentLives(
       currentLives,

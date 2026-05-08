@@ -2,6 +2,7 @@ import { databases, DB_ID, COLLECTIONS } from './appwrite';
 import { backendApi } from './backendApi';
 import cachedBackendApi from './cachedBackendApi';
 import { User, BackendSubmitLevelResponse } from '../types';
+import { getCurrentMonthKey, normalizeMonthKey } from '../utils';
 
 /**
  * Level Progress Service
@@ -86,10 +87,10 @@ class LevelProgressService {
       const userDoc = await databases.getDocument(DB_ID, COLLECTIONS.USERS, userId);
 
       const now = new Date();
-      const currentMonthKey = `${now.getFullYear()}-${now.getMonth() + 1}`;
+      const currentMonthKey = getCurrentMonthKey();
 
       // Check if we need to reset monthly XP (new month)
-      const needsReset = !userDoc.lastMonthlyReset || userDoc.lastMonthlyReset !== currentMonthKey;
+      const needsReset = normalizeMonthKey(userDoc.lastMonthlyReset) !== currentMonthKey;
       const baseMonthlyXP = needsReset ? 0 : (userDoc.monthlyXP || 0);
 
       const newTotalQuestions = (userDoc.totalQuestionsAnswered || 0) + totalQuestions;
@@ -211,7 +212,7 @@ class LevelProgressService {
   async resetMonthlyXP(userId: string): Promise<void> {
     try {
       const now = new Date();
-      const monthKey = `${now.getFullYear()}-${now.getMonth() + 1}`;
+      const monthKey = getCurrentMonthKey();
       await databases.updateDocument(DB_ID, COLLECTIONS.USERS, userId, {
         monthlyXP: 0,
         lastMonthlyReset: monthKey,
@@ -229,10 +230,9 @@ class LevelProgressService {
    * @returns True if reset is needed
    */
   shouldResetMonthlyXP(user: User): boolean {
-    const now = new Date();
-    const currentMonthKey = `${now.getFullYear()}-${now.getMonth() + 1}`;
+    const currentMonthKey = getCurrentMonthKey();
     // Reset if never reset before, or if it was reset in a previous month
-    return !user.lastMonthlyReset || user.lastMonthlyReset !== currentMonthKey;
+    return normalizeMonthKey(user.lastMonthlyReset) !== currentMonthKey;
   }
 
   /**
@@ -245,10 +245,10 @@ class LevelProgressService {
       const userDoc = await databases.getDocument(DB_ID, COLLECTIONS.USERS, userId);
       
       const now = new Date();
-      const currentMonthKey = `${now.getFullYear()}-${now.getMonth() + 1}`;
+      const currentMonthKey = getCurrentMonthKey();
 
       // Check if we need to reset monthly XP (new month)
-      const needsReset = !userDoc.lastMonthlyReset || userDoc.lastMonthlyReset !== currentMonthKey;
+      const needsReset = normalizeMonthKey(userDoc.lastMonthlyReset) !== currentMonthKey;
       const baseMonthlyXP = needsReset ? 0 : (userDoc.monthlyXP || 0);
 
       const newXP = (userDoc.xp || 0) + xpAmount;

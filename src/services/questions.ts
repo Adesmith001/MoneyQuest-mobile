@@ -4,6 +4,7 @@ import { backendApi } from './backendApi';
 import cachedBackendApi from './cachedBackendApi';
 import { levelProgressService } from './levelProgress';
 import { livesService } from './lives';
+import { getCurrentMonthKey, normalizeMonthKey } from '../utils';
 
 /**
  * Question Service
@@ -415,10 +416,10 @@ class QuestionService {
       }
       
       const now = new Date();
-      const currentMonthKey = `${now.getFullYear()}-${now.getMonth() + 1}`;
+      const currentMonthKey = getCurrentMonthKey();
 
       // Check if we need to reset monthly XP (new month)
-      const needsReset = !user.lastMonthlyReset || user.lastMonthlyReset !== currentMonthKey;
+      const needsReset = normalizeMonthKey(user.lastMonthlyReset) !== currentMonthKey;
       const baseMonthlyXP = needsReset ? 0 : (user.monthlyXP || 0);
 
       const newTotalQuestions = (user.totalQuestionsAnswered || 0) + 1;

@@ -28,10 +28,12 @@ class AppUpdateService {
     try {
       const updateInfo = await VersionCheck.needUpdate();
       const latestVersion = updateInfo?.latestVersion || '';
+      const currentVersion = VersionCheck.getCurrentVersion();
+      const storeUrl = updateInfo?.storeUrl;
       const storeName = Platform.OS === 'ios' ? 'App Store' : 'Play Store';
       const promptKey = `${LAST_PROMPTED_VERSION_KEY_PREFIX}_${Platform.OS}`;
 
-      if (!updateInfo?.isNeeded || !updateInfo.storeUrl) {
+      if (!updateInfo?.isNeeded || !storeUrl) {
         return;
       }
 
@@ -42,13 +44,15 @@ class AppUpdateService {
 
       Alert.alert(
         'Update Available',
-        `A newer version of MoneyQuest is available on the ${storeName}. Please update for the best experience.`,
+        latestVersion
+          ? `Version ${latestVersion} is available on the ${storeName}. You are currently on ${currentVersion}. Please update for the best experience.`
+          : `A newer version of MoneyQuest is available on the ${storeName}. Please update for the best experience.`,
         [
           { text: 'Later', style: 'cancel' },
           {
-            text: 'Update',
+            text: Platform.OS === 'ios' ? 'Open App Store' : 'Open Play Store',
             onPress: () => {
-              Linking.openURL(updateInfo.storeUrl).catch(() => {});
+              Linking.openURL(storeUrl).catch(() => {});
             },
           },
         ],
