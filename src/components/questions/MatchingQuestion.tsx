@@ -10,7 +10,6 @@ interface Props {
   question: MatchingQuestionType;
   userMatches: { [key: string]: string };
   onMatchChange: (leftId: string, rightId: string | null) => void;
-  onAutoAdvance?: () => void;
   disabled?: boolean;
   showResults?: boolean;
   onPlayAudio?: () => void;
@@ -21,7 +20,6 @@ const MatchingQuestion: React.FC<Props> = ({
   question,
   userMatches,
   onMatchChange,
-  onAutoAdvance,
   disabled = false,
   showResults = false,
   onPlayAudio,
@@ -32,7 +30,6 @@ const MatchingQuestion: React.FC<Props> = ({
     [key: string]: 'correct' | 'incorrect' | null;
   }>({});
   const [fadingMatches, setFadingMatches] = useState<Set<string>>(new Set());
-  const autoAdvanceTriggeredRef = useRef(false);
 
   const animationRefs = useRef<{
     [key: string]: {
@@ -55,7 +52,6 @@ const MatchingQuestion: React.FC<Props> = ({
   }, [question]);
 
   useEffect(() => {
-    autoAdvanceTriggeredRef.current = false;
     setSelectedLeft(null);
     setMatchFeedback({});
     setFadingMatches(new Set());
@@ -86,7 +82,6 @@ const MatchingQuestion: React.FC<Props> = ({
       onMatchChange(leftId, null);
       setMatchFeedback({ ...matchFeedback, [leftId]: null });
     } else {
-      const nextMatches = { ...userMatches, [leftId]: rightId };
       onMatchChange(leftId, rightId);
 
       if (isCorrect) {
@@ -122,21 +117,6 @@ const MatchingQuestion: React.FC<Props> = ({
             }),
           ]).start();
         }, 800);
-
-        const allMatchesCompleteAndCorrect = Object.keys(question.correct_matches).every(
-          matchLeftId => nextMatches[matchLeftId] === question.correct_matches[matchLeftId]
-        );
-
-        if (
-          allMatchesCompleteAndCorrect &&
-          !autoAdvanceTriggeredRef.current &&
-          onAutoAdvance
-        ) {
-          autoAdvanceTriggeredRef.current = true;
-          setTimeout(() => {
-            onAutoAdvance();
-          }, 900);
-        }
       } else {
         soundService.playSound('incorrect');
         setMatchFeedback({ ...matchFeedback, [leftId]: 'incorrect' });

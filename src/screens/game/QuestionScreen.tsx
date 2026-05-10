@@ -299,7 +299,6 @@ const QuestionScreen: React.FC<Props> = ({ navigation, route }) => {
     correct: string[];
     incorrect: string[];
   }>({ correct: [], incorrect: [] });
-  const [shouldAutoSubmitMatching, setShouldAutoSubmitMatching] = useState(false);
 
   // Section image URL (displayed in article view)
   const [sectionImageUrl, setSectionImageUrl] = useState<string | null>(null);
@@ -916,47 +915,12 @@ const QuestionScreen: React.FC<Props> = ({ navigation, route }) => {
     }
   };
 
-  useEffect(() => {
-    const currentQuestion = questions[currentQuestionIndex];
-    if (
-      !shouldAutoSubmitMatching ||
-      !currentQuestion ||
-      currentQuestion.question_type !== "matching" ||
-      isCorrectModalVisible ||
-      isIncorrectModalVisible ||
-      isWaitingForNext
-    ) {
-      return;
-    }
-
-    const matchingQuestion = currentQuestion as MatchingQuestion;
-    const hasCompletedAllMatches = Object.keys(matchingQuestion.correct_matches).every(
-      (leftId) => matchingAnswers[leftId] === matchingQuestion.correct_matches[leftId]
-    );
-
-    if (!hasCompletedAllMatches) {
-      return;
-    }
-
-    setShouldAutoSubmitMatching(false);
-    handleSubmit();
-  }, [
-    shouldAutoSubmitMatching,
-    questions,
-    currentQuestionIndex,
-    matchingAnswers,
-    isCorrectModalVisible,
-    isIncorrectModalVisible,
-    isWaitingForNext,
-  ]);
-
   const handleContinue = async () => {
     setCorrectModalVisible(false);
     setIncorrectModalVisible(false);
     setSelectedAnswer("");
     setMatchingAnswers({});
     setFillInGapAnswers({});
-    setShouldAutoSubmitMatching(false);
     setIsFlagged(false); // Reset flag state for next question
     setIsFlagModalVisible(false); // Ensure flag modal is closed
     setIsWaitingForNext(false); // Re-enable the button for next question
@@ -1451,7 +1415,6 @@ const QuestionScreen: React.FC<Props> = ({ navigation, route }) => {
               setMatchingAnswers({ ...matchingAnswers, [leftId]: rightId });
             }
           }}
-          onAutoAdvance={() => setShouldAutoSubmitMatching(true)}
           disabled={isCorrectModalVisible || isIncorrectModalVisible}
           showResults={isCorrectModalVisible || isIncorrectModalVisible}
         />
@@ -1600,7 +1563,6 @@ const QuestionScreen: React.FC<Props> = ({ navigation, route }) => {
           setMatchingAnswers({});
           setFillInGapAnswers({});
           setMatchingResults({ correct: [], incorrect: [] });
-          setShouldAutoSubmitMatching(false);
         }}
         chosenAnswer={getChosenAnswerText()}
         explanation={getExplanation()}
@@ -1656,7 +1618,7 @@ const styles = StyleSheet.create({
     flexDirection: "row",
     alignItems: "center",
     paddingHorizontal: SPACING.sm,
-    paddingTop: 12,
+    paddingTop: 25,
     paddingBottom: 4,
   },
   headerTitle: {
