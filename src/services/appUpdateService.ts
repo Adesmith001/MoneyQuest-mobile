@@ -1,9 +1,48 @@
 import AsyncStorage from '@react-native-async-storage/async-storage';
+import * as Application from 'expo-application';
 import { Alert, Linking, Platform } from 'react-native';
-import VersionCheck from 'react-native-version-check-expo';
 
 const LAST_PROMPTED_VERSION_KEY_PREFIX = '@moneyquest_last_prompted_store_version';
 const CHECK_INTERVAL_MS = 30 * 60 * 1000; // 30 minutes
+const IOS_BUNDLE_ID = 'com.expo.moneyquest';
+const ANDROID_PACKAGE_NAME = 'com.expo.moneyquest';
+const PLAY_STORE_URL = `https://play.google.com/store/apps/details?id=${ANDROID_PACKAGE_NAME}`;
+
+const compareVersions = (left: string, right: string): number => {
+  const leftParts = left.split('.').map(part => Number.parseInt(part, 10) || 0);
+  const rightParts = right.split('.').map(part => Number.parseInt(part, 10) || 0);
+  const maxLength = Math.max(leftParts.length, rightParts.length);
+
+  for (let index = 0; index < maxLength; index += 1) {
+    const leftValue = leftParts[index] || 0;
+    const rightValue = rightParts[index] || 0;
+
+    if (leftValue > rightValue) return 1;
+    if (leftValue < rightValue) return -1;
+  }
+
+  return 0;
+};
+
+const getIosStoreUpdate = async (): Promise<{
+  latestVersion: string;
+  storeUrl: string;
+} | null> => {
+  const response = await fetch(
+    `https://itunes.apple.com/lookup?bundleId=${encodeURIComponent(IOS_BUNDLE_ID)}`
+  );
+  const data = await response.json();
+  const result = data?.results?.[0];
+
+  if (!result?.version || !result?.trackViewUrl) {
+    return null;
+  }
+
+  return {
+    latestVersion: result.version,
+    storeUrl: result.trackViewUrl,
+  };
+};
 
 class AppUpdateService {
   private isChecking = false;
@@ -26,14 +65,21 @@ class AppUpdateService {
     this.lastCheckAt = Date.now();
 
     try {
-      const updateInfo = await VersionCheck.needUpdate();
-      const latestVersion = updateInfo?.latestVersion || '';
-      const currentVersion = VersionCheck.getCurrentVersion();
-      const storeUrl = updateInfo?.storeUrl;
+      const currentVersion = Application.nativeApplicationVersion || '';
       const storeName = Platform.OS === 'ios' ? 'App Store' : 'Play Store';
       const promptKey = `${LAST_PROMPTED_VERSION_KEY_PREFIX}_${Platform.OS}`;
+      const updateInfo = Platform.OS === 'ios'
+        ? await getIosStoreUpdate()
+        : null;
+      const latestVersion = updateInfo?.latestVersion || '';
+      const storeUrl = updateInfo?.storeUrl || (Platform.OS === 'android' ? PLAY_STORE_URL : '');
 
-      if (!updateInfo?.isNeeded || !storeUrl) {
+      if (
+        !currentVersion ||
+        !latestVersion ||
+        !storeUrl ||
+        compareVersions(latestVersion, currentVersion) <= 0
+      ) {
         return;
       }
 

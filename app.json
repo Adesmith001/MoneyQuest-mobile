@@ -16,7 +16,6 @@
       "supportsTablet": true,
       "bundleIdentifier": "com.expo.moneyquest",
       "buildNumber": "1.1.0",
-      "deploymentTarget": "13.0",
       "jsEngine": "hermes",
       "newArchEnabled": false,
       "entitlements": {
@@ -34,12 +33,8 @@
       "package": "com.expo.moneyquest",
       "versionCode": 1,
       "adaptiveIcon": {
-        "foregroundImage": "./assets/logo-white.jpeg",
+        "foregroundImage": "./assets/logo-orange.jpeg",
         "backgroundColor": "#ffffff"
-      },
-      "notification": {
-        "icon": "./assets/logo-white.jpeg",
-        "color": "#FF6B35"
       },
       "permissions": [
         "INTERNET",
@@ -71,11 +66,7 @@
         }
       ],
       "softwareKeyboardLayoutMode": "pan",
-      "navigationBar": {
-        "visible": "immersive",
-        "barStyle": "light-content",
-        "backgroundColor": "#00000000"
-      }
+      "edgeToEdgeEnabled": true
     },
     "extra": {
       "eas": {
@@ -86,12 +77,12 @@
       "APPWRITE_DATABASE_ID": "68cc891e001ebcafceeb"
     },
     "owner": "adesmith",
-    "privacyPolicyUrl": "https://www.nurtureehaven.com/privacy-policy",
     "plugins": [
       [
         "expo-build-properties",
         {
           "ios": {
+            "deploymentTarget": "15.1",
             "newArchEnabled": false,
             "flipper": false
           },
