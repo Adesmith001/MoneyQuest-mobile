@@ -65,6 +65,7 @@ interface Props {
       sectionId: string;
       levelTitle: string;
       sectionTitle: string;
+      useMultilevel?: boolean;
       __cacheRetryAttempted?: boolean;
     };
   };
@@ -256,6 +257,7 @@ const QuestionScreen: React.FC<Props> = ({ navigation, route }) => {
     sectionId,
     levelTitle,
     sectionTitle,
+    useMultilevel = false,
     __cacheRetryAttempted = false,
   } = route.params;
   const dispatch = useDispatch();
@@ -509,7 +511,8 @@ const QuestionScreen: React.FC<Props> = ({ navigation, route }) => {
           const levelQuestions = await cachedBackendApi.getQuestions(
             levelId,
             5,
-            "mixed"
+            "mixed",
+            useMultilevel,
           );
           
           // Normalize all questions to ensure proper structure

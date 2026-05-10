@@ -109,9 +109,18 @@ class LearningService {
    * @param levelId - UUID of the level
    * @returns Question response with questions array
    */
-  async getQuestionsForLevel(levelId: string): Promise<BackendQuestionResponse> {
+  async getQuestionsForLevel(
+    levelId: string,
+    useMultilevel: boolean = false,
+  ): Promise<BackendQuestionResponse> {
     try {
-      const response = await backendApi.getLevelQuestions(levelId);
+      const response = await backendApi.getLevelQuestions(
+        levelId,
+        undefined,
+        undefined,
+        true,
+        useMultilevel,
+      );
       
       return response;
     } catch (error) {

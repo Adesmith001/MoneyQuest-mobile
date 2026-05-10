@@ -1,5 +1,5 @@
 import { configureStore } from '@reduxjs/toolkit';
-import { persistStore, persistReducer } from 'redux-persist';
+import { persistStore, persistReducer, createTransform, PersistConfig } from 'redux-persist';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { combineReducers } from '@reduxjs/toolkit';
 import authReducer from './slices/authSlice';
@@ -8,12 +8,7 @@ import leaderboardReducer from './slices/leaderboardSlice';
 import streakReducer from './slices/streakSlice';
 import learningReducer from './slices/learningSlice';
 import tutorialReducer from './slices/tutorialSlice';
-
-const persistConfig = {
-  key: 'root',
-  storage: AsyncStorage,
-  whitelist: ['auth', 'game', 'streak', 'learning', 'tutorial'], // Persist auth, game, streak, learning, and tutorial state
-};
+import { AuthState } from '../types';
 
 const rootReducer = combineReducers({
   auth: authReducer,
@@ -23,6 +18,31 @@ const rootReducer = combineReducers({
   learning: learningReducer,
   tutorial: tutorialReducer,
 });
+
+type RootReducerState = ReturnType<typeof rootReducer>;
+
+const authStateTransform = createTransform<AuthState, AuthState, RootReducerState>(
+  (inboundState) => ({
+    ...inboundState,
+    isLoading: false,
+    isLoggingOut: false,
+    error: null,
+  }),
+  (outboundState) => ({
+    ...outboundState,
+    isLoading: false,
+    isLoggingOut: false,
+    error: null,
+  }),
+  { whitelist: ['auth'] }
+);
+
+const persistConfig: PersistConfig<RootReducerState> = {
+  key: 'root',
+  storage: AsyncStorage,
+  transforms: [authStateTransform],
+  whitelist: ['auth', 'game', 'streak', 'learning', 'tutorial'], // Persist auth, game, streak, learning, and tutorial state
+};
 
 const persistedReducer = persistReducer(persistConfig, rootReducer);
 

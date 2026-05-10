@@ -2,7 +2,7 @@ import { databases, DB_ID, COLLECTIONS } from './appwrite';
 import { backendApi } from './backendApi';
 import cachedBackendApi from './cachedBackendApi';
 import { User, BackendSubmitLevelResponse } from '../types';
-import { getCurrentMonthKey, normalizeMonthKey } from '../utils';
+import { getCurrentMonthKey, shouldResetMonthlyXP as shouldResetUserMonthlyXP } from '../utils';
 
 /**
  * Level Progress Service
@@ -90,7 +90,7 @@ class LevelProgressService {
       const currentMonthKey = getCurrentMonthKey();
 
       // Check if we need to reset monthly XP (new month)
-      const needsReset = normalizeMonthKey(userDoc.lastMonthlyReset) !== currentMonthKey;
+      const needsReset = shouldResetUserMonthlyXP(userDoc.lastMonthlyReset, now);
       const baseMonthlyXP = needsReset ? 0 : (userDoc.monthlyXP || 0);
 
       const newTotalQuestions = (userDoc.totalQuestionsAnswered || 0) + totalQuestions;
@@ -230,9 +230,7 @@ class LevelProgressService {
    * @returns True if reset is needed
    */
   shouldResetMonthlyXP(user: User): boolean {
-    const currentMonthKey = getCurrentMonthKey();
-    // Reset if never reset before, or if it was reset in a previous month
-    return normalizeMonthKey(user.lastMonthlyReset) !== currentMonthKey;
+    return shouldResetUserMonthlyXP(user.lastMonthlyReset);
   }
 
   /**
@@ -248,7 +246,7 @@ class LevelProgressService {
       const currentMonthKey = getCurrentMonthKey();
 
       // Check if we need to reset monthly XP (new month)
-      const needsReset = normalizeMonthKey(userDoc.lastMonthlyReset) !== currentMonthKey;
+      const needsReset = shouldResetUserMonthlyXP(userDoc.lastMonthlyReset, now);
       const baseMonthlyXP = needsReset ? 0 : (userDoc.monthlyXP || 0);
 
       const newXP = (userDoc.xp || 0) + xpAmount;

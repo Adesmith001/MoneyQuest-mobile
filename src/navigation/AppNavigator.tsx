@@ -7,7 +7,7 @@ import * as Linking from 'expo-linking';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
 import { Alert, ActivityIndicator, View, Text } from 'react-native';
 import googleAuthService from '../services/googleAuth';
-import { updateUser } from '../store/slices/authSlice';
+import { checkAuthStatus, updateUser } from '../store/slices/authSlice';
 import revenueCatService from '../services/revenueCatService';
 import analyticsService from '../services/analytics';
 
@@ -118,7 +118,11 @@ export type RootStackParamList = {
   Question: {
     level: number;
     section: number;
+    levelId?: string;
+    sectionId?: string;
+    levelTitle?: string;
     sectionTitle: string;
+    useMultilevel?: boolean;
   };
   LevelCompletion: {
     xpGained: number;
@@ -183,6 +187,10 @@ const AppNavigator: React.FC = () => {
   const handleSplashComplete = () => {
     setShowSplash(false);
   };
+
+  useEffect(() => {
+    dispatch(checkAuthStatus());
+  }, [dispatch]);
 
   // Re-link RevenueCat whenever the signed-in user changes (covers app restart
   // from persisted Redux state, all sign-in paths, and Google OAuth callback).

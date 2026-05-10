@@ -23,6 +23,97 @@ const FillInGapQuestion: React.FC<Props> = ({
   onPlayAudio,
   isPlayingAudio = false,
 }) => {
+  const optionLabels = ['A', 'B', 'C', 'D'];
+  const blanksWithOptions = question.blanks.filter(
+    (blank) => blank.options && blank.options.length > 0
+  );
+  const shouldRenderOptionCards =
+    blanksWithOptions.length > 0 && blanksWithOptions.length === question.blanks.length;
+
+  const getQuestionDisplayText = () => {
+    return question.blanks.reduce(
+      (text, blank) => text.replace(`{${blank.id}}`, '_____'),
+      question.question
+    );
+  };
+
+  const renderOptionCards = () => (
+    <>
+      <View style={styles.questionWithAudioContainer}>
+        <Text style={styles.cardQuestionText}>{getQuestionDisplayText()}</Text>
+        {onPlayAudio && (
+          <TouchableOpacity
+            style={styles.playButton}
+            onPress={onPlayAudio}
+            disabled={isPlayingAudio}
+          >
+            <Ionicons
+              name={isPlayingAudio ? "pause-circle" : "play-circle"}
+              size={28}
+              color={COLORS.primary}
+            />
+          </TouchableOpacity>
+        )}
+      </View>
+
+      <View style={styles.optionsContainer}>
+        {blanksWithOptions.map((blank) => (
+          <View key={blank.id} style={styles.blankOptionsGroup}>
+            {question.blanks.length > 1 && (
+              <Text style={styles.blankGroupLabel}>Blank {blank.id.replace(/\D/g, '') || blank.id}</Text>
+            )}
+            {blank.options?.map((option, idx) => {
+              const isSelected = userAnswers[blank.id] === option;
+              const isCorrect = showCorrect &&
+                option.toLowerCase().trim() === blank.correct_answer.toLowerCase().trim();
+              const isIncorrect = showCorrect && isSelected && !isCorrect;
+
+              return (
+                <TouchableOpacity
+                  key={`option-${blank.id}-${idx}`}
+                  style={[
+                    styles.optionButton,
+                    isSelected && styles.selectedOption,
+                    isCorrect && styles.correctOption,
+                    isIncorrect && styles.incorrectOption,
+                  ]}
+                  onPress={() => !disabled && onAnswerChange(blank.id, option)}
+                  disabled={disabled}
+                >
+                  <View style={styles.optionContent}>
+                    <Text
+                      style={[
+                        styles.optionLabel,
+                        isSelected && styles.selectedOptionText,
+                      ]}
+                    >
+                      {optionLabels[idx] || `${idx + 1}`}.
+                    </Text>
+                    <Text
+                      style={[
+                        styles.optionText,
+                        isSelected && styles.selectedOptionText,
+                      ]}
+                    >
+                      {option}
+                    </Text>
+                  </View>
+                </TouchableOpacity>
+              );
+            })}
+            {showCorrect &&
+              userAnswers[blank.id] &&
+              userAnswers[blank.id]?.toLowerCase().trim() !== blank.correct_answer.toLowerCase().trim() && (
+                <Text style={styles.correctAnswerHint}>
+                  Correct: {blank.correct_answer}
+                </Text>
+              )}
+          </View>
+        ))}
+      </View>
+    </>
+  );
+
   // Split question text by blank markers and render with inputs
   const renderQuestionWithBlanks = () => {
     let questionText = question.question;
@@ -123,6 +214,10 @@ const FillInGapQuestion: React.FC<Props> = ({
     );
   };
 
+  if (shouldRenderOptionCards) {
+    return <View style={styles.container}>{renderOptionCards()}</View>;
+  }
+
   return (
     <View style={styles.container}>
       <View style={styles.headerContainer}>
@@ -151,6 +246,22 @@ const FillInGapQuestion: React.FC<Props> = ({
 const styles = StyleSheet.create({
   container: {
     flex: 1,
+  },
+  questionWithAudioContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginBottom: SPACING.xl,
+    paddingHorizontal: SPACING.md,
+    gap: SPACING.sm,
+  },
+  cardQuestionText: {
+    fontSize: FONT_SIZES.xl,
+    fontWeight: '500',
+    textAlign: 'center',
+    flex: 1,
+    color: COLORS.text,
+    lineHeight: 28,
   },
   headerContainer: {
     flexDirection: 'row',
@@ -191,6 +302,71 @@ const styles = StyleSheet.create({
     flexWrap: 'wrap',
     gap: SPACING.xs,
     marginVertical: SPACING.xs,
+  },
+  optionsContainer: {
+    gap: SPACING.md,
+  },
+  blankOptionsGroup: {
+    gap: SPACING.md,
+    marginBottom: SPACING.md,
+  },
+  blankGroupLabel: {
+    fontSize: FONT_SIZES.sm,
+    fontWeight: '700',
+    color: COLORS.textSecondary,
+    textAlign: 'center',
+  },
+  optionButton: {
+    width: '100%',
+    backgroundColor: COLORS.card,
+    borderRadius: 10,
+    paddingHorizontal: SPACING.lg,
+    paddingVertical: SPACING.lg,
+    marginBottom: SPACING.md,
+    alignItems: 'center',
+    justifyContent: 'center',
+    minHeight: 84,
+    borderWidth: 2,
+    borderColor: 'transparent',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 3 },
+    shadowOpacity: 0.14,
+    shadowRadius: 6,
+    elevation: 5,
+  },
+  selectedOption: {
+    backgroundColor: COLORS.primary,
+    borderColor: COLORS.primary,
+  },
+  correctOption: {
+    backgroundColor: COLORS.success + '18',
+    borderColor: COLORS.success,
+  },
+  incorrectOption: {
+    backgroundColor: COLORS.warning + '18',
+    borderColor: COLORS.warning,
+  },
+  optionContent: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    width: '100%',
+    gap: SPACING.lg,
+  },
+  optionLabel: {
+    fontSize: FONT_SIZES.lg,
+    fontWeight: '700',
+    color: COLORS.text,
+    minWidth: 36,
+  },
+  optionText: {
+    fontSize: FONT_SIZES.md,
+    fontWeight: '600',
+    color: COLORS.text,
+    flex: 1,
+    lineHeight: 22,
+  },
+  selectedOptionText: {
+    color: COLORS.card,
   },
   optionChip: {
     backgroundColor: COLORS.card,

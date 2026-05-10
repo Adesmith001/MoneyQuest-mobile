@@ -14,7 +14,7 @@ import * as WebBrowser from "expo-web-browser";
 import * as Linking from "expo-linking";
 import { backendApi } from "./backendApi";
 import { levelProgressService } from "./levelProgress";
-import { getCurrentMonthKey, normalizeMonthKey } from "../utils";
+import { getCurrentMonthKey, normalizeMonthKey, shouldResetMonthlyXP } from "../utils";
 
 class AuthService {
 
@@ -232,8 +232,8 @@ class AuthService {
       );
 
       const currentMonthKey = getCurrentMonthKey();
-      const needsMonthlyReset =
-        normalizeMonthKey(userDoc.lastMonthlyReset) !== currentMonthKey;
+      const normalizedLastMonthlyReset = normalizeMonthKey(userDoc.lastMonthlyReset);
+      const needsMonthlyReset = shouldResetMonthlyXP(userDoc.lastMonthlyReset);
 
       if (needsMonthlyReset) {
         const resetPayload = {
@@ -250,6 +250,18 @@ class AuthService {
 
         userDoc.monthlyXP = 0;
         userDoc.lastMonthlyReset = currentMonthKey;
+      } else if (normalizedLastMonthlyReset !== currentMonthKey) {
+        const markerPayload = {
+          lastMonthlyReset: currentMonthKey,
+          updatedAt: new Date().toISOString(),
+        };
+
+        try {
+          await databases.updateDocument(DB_ID, COLLECTIONS.USERS, userId, markerPayload);
+          userDoc.lastMonthlyReset = currentMonthKey;
+        } catch (markerError) {
+          console.error("Monthly XP marker update error:", markerError);
+        }
       }
 
       // Type-safe conversion from Appwrite document to User interface

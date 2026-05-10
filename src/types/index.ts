@@ -381,6 +381,11 @@ export interface BackendSectionList {
   sections: BackendSection[];
 }
 
+export interface BackendContentVersionResponse {
+  version: string;
+  updated_at?: string;
+}
+
 // Legacy types
 export interface Level {
   $id: string;

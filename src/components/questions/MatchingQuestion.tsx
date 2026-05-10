@@ -4,6 +4,7 @@ import { Ionicons } from '@expo/vector-icons';
 import { MatchingQuestion as MatchingQuestionType } from '../../types';
 import { COLORS, FONT_SIZES, SPACING } from '../../constants';
 import soundService from '../../services/soundService';
+import { getMatchingCardTone } from './matchingQuestionStyleState';
 
 interface Props {
   question: MatchingQuestionType;
@@ -201,6 +202,13 @@ const MatchingQuestion: React.FC<Props> = ({
     const isIncorrect = showResults &&
       matched &&
       userMatches[item.id] !== question.correct_matches[item.id];
+    const tone = getMatchingCardTone({
+      selected,
+      matched,
+      feedback,
+      showResults,
+      result: isCorrect ? 'correct' : isIncorrect ? 'incorrect' : null,
+    });
 
     const animValues = animationRefs.current[item.id] || {
       opacity: new Animated.Value(1),
@@ -221,10 +229,7 @@ const MatchingQuestion: React.FC<Props> = ({
         <TouchableOpacity
           style={[
             styles.matchItem,
-            selected && styles.selectedItem,
-            matched && !showResults && !feedback && styles.matchedItem,
-            (feedback === 'correct' || (isCorrect && showResults)) && styles.correctItem,
-            (feedback === 'incorrect' || (isIncorrect && showResults)) && styles.incorrectItem,
+            styles[`${tone}Item`],
             isFading && styles.fadingItem,
           ]}
           onPress={() => handleLeftItemPress(item.id)}
@@ -233,8 +238,9 @@ const MatchingQuestion: React.FC<Props> = ({
           <Text
             style={[
               styles.matchText,
-              (selected || matched) && styles.matchTextStrong,
-              selected && styles.selectedMatchText,
+              tone !== 'default' && styles.matchTextStrong,
+              (tone === 'selected' || tone === 'matched' || tone === 'correct') &&
+                styles.selectedMatchText,
             ]}
             numberOfLines={2}
           >
@@ -267,6 +273,13 @@ const MatchingQuestion: React.FC<Props> = ({
         ([leftId, rightId]) =>
           rightId === item.id && question.correct_matches[leftId] !== rightId
       );
+    const tone = getMatchingCardTone({
+      matched,
+      highlighted: !!selectedLeft && !matched && !isFading,
+      feedback,
+      showResults,
+      result: isCorrect ? 'correct' : isIncorrect ? 'incorrect' : null,
+    });
 
     const animValues = animationRefs.current[item.id] || {
       opacity: new Animated.Value(1),
@@ -284,10 +297,7 @@ const MatchingQuestion: React.FC<Props> = ({
         <TouchableOpacity
           style={[
             styles.matchItem,
-            matched && !showResults && !feedback && styles.matchedItem,
-            (feedback === 'correct' || (isCorrect && showResults)) && styles.correctItem,
-            (feedback === 'incorrect' || (isIncorrect && showResults)) && styles.incorrectItem,
-            selectedLeft && !matched && !isFading && styles.highlightedItem,
+            styles[`${tone}Item`],
             isFading && styles.fadingItem,
           ]}
           onPress={() => handleRightItemPress(item.id)}
@@ -296,7 +306,8 @@ const MatchingQuestion: React.FC<Props> = ({
           <Text
             style={[
               styles.matchText,
-              matched && styles.matchTextStrong,
+              tone !== 'default' && styles.matchTextStrong,
+              (tone === 'matched' || tone === 'correct') && styles.selectedMatchText,
             ]}
             numberOfLines={2}
           >
@@ -326,8 +337,6 @@ const MatchingQuestion: React.FC<Props> = ({
         )}
       </View>
 
-      <Text style={styles.instructionText}>Tap a word, then choose its match.</Text>
-
       <View style={styles.matchingContainer}>
         {rows.map((row, index) => (
           <View key={`match-row-${index}`} style={styles.matchRow}>
@@ -343,79 +352,77 @@ const MatchingQuestion: React.FC<Props> = ({
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    justifyContent: 'flex-start',
+    justifyContent: 'center',
   },
   questionWithAudioContainer: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
-    marginBottom: 8,
+    marginBottom: 72,
     gap: SPACING.sm,
   },
   questionText: {
-    fontSize: FONT_SIZES.xl,
-    fontWeight: '600',
+    fontSize: FONT_SIZES.lg,
+    fontWeight: '700',
     color: COLORS.text,
-    lineHeight: 28,
+    lineHeight: 24,
     flex: 1,
     textAlign: 'center',
   },
   playButton: {
     padding: SPACING.xs,
   },
-  instructionText: {
-    fontSize: 12,
-    color: COLORS.textSecondary,
-    marginBottom: 18,
-    textAlign: 'center',
-  },
   matchingContainer: {
-    gap: 12,
+    gap: 22,
   },
   matchRow: {
     flexDirection: 'row',
-    gap: 14,
+    gap: 32,
   },
   column: {
     flex: 1,
   },
   matchItem: {
-    minHeight: 60,
-    borderRadius: 14,
+    minHeight: 42,
+    borderRadius: 8,
     paddingHorizontal: 12,
-    paddingVertical: 10,
-    backgroundColor: COLORS.card,
+    paddingVertical: 8,
+    backgroundColor: '#FFFFFF',
     borderWidth: 1,
-    borderColor: '#E8E8E8',
+    borderColor: '#EEEEEE',
     justifyContent: 'center',
     alignItems: 'center',
     shadowColor: '#000',
-    shadowOffset: { width: 0, height: 3 },
-    shadowOpacity: 0.12,
-    shadowRadius: 5,
-    elevation: 4,
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.18,
+    shadowRadius: 6,
+    elevation: 5,
   },
   matchItemPlaceholder: {
-    minHeight: 60,
+    minHeight: 42,
+  },
+  defaultItem: {
+    backgroundColor: '#FFFFFF',
+    borderColor: '#EEEEEE',
   },
   selectedItem: {
     borderColor: '#F04D23',
     backgroundColor: '#F04D23',
   },
   matchedItem: {
-    backgroundColor: '#FFF1EC',
-    borderColor: '#F6B49C',
+    backgroundColor: '#F04D23',
+    borderColor: '#F04D23',
   },
   highlightedItem: {
-    borderColor: '#FFD6C7',
-    backgroundColor: '#FFF8F5',
+    borderColor: '#F04D23',
+    backgroundColor: '#FFFFFF',
   },
   correctItem: {
-    backgroundColor: COLORS.success + '18',
-    borderColor: COLORS.success,
+    backgroundColor: '#F04D23',
+    borderColor: '#F04D23',
   },
   incorrectItem: {
-    backgroundColor: '#FFF1EC',
+    backgroundColor: '#FFFFFF',
     borderColor: '#F04D23',
   },
   fadingItem: {
@@ -424,7 +431,7 @@ const styles = StyleSheet.create({
   matchText: {
     fontSize: FONT_SIZES.sm,
     color: COLORS.text,
-    fontWeight: '600',
+    fontWeight: '700',
     textAlign: 'center',
   },
   matchTextStrong: {

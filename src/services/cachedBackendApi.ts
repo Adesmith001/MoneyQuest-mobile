@@ -11,6 +11,7 @@ import {
 import backendApi from './backendApi';
 import cacheService from './cacheService';
 import { BackendSection, BackendLevel } from '../types';
+import { shouldRetryQuestionsWithMultilevel } from './questionFetchPolicy';
 
 const HARD_FALLBACK_CACHE_TTL_MS = 60 * 60 * 1000;
 
@@ -229,7 +230,8 @@ class CachedBackendApiService {
   async getQuestions(
     levelId: string,
     numQuestions: number = 5,
-    _difficulty: 'easy' | 'medium' | 'hard' | 'mixed' = 'mixed'
+    _difficulty: 'easy' | 'medium' | 'hard' | 'mixed' = 'mixed',
+    useMultilevel: boolean = false,
   ): Promise<any[]> {
     if (this.sessionFetchedQuestions.has(levelId)) {
       await new Promise(resolve => setTimeout(resolve, 800));
@@ -242,10 +244,24 @@ class CachedBackendApiService {
         levelId,
         numQuestions,
         'mixed',
-        true
+        true,
+        useMultilevel,
       );
 
-      return response.questions || [];
+      const questions = response.questions || [];
+      if (!shouldRetryQuestionsWithMultilevel(questions, useMultilevel)) {
+        return questions;
+      }
+
+      const multilevelResponse = await backendApi.getLevelQuestions(
+        levelId,
+        numQuestions,
+        'mixed',
+        true,
+        true,
+      );
+
+      return multilevelResponse.questions || [];
     } finally {
       this.sessionFetchedQuestions.delete(levelId);
     }

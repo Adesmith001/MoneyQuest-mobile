@@ -17,7 +17,7 @@ import { Ionicons } from '@expo/vector-icons';
 import { useSelector, useDispatch } from "react-redux";
 import { RootState } from "../../store";
 import { getAvatarById } from "../../utils/avatarUtils";
-import { backendApi } from "../../services/backendApi";
+import { ApiHttpError, backendApi } from "../../services/backendApi";
 import cachedBackendApi from "../../services/cachedBackendApi";
 import { databases, DB_ID, COLLECTIONS, Query } from "../../services/appwrite";
 import { useFocusEffect } from "@react-navigation/native";
@@ -54,9 +54,12 @@ interface Section {
 
 const { width: screenWidth, height: screenHeight } = Dimensions.get("window");
 const SECTION_IDS_CACHE_KEY = '@moneyquest_last_section_ids';
-const LAST_NEW_SECTION_CHECK_KEY = '@moneyquest_last_new_section_check_at';
 const NOTIFIED_SECTION_IDS_CACHE_KEY = '@moneyquest_notified_section_ids';
-const NEW_SECTION_CHECK_INTERVAL_MS = 15 * 60 * 1000;
+const LAST_SECTIONS_VERSION_CHECK_KEY = '@moneyquest_last_sections_version_check_at';
+const LAST_KNOWN_SECTIONS_VERSION_KEY = '@moneyquest_last_known_sections_version';
+const NEXT_ALLOWED_SECTIONS_VERSION_CHECK_KEY = '@moneyquest_next_allowed_sections_version_check_at';
+const SECTIONS_VERSION_CHECK_INTERVAL_MS = 60 * 60 * 1000;
+const SECTIONS_VERSION_CHECK_BACKOFF_MS = 6 * 60 * 60 * 1000;
 
 const HomeScreen: React.FC<Props> = ({ navigation }) => {
   const { user } = useSelector((state: RootState) => state.auth);
@@ -161,6 +164,31 @@ const HomeScreen: React.FC<Props> = ({ navigation }) => {
     }
   }, []);
 
+  const markSectionsVersionCheckAt = React.useCallback(async (timestamp: number) => {
+    await AsyncStorage.setItem(LAST_SECTIONS_VERSION_CHECK_KEY, timestamp.toString());
+  }, []);
+
+  const ensureSectionsVersionCheckWindowStarted = React.useCallback(async () => {
+    const existing = await AsyncStorage.getItem(LAST_SECTIONS_VERSION_CHECK_KEY);
+    if (!existing) {
+      await markSectionsVersionCheckAt(Date.now());
+    }
+  }, [markSectionsVersionCheckAt]);
+
+  const persistKnownSectionsVersion = React.useCallback(async (version: string) => {
+    await Promise.all([
+      AsyncStorage.setItem(LAST_KNOWN_SECTIONS_VERSION_KEY, version),
+      AsyncStorage.removeItem(NEXT_ALLOWED_SECTIONS_VERSION_CHECK_KEY),
+      markSectionsVersionCheckAt(Date.now()),
+    ]);
+  }, [markSectionsVersionCheckAt]);
+
+  const syncKnownSectionsVersion = React.useCallback(async () => {
+    const contentVersion = await backendApi.getSectionsContentVersion();
+    await persistKnownSectionsVersion(contentVersion.version);
+    return contentVersion.version;
+  }, [persistKnownSectionsVersion]);
+
   const notifyOnNewSections = React.useCallback(
     async (backendSections: Array<{ section_id?: string; title: string }>) => {
       try {
@@ -199,62 +227,65 @@ const HomeScreen: React.FC<Props> = ({ navigation }) => {
     []
   );
 
-  const checkForNewSectionsAvailability = React.useCallback(async (force: boolean = false) => {
+  const checkForNewSectionsAvailability = React.useCallback(async () => {
     if (!user?.$id || !hasInitiallyLoadedRef.current) {
       return;
     }
 
     try {
-      const lastCheckedAtRaw = await AsyncStorage.getItem(LAST_NEW_SECTION_CHECK_KEY);
-      const lastCheckedAt = lastCheckedAtRaw ? Number.parseInt(lastCheckedAtRaw, 10) : 0;
+      const now = Date.now();
+      const [lastCheckedAtRaw, nextAllowedCheckRaw, lastKnownVersion] = await Promise.all([
+        AsyncStorage.getItem(LAST_SECTIONS_VERSION_CHECK_KEY),
+        AsyncStorage.getItem(NEXT_ALLOWED_SECTIONS_VERSION_CHECK_KEY),
+        AsyncStorage.getItem(LAST_KNOWN_SECTIONS_VERSION_KEY),
+      ]);
+
+      const nextAllowedCheckAt = nextAllowedCheckRaw
+        ? Number.parseInt(nextAllowedCheckRaw, 10)
+        : 0;
 
       if (
-        !force &&
-        Number.isFinite(lastCheckedAt) &&
-        lastCheckedAt > 0 &&
-        Date.now() - lastCheckedAt < NEW_SECTION_CHECK_INTERVAL_MS
+        Number.isFinite(nextAllowedCheckAt) &&
+        nextAllowedCheckAt > now
       ) {
         return;
       }
 
-      const latestSections = await backendApi.getSections();
-      const latestSectionIds = latestSections
-        .map((section) => section.section_id)
-        .filter((id): id is string => !!id);
+      const lastCheckedAt = lastCheckedAtRaw ? Number.parseInt(lastCheckedAtRaw, 10) : 0;
 
-      const previousRaw = await AsyncStorage.getItem(SECTION_IDS_CACHE_KEY);
-      const knownSectionIds = previousRaw
-        ? (JSON.parse(previousRaw) as string[])
-        : sections.map((section) => section.id);
-
-      const newSectionIds = latestSectionIds.filter((id) => !knownSectionIds.includes(id));
-      const hasNew = newSectionIds.length > 0;
-      setHasNewSectionsAvailable(hasNew);
-
-      if (hasNew) {
-        const notifiedRaw = await AsyncStorage.getItem(NOTIFIED_SECTION_IDS_CACHE_KEY);
-        const notifiedIds = notifiedRaw ? (JSON.parse(notifiedRaw) as string[]) : [];
-        const unnotifiedSectionId = newSectionIds.find((id) => !notifiedIds.includes(id));
-
-        if (unnotifiedSectionId) {
-          const newSection = latestSections.find(
-            (section) => section.section_id === unnotifiedSectionId
-          );
-          await notificationService.sendSectionCreatedNotification(
-            newSection?.title || 'New section'
-          );
-          await AsyncStorage.setItem(
-            NOTIFIED_SECTION_IDS_CACHE_KEY,
-            JSON.stringify([...new Set([...notifiedIds, unnotifiedSectionId])])
-          );
-        }
+      if (
+        Number.isFinite(lastCheckedAt) &&
+        lastCheckedAt > 0 &&
+        now - lastCheckedAt < SECTIONS_VERSION_CHECK_INTERVAL_MS
+      ) {
+        return;
       }
 
-      await AsyncStorage.setItem(LAST_NEW_SECTION_CHECK_KEY, Date.now().toString());
+      const contentVersion = await backendApi.getSectionsContentVersion();
+
+      if (!lastKnownVersion) {
+        await persistKnownSectionsVersion(contentVersion.version);
+        return;
+      }
+
+      await markSectionsVersionCheckAt(now);
+      setHasNewSectionsAvailable(contentVersion.version !== lastKnownVersion);
     } catch (error) {
+      if (error instanceof ApiHttpError && error.status === 429) {
+        const retryAt = Date.now() + SECTIONS_VERSION_CHECK_BACKOFF_MS;
+        await Promise.all([
+          AsyncStorage.setItem(
+            NEXT_ALLOWED_SECTIONS_VERSION_CHECK_KEY,
+            retryAt.toString()
+          ),
+          markSectionsVersionCheckAt(Date.now()),
+        ]);
+        return;
+      }
+      await markSectionsVersionCheckAt(Date.now());
       console.warn('Failed to check for new sections:', error);
     }
-  }, [sections, user?.$id]);
+  }, [markSectionsVersionCheckAt, persistKnownSectionsVersion, user?.$id]);
 
   // ─────────────────────────────────────────────────────────────────────────
   // Main data-fetch function — stable useCallback so it can be used in both
@@ -354,6 +385,7 @@ const HomeScreen: React.FC<Props> = ({ navigation }) => {
           // Get all sections (documents) from backend with caching
           const backendSections = await cachedBackendApi.getSections();
           await notifyOnNewSections(backendSections);
+          await ensureSectionsVersionCheckWindowStarted();
 
           if (user?.$id) {
             notificationService.syncAdminBroadcasts(user.$id).catch(() => {});
@@ -517,7 +549,7 @@ const HomeScreen: React.FC<Props> = ({ navigation }) => {
           await refreshStaleState();
           isFetchingRef.current = false;
         }
-  }, [activeSectionIndex, user?.$id, user?.currentLevelId, user?.currentSectionId, dispatch, notifyOnNewSections, refreshStaleState]);
+  }, [activeSectionIndex, ensureSectionsVersionCheckWindowStarted, user?.$id, user?.currentLevelId, user?.currentSectionId, dispatch, notifyOnNewSections, refreshStaleState]);
 
   const handleManualRefresh = React.useCallback(async () => {
     if (isRefreshingContent || !user?.$id) {
@@ -527,11 +559,16 @@ const HomeScreen: React.FC<Props> = ({ navigation }) => {
     setIsRefreshingContent(true);
     try {
       await cachedBackendApi.forceRefreshLearningPath();
-      await AsyncStorage.setItem(LAST_NEW_SECTION_CHECK_KEY, Date.now().toString());
       cachedBackendApi.resetSessionTracking();
       isFetchingRef.current = false;
       retryCountRef.current = 0;
       await fetchLearningPath();
+      await markSectionsVersionCheckAt(Date.now());
+      try {
+        await syncKnownSectionsVersion();
+      } catch (versionError) {
+        console.warn('Failed to sync sections version after manual refresh:', versionError);
+      }
       await notificationService.syncAdminBroadcasts(user.$id);
       setHasNewSectionsAvailable(false);
       Alert.alert('Updated', 'Content is now up to date.');
@@ -541,9 +578,8 @@ const HomeScreen: React.FC<Props> = ({ navigation }) => {
     } finally {
       setIsRefreshingContent(false);
       await refreshStaleState();
-      await checkForNewSectionsAvailability();
     }
-  }, [checkForNewSectionsAvailability, fetchLearningPath, isRefreshingContent, refreshStaleState, user?.$id]);
+  }, [fetchLearningPath, isRefreshingContent, markSectionsVersionCheckAt, refreshStaleState, syncKnownSectionsVersion, user?.$id]);
 
   // ── Trigger 1: runs on mount AND whenever user.$id / progress keys change.
   // This guarantees the fetch fires even if Redux Persist hydrates user AFTER
@@ -563,12 +599,6 @@ const HomeScreen: React.FC<Props> = ({ navigation }) => {
   useEffect(() => {
     refreshStaleState();
   }, [refreshStaleState]);
-
-  useEffect(() => {
-    if (hasInitiallyLoaded) {
-      checkForNewSectionsAvailability(true);
-    }
-  }, [checkForNewSectionsAvailability, hasInitiallyLoaded]);
 
   const navigateToLevel = React.useCallback(
     async (node: LevelNode, sectionIndex: number) => {

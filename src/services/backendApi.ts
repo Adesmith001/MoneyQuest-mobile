@@ -16,6 +16,7 @@ import {
   BackendTTSJsonResponse,
   BackendSectionList,
   RecapSectionResponse,
+  BackendContentVersionResponse,
 } from '../types';
 
 export class ApiHttpError extends Error {
@@ -109,6 +110,23 @@ class BackendApiService {
   }
 
   /**
+   * Get the current backend content version for section/level updates
+   */
+  async getSectionsContentVersion(): Promise<BackendContentVersionResponse> {
+    const key = 'sections_content_version';
+
+    if (this.pendingRequests.has(key)) {
+      return this.pendingRequests.get(key)!;
+    }
+
+    const promise = this.fetchApi<BackendContentVersionResponse>('/content/version')
+      .finally(() => this.pendingRequests.delete(key));
+
+    this.pendingRequests.set(key, promise);
+    return promise;
+  }
+
+  /**
    * Get all documents (uploaded files)
    */
   async getDocuments(): Promise<BackendSection[]> {
@@ -178,6 +196,24 @@ class BackendApiService {
     );
   }
 
+  private buildQuestionQueryString(options: {
+    limit?: number;
+    randomize?: boolean;
+    useMultilevel?: boolean;
+  }): string {
+    const params = new URLSearchParams();
+
+    if (options.limit) params.append('limit', options.limit.toString());
+    if (options.randomize !== undefined) {
+      params.append('randomize', options.randomize.toString());
+    }
+    if (options.useMultilevel !== undefined) {
+      params.append('use_multilevel', options.useMultilevel.toString());
+    }
+
+    return params.toString();
+  }
+
   /**
    * Get previously generated questions for a level
    * Fetches from all question type endpoints and combines results
@@ -190,13 +226,14 @@ class BackendApiService {
     levelId: string,
     limit?: number,
     questionType?: 'mcq' | 'scenario' | 'matching' | 'fill_in_gap' | 'mixed',
-    randomize: boolean = true
+    randomize: boolean = true,
+    useMultilevel: boolean = false,
   ): Promise<BackendQuestionResponse> {
-    const params = new URLSearchParams();
-    if (limit) params.append('limit', limit.toString());
-    if (randomize !== undefined) params.append('randomize', randomize.toString());
-    
-    const queryString = params.toString();
+    const queryString = this.buildQuestionQueryString({
+      limit,
+      randomize,
+      useMultilevel,
+    });
     
     // If questionType is 'mixed' or undefined, fetch from all endpoints
     if (!questionType || questionType === 'mixed') {
@@ -210,24 +247,47 @@ class BackendApiService {
           : `/levels/${levelId}/questions`;
         const mcqResponse = await this.fetchApi<any>(mcqEndpoint);
         if (mcqResponse.questions && mcqResponse.questions.length > 0) {
-          // Normalize MCQ questions
-          const mcqQuestions = mcqResponse.questions.map((q: any) => ({
-            ...q,
-            question_type: 'mcq',
-            options: q.options || {
+          const normalizedQuizQuestions = mcqResponse.questions.flatMap((q: any) => {
+            const questionText = q.question_text || q.question || '';
+            const options = q.options || {
               A: q.option_a || '',
               B: q.option_b || '',
               C: q.option_c || '',
               D: q.option_d || '',
-            },
-            explanations: q.explanations || {
+            };
+            const explanations = q.explanations || {
               A: q.explanation_a || '',
               B: q.explanation_b || '',
               C: q.explanation_c || '',
               D: q.explanation_d || '',
-            },
-          }));
-          allQuestions.push(...mcqQuestions);
+            };
+
+            if (questionText.includes('___')) {
+              const correctOptionKey = q.correct_answer as 'A' | 'B' | 'C' | 'D';
+              return [{
+                ...q,
+                question_type: 'fill_in_gap',
+                question: questionText.replace('___', '{blank1}'),
+                blanks: [
+                  {
+                    id: 'blank1',
+                    correct_answer: options[correctOptionKey] || '',
+                    options: Object.values(options).filter(Boolean),
+                  },
+                ],
+                explanation: explanations[correctOptionKey] || '',
+              }];
+            }
+
+            return [{
+              ...q,
+              question_type: 'mcq',
+              options,
+              explanations,
+            }];
+          });
+
+          allQuestions.push(...normalizedQuizQuestions);
         }
       } catch (e) {
       }
@@ -346,7 +406,7 @@ class BackendApiService {
     }
     
     // For specific question types, use the original single endpoint
-    const endpoint = queryString 
+    const endpoint = queryString
       ? `/levels/${levelId}/questions?${queryString}`
       : `/levels/${levelId}/questions`;
     

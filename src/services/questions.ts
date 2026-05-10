@@ -4,7 +4,7 @@ import { backendApi } from './backendApi';
 import cachedBackendApi from './cachedBackendApi';
 import { levelProgressService } from './levelProgress';
 import { livesService } from './lives';
-import { getCurrentMonthKey, normalizeMonthKey } from '../utils';
+import { getCurrentMonthKey, shouldResetMonthlyXP } from '../utils';
 
 /**
  * Question Service
@@ -26,20 +26,31 @@ class QuestionService {
     numQuestions: number = 5,
     difficulty: 'easy' | 'medium' | 'hard' | 'mixed' = 'mixed',
     questionType: 'mcq' | 'scenario' | 'matching' | 'fill_in_gap' | 'mixed' = 'mixed',
-    randomize: boolean = true
+    randomize: boolean = true,
+    useMultilevel: boolean = false,
   ): Promise<AnyQuestion[]> {
     try {
       // If requesting specific types, try specialized endpoints first
       if (questionType === 'scenario') {
-        return await this.getScenarioQuestions(levelId, numQuestions, randomize);
+        return await this.getScenarioQuestions(levelId, numQuestions, randomize, useMultilevel);
       } else if (questionType === 'matching') {
-        return await this.getMatchingQuestions(levelId, numQuestions, randomize);
+        return await this.getMatchingQuestions(levelId, numQuestions, randomize, useMultilevel);
+      } else if (questionType === 'fill_in_gap') {
+        return await this.getFillInGapQuestions(levelId, numQuestions, randomize, useMultilevel);
+      } else if (questionType === 'mcq') {
+        return await this.getMCQQuestions(levelId, numQuestions, randomize, useMultilevel);
       } else if (questionType === 'mixed') {
-        return await this.getMixedQuestions(levelId, numQuestions, randomize);
+        return await this.getMixedQuestions(levelId, numQuestions, randomize, useMultilevel);
       }
       
       // For MCQ or other types, use standard endpoint
-      const response = await backendApi.getLevelQuestions(levelId, numQuestions, questionType, randomize);
+      const response = await backendApi.getLevelQuestions(
+        levelId,
+        numQuestions,
+        questionType,
+        randomize,
+        useMultilevel,
+      );
       
       if (response && response.questions && response.questions.length > 0) {
         const transformed = this.transformBackendQuestions(response.questions);
@@ -57,11 +68,17 @@ class QuestionService {
   /**
    * Get scenario questions from specialized endpoint
    */
-  private async getScenarioQuestions(levelId: string, limit: number, randomize: boolean): Promise<ScenarioQuestion[]> {
+  private async getScenarioQuestions(
+    levelId: string,
+    limit: number,
+    randomize: boolean,
+    useMultilevel: boolean = false,
+  ): Promise<ScenarioQuestion[]> {
     try {
       const params = new URLSearchParams();
       if (limit) params.append('limit', limit.toString());
-      if (randomize) params.append('randomize', randomize.toString());
+      params.append('randomize', randomize.toString());
+      params.append('use_multilevel', useMultilevel.toString());
       
       const endpoint = `/levels/${levelId}/scenario-questions${params.toString() ? '?' + params.toString() : ''}`;
       const response = await backendApi['fetchApi'](endpoint) as any;
@@ -98,30 +115,43 @@ class QuestionService {
   /**
    * Get MCQ questions
    */
-  private async getMCQQuestions(levelId: string, limit: number, randomize: boolean): Promise<GeneratedQuestion[]> {
+  private async getMCQQuestions(
+    levelId: string,
+    limit: number,
+    randomize: boolean,
+    useMultilevel: boolean = false,
+  ): Promise<GeneratedQuestion[]> {
     try {
-      const response = await backendApi.getLevelQuestions(levelId, limit, 'mcq', randomize);
+      const response = await backendApi.getLevelQuestions(
+        levelId,
+        limit,
+        'mcq',
+        randomize,
+        useMultilevel,
+      );
       
       if (response && response.questions && response.questions.length > 0) {
-        return response.questions.map((q: any) => ({
-          question_type: 'mcq',
-          question: q.question_text || q.question,
-          options: {
-            A: q.option_a || q.options?.A,
-            B: q.option_b || q.options?.B,
-            C: q.option_c || q.options?.C,
-            D: q.option_d || q.options?.D,
-          },
-          correct_answer: q.correct_answer,
-          explanations: {
-            A: q.explanation_a || q.explanations?.A || 'No explanation available.',
-            B: q.explanation_b || q.explanations?.B || 'No explanation available.',
-            C: q.explanation_c || q.explanations?.C || 'No explanation available.',
-            D: q.explanation_d || q.explanations?.D || 'No explanation available.',
-          },
-          difficulty: q.difficulty || 'medium',
-          question_id: q.question_id, // Preserve database ID
-        })) as GeneratedQuestion[];
+        return response.questions
+          .filter((q: any) => !(q.question_text || q.question || '').includes('___'))
+          .map((q: any) => ({
+            question_type: 'mcq',
+            question: q.question_text || q.question,
+            options: {
+              A: q.option_a || q.options?.A,
+              B: q.option_b || q.options?.B,
+              C: q.option_c || q.options?.C,
+              D: q.option_d || q.options?.D,
+            },
+            correct_answer: q.correct_answer,
+            explanations: {
+              A: q.explanation_a || q.explanations?.A || 'No explanation available.',
+              B: q.explanation_b || q.explanations?.B || 'No explanation available.',
+              C: q.explanation_c || q.explanations?.C || 'No explanation available.',
+              D: q.explanation_d || q.explanations?.D || 'No explanation available.',
+            },
+            difficulty: q.difficulty || 'medium',
+            question_id: q.question_id, // Preserve database ID
+          })) as GeneratedQuestion[];
       }
       return [];
     } catch (error) {
@@ -133,23 +163,55 @@ class QuestionService {
   /**
    * Get fill-in-gap questions
    */
-  private async getFillInGapQuestions(levelId: string, limit: number, randomize: boolean): Promise<FillInGapQuestion[]> {
+  private async getFillInGapQuestions(
+    levelId: string,
+    limit: number,
+    randomize: boolean,
+    useMultilevel: boolean = false,
+  ): Promise<FillInGapQuestion[]> {
     try {
-      const params = new URLSearchParams();
-      if (limit) params.append('limit', limit.toString());
-      if (randomize) params.append('randomize', randomize.toString());
-      
-      const endpoint = `/levels/${levelId}/fill-in-gap-questions${params.toString() ? '?' + params.toString() : ''}`;
-      const response = await backendApi['fetchApi'](endpoint) as any;
+      const response = await backendApi.getLevelQuestions(
+        levelId,
+        limit,
+        'fill_in_gap',
+        randomize,
+        useMultilevel,
+      );
       
       if (response && response.questions && response.questions.length > 0) {
-        return response.questions.map((q: any) => ({
-          question_type: 'fill_in_gap',
-          question: q.question_text || q.question,
-          blanks: q.blanks || [],
-          explanation: q.explanation || 'No explanation available.',
-          difficulty: q.difficulty || 'medium',
-        })) as FillInGapQuestion[];
+        return response.questions
+          .filter((q: any) => {
+            const questionText = q.question_text || q.question || '';
+            return questionText.includes('___');
+          })
+          .map((q: any) => {
+            const questionText = q.question_text || q.question || '';
+            const correctOptionKey = q.correct_answer as 'A' | 'B' | 'C' | 'D';
+            const correctAnswer =
+              q.options?.[correctOptionKey] ??
+              q[`option_${correctOptionKey.toLowerCase()}`] ??
+              '';
+
+            return {
+              question_id: q.question_id,
+              question_type: 'fill_in_gap',
+              question: questionText.replace('___', '{blank1}'),
+              blanks: [
+                {
+                  id: 'blank1',
+                  correct_answer: correctAnswer,
+                  options: q.options
+                    ? Object.values(q.options)
+                    : [q.option_a, q.option_b, q.option_c, q.option_d].filter(Boolean),
+                },
+              ],
+              explanation:
+                q.explanations?.[correctOptionKey] ??
+                q[`explanation_${correctOptionKey.toLowerCase()}`] ??
+                'No explanation available.',
+              difficulty: q.difficulty || 'medium',
+            };
+          }) as FillInGapQuestion[];
       }
       return [];
     } catch (error) {
@@ -161,13 +223,19 @@ class QuestionService {
   /**
    * Get matching questions from specialized endpoint and aggregate pairs
    */
-  private async getMatchingQuestions(levelId: string, limit: number, randomize: boolean): Promise<MatchingQuestion[]> {
+  private async getMatchingQuestions(
+    levelId: string,
+    limit: number,
+    randomize: boolean,
+    useMultilevel: boolean = false,
+  ): Promise<MatchingQuestion[]> {
     try {
       // Request more pairs than needed to ensure we have enough
       const pairsNeeded = Math.max(limit * 5, 10); // Get at least 10 pairs or 5x the limit
       const params = new URLSearchParams();
       params.append('limit', pairsNeeded.toString());
-      if (randomize) params.append('randomize', randomize.toString());
+      params.append('randomize', randomize.toString());
+      params.append('use_multilevel', useMultilevel.toString());
       
       const endpoint = `/levels/${levelId}/matching-questions${params.toString() ? '?' + params.toString() : ''}`;
       const response = await backendApi['fetchApi'](endpoint) as any;
@@ -238,7 +306,12 @@ class QuestionService {
    * Get mixed question types with balanced distribution
    * 1 MCQ, 1 Scenario, 1 Matching, 2 Fill-in-Gap = 5 questions
    */
-  private async getMixedQuestions(levelId: string, numQuestions: number, randomize: boolean): Promise<AnyQuestion[]> {
+  private async getMixedQuestions(
+    levelId: string,
+    numQuestions: number,
+    randomize: boolean,
+    useMultilevel: boolean = false,
+  ): Promise<AnyQuestion[]> {
     try {
       // Define the baseline distribution for 5 questions
       const distribution = {
@@ -262,10 +335,10 @@ class QuestionService {
 
       // Fetch all question types in parallel
       const [mcqQuestions, scenarioQuestions, matchingQuestions, fillInGapQuestions] = await Promise.all([
-        this.getMCQQuestions(levelId, distribution.mcq, randomize),
-        this.getScenarioQuestions(levelId, distribution.scenario, randomize),
-        this.getMatchingQuestions(levelId, distribution.matching, randomize),
-        this.getFillInGapQuestions(levelId, distribution.fillInGap, randomize),
+        this.getMCQQuestions(levelId, distribution.mcq, randomize, useMultilevel),
+        this.getScenarioQuestions(levelId, distribution.scenario, randomize, useMultilevel),
+        this.getMatchingQuestions(levelId, distribution.matching, randomize, useMultilevel),
+        this.getFillInGapQuestions(levelId, distribution.fillInGap, randomize, useMultilevel),
       ]);
 
   
@@ -419,7 +492,7 @@ class QuestionService {
       const currentMonthKey = getCurrentMonthKey();
 
       // Check if we need to reset monthly XP (new month)
-      const needsReset = normalizeMonthKey(user.lastMonthlyReset) !== currentMonthKey;
+      const needsReset = shouldResetMonthlyXP(user.lastMonthlyReset, now);
       const baseMonthlyXP = needsReset ? 0 : (user.monthlyXP || 0);
 
       const newTotalQuestions = (user.totalQuestionsAnswered || 0) + 1;

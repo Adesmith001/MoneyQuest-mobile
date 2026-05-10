@@ -195,30 +195,7 @@ export const isNewMonth = (lastUpdateDate: string): boolean => {
   );
 };
 
-/**
- * Get the current month key (e.g., "2025-11")
- * @returns Month key string
- */
-export const getCurrentMonthKey = (): string => {
-  const now = new Date();
-  const year = now.getFullYear();
-  const month = (now.getMonth() + 1).toString().padStart(2, '0');
-  return `${year}-${month}`;
-};
-
-export const normalizeMonthKey = (monthKey?: string | null): string | null => {
-  if (!monthKey) {
-    return null;
-  }
-
-  const match = /^(\d{4})-(\d{1,2})$/.exec(monthKey.trim());
-  if (!match) {
-    return null;
-  }
-
-  const [, year, month] = match;
-  return `${year}-${month.padStart(2, '0')}`;
-};
+export { getCurrentMonthKey, getMonthKey, normalizeMonthKey, shouldResetMonthlyXP } from './monthlyXP';
 
 /**
  * Get month name from month key
