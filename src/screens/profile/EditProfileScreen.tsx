@@ -148,7 +148,7 @@ const EditProfileScreen: React.FC<Props> = ({ navigation }) => {
     }
   };
 
-  const versionLabel = `v${Constants.nativeAppVersion || (Constants.expoConfig as any)?.version || "1.0.0"} (${Constants.nativeBuildVersion || "dev"})`;
+  const versionLabel = `v${Constants.nativeAppVersion || (Constants.expoConfig as any)?.version || "1.0.0"} ${Constants.nativeBuildVersion}`;
 
   return (
     <SafeAreaView style={styles.container}>
