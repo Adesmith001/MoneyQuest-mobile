@@ -4,7 +4,7 @@
     "slug": "moneyquest",
     "version": "1.1.0",
     "orientation": "portrait",
-    "icon": "./assets/logo-white.jpeg",
+    "icon": "./assets/logo-white.png",
     "scheme": "moneyquest",
     "userInterfaceStyle": "light",
     "splash": {
@@ -33,7 +33,7 @@
       "package": "com.expo.moneyquest",
       "versionCode": 1,
       "adaptiveIcon": {
-        "foregroundImage": "./assets/logo-orange.jpeg",
+        "foregroundImage": "./assets/logo-orange.png",
         "backgroundColor": "#ffffff"
       },
       "permissions": [
@@ -102,7 +102,7 @@
       [
         "expo-notifications",
         {
-          "icon": "./assets/logo-white.jpeg",
+          "icon": "./assets/logo-white.png",
           "color": "#FF6B35",
           "sounds": []
         }
