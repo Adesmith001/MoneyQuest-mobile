@@ -73,12 +73,15 @@ const IncorrectAnswerModal: React.FC<IncorrectAnswerModalProps> = ({
                   </Text>{" "}
                   is incorrect
                 </Text>
-                {explanation && (
-                  <RenderContentWithTables 
-                    content={explanation} 
-                    textStyle={styles.explanationText}
-                  />
-                )}
+              </View>
+            )}
+
+            {explanation && (
+              <View style={styles.explanationContainer}>
+                <RenderContentWithTables
+                  content={explanation}
+                  textStyle={styles.explanationText}
+                />
               </View>
             )}
           </ScrollView>

@@ -2,6 +2,8 @@ import { createSlice, createAsyncThunk, PayloadAction } from '@reduxjs/toolkit';
 import { ID } from 'react-native-appwrite';
 import { LeaderboardEntry } from '../../types';
 import { databases, DB_ID, COLLECTIONS, Query } from '../../services/appwrite';
+import { shouldResetMonthlyXP } from '../../utils';
+import { selectLeaderboardStreak } from '../../utils/progressBehavior';
 
 interface LeaderboardState {
   entries: LeaderboardEntry[];
@@ -21,10 +23,16 @@ const initialState: LeaderboardState = {
 
 const STREAK_QUERY_BATCH_SIZE = 100;
 
-const toStreakNumber = (value: unknown): number => {
-  const normalized = Number(value);
-  return Number.isFinite(normalized) ? normalized : 0;
-};
+const getResolvedMonthlyXP = (doc: any, now: Date): number =>
+  shouldResetMonthlyXP(doc?.lastMonthlyReset, now) ? 0 : Number(doc?.monthlyXP || 0);
+
+const rankLeaderboardEntries = (entries: LeaderboardEntry[]): LeaderboardEntry[] =>
+  [...entries]
+    .sort((a, b) => b.monthlyXP - a.monthlyXP)
+    .map((entry, index) => ({
+      ...entry,
+      rank: index + 1,
+    }));
 
 const buildStreakMapForUserIds = async (userIds: string[]): Promise<Map<string, number>> => {
   const streakMap = new Map<string, number>();
@@ -53,11 +61,11 @@ const buildStreakMapForUserIds = async (userIds: string[]): Promise<Map<string, 
           return;
         }
 
-        const weeklyValue = toStreakNumber(doc.weeklyStreak ?? doc.streak ?? 0);
+        const streakValue = selectLeaderboardStreak(doc);
         const previousValue = streakMap.get(userId) ?? 0;
 
-        if (weeklyValue >= previousValue) {
-          streakMap.set(userId, weeklyValue);
+        if (streakValue >= previousValue) {
+          streakMap.set(userId, streakValue);
         }
       });
     } catch (error) {
@@ -70,23 +78,24 @@ const buildStreakMapForUserIds = async (userIds: string[]): Promise<Map<string, 
 
 const buildLeaderboardEntries = (
   documents: any[],
+  currentDate: Date,
   currentMonth: number,
   currentYear: number,
   streakMap?: Map<string, number>
 ): LeaderboardEntry[] =>
-  documents.map((doc: any, index: number) => ({
+  rankLeaderboardEntries(documents.map((doc: any) => ({
     $id: doc.$id,
     userId: doc.$id,
     userName: doc.username || doc.name || 'Anonymous',
     avatar: doc.avatar || '',
     profilePicture: doc.profilePicture || '',
-    monthlyXP: doc.monthlyXP || 0,
+    monthlyXP: getResolvedMonthlyXP(doc, currentDate),
     // Always prefer streak collection value (same source as Streak screen)
     streak: streakMap?.get(doc.$id) ?? 0,
-    rank: index + 1,
+    rank: 0,
     month: `${currentMonth}`,
     year: currentYear,
-  }));
+  })));
 
 const buildLeaderboardEntriesFromTable = (
   documents: any[],
@@ -210,6 +219,7 @@ export const fetchLeaderboard = createAsyncThunk(
 
       const leaderboardEntries = buildLeaderboardEntries(
         response.documents,
+        currentDate,
         currentMonth,
         currentYear,
         streakMap
@@ -268,7 +278,7 @@ export const updateUserRank = createAsyncThunk(
       const monthKey = `${currentMonth}`;
       const user = await databases.getDocument(DB_ID, COLLECTIONS.USERS, userId);
       const streakMap = await buildStreakMapForUserIds([userId]);
-      const weeklyStreak = streakMap.get(userId) ?? 0;
+      const currentStreak = streakMap.get(userId) ?? 0;
 
       // Check if user already has a leaderboard entry for this month
       const existingEntry = await databases.listDocuments(
@@ -290,7 +300,7 @@ export const updateUserRank = createAsyncThunk(
           entryId,
           {
             monthlyXP: xp,
-            streak: weeklyStreak,
+            streak: currentStreak,
           }
         );
       } else {
@@ -304,7 +314,7 @@ export const updateUserRank = createAsyncThunk(
             userName: user.username || user.name || 'Anonymous',
             profilePicture: user.profilePicture || '',
             monthlyXP: xp,
-            streak: weeklyStreak,
+            streak: currentStreak,
             month: monthKey,
             year: currentYear,
             rank: 1, // Appwrite column enforces a minimum rank of 1

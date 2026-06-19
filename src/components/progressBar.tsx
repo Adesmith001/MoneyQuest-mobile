@@ -4,7 +4,6 @@ import { useSelector } from "react-redux";
 import { SPACING } from "../constants";
 import { Ionicons } from '@expo/vector-icons';
 import { RootState } from "../store";
-import { livesService } from "../services/lives";
 
 interface ProgressBarProps {
   progress: number;
@@ -24,13 +23,7 @@ const ProgressBar: React.FC<ProgressBarProps> = ({
   // Update lives display from Redux state (responds to immediate deductions)
   useEffect(() => {
     if (user) {
-      // Calculate current lives considering regeneration
-      const { lives } = livesService.calculateCurrentLives(
-        user.lives !== undefined && user.lives !== null ? user.lives : 5,
-        user.lastLifeRegenTime || new Date().toISOString()
-      );
-      
-      // Use the lower of calculated lives or gameHealth (for immediate UI updates)
+      const lives = user.lives !== undefined && user.lives !== null ? user.lives : 5;
       const currentLives = gameHealth !== undefined ? Math.min(lives, gameHealth) : lives;
       setDisplayLives(Math.max(0, Math.min(5, currentLives)));
     }

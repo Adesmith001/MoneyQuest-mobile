@@ -3,8 +3,21 @@ import * as Device from 'expo-device';
 import { Platform, AppState, AppStateStatus } from 'react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import analyticsService from './analytics';
-import { databases, DB_ID, Query } from './appwrite';
+import { databases, DB_ID, Query, COLLECTIONS } from './appwrite';
 import { ENV } from '../config/environment';
+import { subscriptionService } from './subscriptionService';
+import {
+  LEARNING_REMINDER_SCHEDULE,
+  buildDailyReminderTrigger,
+  chooseNotificationTemplate,
+  getTrialReminderMessage,
+  getTrialReminderThresholds,
+  type NotificationSelectionContext,
+  type NotificationTemplateCategory,
+  type NotificationTriggerType,
+  type SelectedNotificationTemplate,
+} from '../utils/notificationReminderConfig';
+import { shouldResetMonthlyXP } from '../utils';
 
 // Configure how notifications should be handled when the app is in foreground
 // Wrap in try-catch to prevent iOS crash if notification system isn't ready
@@ -29,6 +42,8 @@ const NOTIFICATION_KEYS = {
   SEEN_BROADCAST_IDS: '@moneyquest_seen_broadcast_ids',
   LAST_ERROR_FINGERPRINT: '@moneyquest_last_error_fingerprint',
   LAST_ERROR_TIMESTAMP: '@moneyquest_last_error_timestamp',
+  LAST_TEMPLATE_IDS: '@moneyquest_notification_last_template_ids',
+  TRIAL_REMINDER_MARKERS: '@moneyquest_trial_reminder_markers',
 } as const;
 
 const DAY_END_REMINDER_HOUR = 20;
@@ -212,6 +227,7 @@ class NotificationService {
     await this.scheduleDailyReminder();
     await this.scheduleEngagementNotifications();
     await this.scheduleDayEndInactivityReminder();
+    await this.scheduleTrialCountdownNotifications();
   }
 
   /**
@@ -370,18 +386,46 @@ class NotificationService {
     try {
       // Set up notification listeners
       this.notificationListener = Notifications.addNotificationReceivedListener(notification => {
+        const data = notification.request.content.data || {};
+        const fallbackTriggerType =
+          typeof data.triggerType === 'string' && data.triggerType.trim().length > 0
+            ? data.triggerType
+            : typeof data.type === 'string' && data.type.trim().length > 0
+              ? data.type
+              : 'notification-without-trigger-label';
+
         analyticsService.trackEvent('notification_received', {
-          type: String(notification.request.content.data?.type || 'unknown'),
+          type: typeof data.type === 'string' && data.type.trim().length > 0
+            ? data.type
+            : 'notification-without-trigger-label',
           title: notification.request.content.title || '',
+          template_id: typeof data.templateId === 'string' ? data.templateId : '',
+          template_category: typeof data.templateCategory === 'string' ? data.templateCategory : '',
+          trigger_type: fallbackTriggerType,
+          scheduled_hour: typeof data.scheduledHour === 'number' ? data.scheduledHour : undefined,
         }, {
           featureName: 'notifications',
         }).catch(() => {});
       });
 
       this.responseListener = Notifications.addNotificationResponseReceivedListener(response => {
+        const data = response.notification.request.content.data || {};
+        const fallbackTriggerType =
+          typeof data.triggerType === 'string' && data.triggerType.trim().length > 0
+            ? data.triggerType
+            : typeof data.type === 'string' && data.type.trim().length > 0
+              ? data.type
+              : 'notification-without-trigger-label';
+
         analyticsService.trackEvent('notification_opened', {
-          type: String(response.notification.request.content.data?.type || 'unknown'),
+          type: typeof data.type === 'string' && data.type.trim().length > 0
+            ? data.type
+            : 'notification-without-trigger-label',
           title: response.notification.request.content.title || '',
+          template_id: typeof data.templateId === 'string' ? data.templateId : '',
+          template_category: typeof data.templateCategory === 'string' ? data.templateCategory : '',
+          trigger_type: fallbackTriggerType,
+          scheduled_hour: typeof data.scheduledHour === 'number' ? data.scheduledHour : undefined,
         }, {
           featureName: 'notifications',
         }).catch(() => {});
@@ -449,6 +493,120 @@ class NotificationService {
     }
   }
 
+  private async getLastAppOpenDay(): Promise<string | null> {
+    try {
+      return await AsyncStorage.getItem(NOTIFICATION_KEYS.LAST_APP_OPEN_DAY);
+    } catch (error) {
+      console.error('Failed to get last app open day:', error);
+      return null;
+    }
+  }
+
+  private async getLastTemplateIdByCategory(): Promise<
+    Partial<Record<NotificationTemplateCategory, string>>
+  > {
+    try {
+      const raw = await AsyncStorage.getItem(NOTIFICATION_KEYS.LAST_TEMPLATE_IDS);
+      if (!raw) {
+        return {};
+      }
+
+      return JSON.parse(raw) as Partial<Record<NotificationTemplateCategory, string>>;
+    } catch (error) {
+      console.error('Failed to get notification template history:', error);
+      return {};
+    }
+  }
+
+  private async saveLastTemplateIdByCategory(
+    value: Partial<Record<NotificationTemplateCategory, string>>
+  ): Promise<void> {
+    try {
+      await AsyncStorage.setItem(NOTIFICATION_KEYS.LAST_TEMPLATE_IDS, JSON.stringify(value));
+    } catch (error) {
+      console.error('Failed to save notification template history:', error);
+    }
+  }
+
+  private buildTrialReminderMarker(userId: string, trialEndDate: string, threshold: number): string {
+    return `${userId}:${trialEndDate}:${threshold}`;
+  }
+
+  private async getTrialReminderMarkers(): Promise<Record<string, boolean>> {
+    try {
+      const raw = await AsyncStorage.getItem(NOTIFICATION_KEYS.TRIAL_REMINDER_MARKERS);
+      return raw ? (JSON.parse(raw) as Record<string, boolean>) : {};
+    } catch (error) {
+      console.error('Failed to read trial reminder markers:', error);
+      return {};
+    }
+  }
+
+  private async saveTrialReminderMarkers(value: Record<string, boolean>): Promise<void> {
+    try {
+      await AsyncStorage.setItem(NOTIFICATION_KEYS.TRIAL_REMINDER_MARKERS, JSON.stringify(value));
+    } catch (error) {
+      console.error('Failed to save trial reminder markers:', error);
+    }
+  }
+
+  private buildNotificationData(
+    template: SelectedNotificationTemplate,
+    triggerType: NotificationTriggerType,
+    scheduledHour?: number
+  ) {
+    return {
+      type: triggerType,
+      screen: 'Home',
+      scheduledHour,
+      triggerType,
+      templateId: template.analytics.templateId,
+      templateCategory: template.analytics.templateCategory,
+    };
+  }
+
+  private async getNotificationUserContext(
+    lastOpenTime: number
+  ): Promise<NotificationSelectionContext> {
+    const now = new Date();
+    const todayKey = this.getDateKey(now);
+    const lastOpenDay = await this.getLastAppOpenDay();
+
+    const baseContext: NotificationSelectionContext = {
+      hasOpenedToday: lastOpenDay === todayKey,
+      hoursSinceLastOpen: (Date.now() - lastOpenTime) / (1000 * 60 * 60),
+      currentStreak: 0,
+      monthlyXP: 0,
+    };
+
+    if (!this.currentUserId) {
+      return baseContext;
+    }
+
+    try {
+      const [userDoc, streakResponse] = await Promise.all([
+        databases.getDocument(DB_ID, COLLECTIONS.USERS, this.currentUserId),
+        databases.listDocuments(DB_ID, COLLECTIONS.STREAKS, [
+          Query.equal('userId', this.currentUserId),
+          Query.limit(1),
+        ]).catch(() => null),
+      ]);
+
+      const streakDoc = streakResponse?.documents?.[0] as any;
+
+      return {
+        ...baseContext,
+        currentStreak: Number(streakDoc?.currentStreak ?? (userDoc as any)?.streak ?? 0) || 0,
+        monthlyXP: shouldResetMonthlyXP((userDoc as any)?.lastMonthlyReset, now)
+          ? 0
+          : Number((userDoc as any)?.monthlyXP || 0),
+      };
+    } catch (error) {
+      console.error('Failed to get notification user context:', error);
+      return baseContext;
+    }
+  }
+
   async enableNotificationsFromSettings(): Promise<boolean> {
     await this.setNotificationPreference(true);
 
@@ -482,37 +640,29 @@ class NotificationService {
       await this.cancelNotificationsByType('learning-reminder');
 
       // Peak hours to send notifications
-      const peakHours = [
-        { hour: 10, minute: 0, title: "Morning Learning! ☀️", body: "Start your day with a financial lesson!" },
-        { hour: 14, minute: 0, title: "Afternoon Break! 📚", body: "Time for your daily financial literacy lesson!" },
-        { hour: 19, minute: 0, title: "Evening Learning! 🌙", body: "Complete today's lesson before bed!" },
-      ];
+      const peakHours = LEARNING_REMINDER_SCHEDULE;
+      const lastOpenTime = await this.getLastAppOpenTime();
+      const context = await this.getNotificationUserContext(lastOpenTime);
+      const lastTemplateIdByCategory = await this.getLastTemplateIdByCategory();
 
-      let scheduledCount = 0;
+      // Schedule notification for each peak hour as a repeating daily reminder
+      for (const reminder of peakHours) {
+        const template = chooseNotificationTemplate({
+          triggerType: 'learning-reminder',
+          scheduledHour: reminder.hour,
+          context,
+          lastTemplateIdByCategory,
+        });
 
-      // Schedule notification for each peak hour
-      for (const peak of peakHours) {
-        // Calculate the next occurrence of this time
-        const now = new Date();
-        const scheduledDate = new Date();
-        scheduledDate.setHours(peak.hour, peak.minute, 0, 0);
+        lastTemplateIdByCategory[template.category] = template.id;
 
-        // If the time has passed today, schedule for tomorrow
-        if (scheduledDate <= now) {
-          scheduledDate.setDate(scheduledDate.getDate() + 1);
-        }
-
-        const notificationId = await Notifications.scheduleNotificationAsync({
+        await Notifications.scheduleNotificationAsync({
           content: {
-            title: peak.title,
-            body: peak.body,
+            title: template.title,
+            body: template.body,
             sound: true,
             badge: 1,
-            data: { 
-              type: 'learning-reminder',
-              screen: 'Home',
-              scheduledHour: peak.hour,
-            },
+            data: this.buildNotificationData(template, 'learning-reminder', reminder.hour),
             ...(Platform.OS === 'android' && {
               channelId: 'learning-reminders',
               priority: Notifications.AndroidNotificationPriority.DEFAULT,
@@ -523,19 +673,14 @@ class NotificationService {
             }),
           },
           trigger: {
-            type: Notifications.SchedulableTriggerInputTypes.DATE,
-            date: scheduledDate,
+            ...buildDailyReminderTrigger(reminder),
+            type: Notifications.SchedulableTriggerInputTypes.DAILY,
           },
         });
 
-        scheduledCount++;
-        const timeStr = `${peak.hour}:${peak.minute.toString().padStart(2, '0')}`;
-        const nextFireTime = scheduledDate.toLocaleString();
       }
 
-      // Verify scheduled notifications
-      const allScheduled = await Notifications.getAllScheduledNotificationsAsync();
-      const reminderCount = allScheduled.filter(n => n.content.data?.type === 'learning-reminder').length;
+      await this.saveLastTemplateIdByCategory(lastTemplateIdByCategory);
     } catch (error) {
       console.error('❌ Failed to schedule daily reminders:', error);
     }
@@ -544,7 +689,7 @@ class NotificationService {
   /**
    * Schedule a notification for when lives are full
    */
-  async scheduleLifeFullNotification(minutesUntilFull: number) {
+  async scheduleLifeFullNotification(millisecondsUntilFull: number) {
     try {
       if (!(await this.shouldScheduleNotifications())) {
         return;
@@ -559,7 +704,7 @@ class NotificationService {
       }
 
       // Only schedule if there's a meaningful wait time (at least 1 minute)
-      if (minutesUntilFull < 1) {
+      if (millisecondsUntilFull < 60 * 1000) {
         return;
       }
 
@@ -577,7 +722,7 @@ class NotificationService {
         },
         trigger: {
           type: Notifications.SchedulableTriggerInputTypes.TIME_INTERVAL,
-          seconds: Math.max(minutesUntilFull * 60, 60), // At least 60 seconds
+          seconds: Math.max(Math.ceil(millisecondsUntilFull / 1000), 60), // At least 60 seconds
           repeats: false,
         },
       });
@@ -610,23 +755,46 @@ class NotificationService {
 
       // If app hasn't been opened in last 12 hours, schedule engagement notifications
       if (hoursSinceLastOpen > 12) {
+        const context = await this.getNotificationUserContext(lastOpen);
+        const lastTemplateIdByCategory = await this.getLastTemplateIdByCategory();
         // Immediate notification if been away for 24+ hours
         if (hoursSinceLastOpen >= 24) {
+          const immediateTemplate = chooseNotificationTemplate({
+            triggerType: 'engagement',
+            context,
+            lastTemplateIdByCategory,
+          });
+
+          lastTemplateIdByCategory[immediateTemplate.category] = immediateTemplate.id;
+
           await this.sendImmediateNotification(
             "We miss you! 😢",
-            "Your learning journey awaits. Come back and continue growing!",
-            'engagement'
+            immediateTemplate.body,
+            'engagement',
+            this.buildNotificationData(immediateTemplate, 'engagement')
           );
         }
 
         // Schedule 24-hour check-in notification
+        const firstFollowUpTemplate = chooseNotificationTemplate({
+          triggerType: 'engagement',
+          context,
+          lastTemplateIdByCategory,
+        });
+
+        lastTemplateIdByCategory[firstFollowUpTemplate.category] = firstFollowUpTemplate.id;
+
         await Notifications.scheduleNotificationAsync({
           content: {
-            title: "Where are you? 🤔",
-            body: "It's been a day! Don't lose your streak. Continue learning now!",
+            // title: "Where are you? 🤔",
+            title: firstFollowUpTemplate.title,
+            body: firstFollowUpTemplate.body,
             sound: true,
             badge: 1,
-            data: { type: 'engagement' },
+            data: {
+              ...this.buildNotificationData(firstFollowUpTemplate, 'engagement'),
+              followUpHours: 24,
+            },
             ...(Platform.OS === 'android' && {
               channelId: 'engagement',
             }),
@@ -639,13 +807,25 @@ class NotificationService {
         });
 
         // Schedule 48-hour follow-up
+        const secondFollowUpTemplate = chooseNotificationTemplate({
+          triggerType: 'engagement',
+          context,
+          lastTemplateIdByCategory,
+        });
+
+        lastTemplateIdByCategory[secondFollowUpTemplate.category] = secondFollowUpTemplate.id;
+
         await Notifications.scheduleNotificationAsync({
           content: {
-            title: "Your progress is waiting! 📈",
-            body: "Don't let your streak end. Jump back in and keep learning!",
+            // title: "Your progress is waiting! 📈",
+            title: secondFollowUpTemplate.title,
+            body: secondFollowUpTemplate.body,
             sound: true,
             badge: 1,
-            data: { type: 'engagement' },
+            data: {
+              ...this.buildNotificationData(secondFollowUpTemplate, 'engagement'),
+              followUpHours: 48,
+            },
             ...(Platform.OS === 'android' && {
               channelId: 'engagement',
             }),
@@ -746,6 +926,88 @@ class NotificationService {
     await this.markErrorNotificationSent(fingerprint);
   }
 
+  async scheduleTrialCountdownNotifications() {
+    try {
+      if (!(await this.shouldScheduleNotifications()) || !this.currentUserId) {
+        return;
+      }
+
+      await this.cancelNotificationsByType('trial-countdown');
+
+      const subscription =
+        (await subscriptionService.getLocalSubscription(this.currentUserId)) ??
+        (await subscriptionService.getUserSubscription(this.currentUserId));
+
+      if (!subscription || subscription.status !== 'trial' || subscriptionService.isTrialExpired(subscription)) {
+        return;
+      }
+
+      const now = new Date();
+      const trialEnd = new Date(subscription.trialEndDate);
+      const markers = await this.getTrialReminderMarkers();
+
+      for (const threshold of getTrialReminderThresholds()) {
+        const markerKey = this.buildTrialReminderMarker(
+          this.currentUserId,
+          subscription.trialEndDate,
+          threshold
+        );
+
+        if (markers[markerKey]) {
+          continue;
+        }
+
+        const message = getTrialReminderMessage(threshold);
+        const triggerDate = new Date(trialEnd);
+        triggerDate.setDate(triggerDate.getDate() - threshold);
+
+        if (threshold === subscriptionService.getRemainingTrialDays(subscription)) {
+          await this.sendImmediateNotification(
+            message.title,
+            message.body,
+            'engagement',
+            {
+              type: 'trial-countdown',
+              threshold,
+              trialEndDate: subscription.trialEndDate,
+            }
+          );
+          markers[markerKey] = true;
+          continue;
+        }
+
+        if (triggerDate <= now) {
+          continue;
+        }
+
+        await Notifications.scheduleNotificationAsync({
+          content: {
+            title: message.title,
+            body: message.body,
+            sound: true,
+            badge: 1,
+            data: {
+              type: 'trial-countdown',
+              threshold,
+              trialEndDate: subscription.trialEndDate,
+            },
+            ...(Platform.OS === 'android' && {
+              channelId: 'engagement',
+            }),
+          },
+          trigger: {
+            type: Notifications.SchedulableTriggerInputTypes.DATE,
+            date: triggerDate,
+          },
+        });
+      }
+
+      await this.saveTrialReminderMarkers(markers);
+    } catch (error) {
+      console.error('Failed to schedule trial countdown notifications:', error);
+    }
+  }
+
   async scheduleDayEndInactivityReminder() {
     try {
       if (!(await this.shouldScheduleNotifications())) {
@@ -755,18 +1017,30 @@ class NotificationService {
       await this.cancelNotificationsByType('day-end-inactive');
 
       const now = new Date();
+      const lastOpenTime = await this.getLastAppOpenTime();
+      const context = await this.getNotificationUserContext(lastOpenTime);
+      const lastTemplateIdByCategory = await this.getLastTemplateIdByCategory();
       const targetDate = new Date(now);
       targetDate.setDate(targetDate.getDate() + 1);
       targetDate.setHours(DAY_END_REMINDER_HOUR, 0, 0, 0);
+      const template = chooseNotificationTemplate({
+        triggerType: 'day-end-inactive',
+        scheduledHour: DAY_END_REMINDER_HOUR,
+        context,
+        lastTemplateIdByCategory,
+      });
+
+      lastTemplateIdByCategory[template.category] = template.id;
 
       await Notifications.scheduleNotificationAsync({
         content: {
-          title: 'Your day is almost over ⏰',
-          body: 'You have not opened MoneyQuest today. Complete a lesson before the day ends.',
+          // title: 'Your day is almost over ⏰',
+          title: template.title,
+          body: template.body,
           sound: true,
           badge: 1,
           data: {
-            type: 'day-end-inactive',
+            ...this.buildNotificationData(template, 'day-end-inactive', DAY_END_REMINDER_HOUR),
             scheduledForDay: this.getDateKey(targetDate),
           },
           ...(Platform.OS === 'android' && {
@@ -778,6 +1052,8 @@ class NotificationService {
           date: targetDate,
         },
       });
+
+      await this.saveLastTemplateIdByCategory(lastTemplateIdByCategory);
     } catch (error) {
       console.error('Failed to schedule day-end inactivity reminder:', error);
     }

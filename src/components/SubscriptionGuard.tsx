@@ -71,6 +71,7 @@ const SubscriptionGuard: React.FC<SubscriptionGuardProps> = ({
 
     notificationService.setCurrentUserId(user.$id);
     notificationService.syncAdminBroadcasts(user.$id).catch(() => {});
+    notificationService.scheduleTrialCountdownNotifications().catch(() => {});
 
     // ── Step 1: school subscription (still needs network; gracefully skips if offline) ──
     try {
@@ -145,6 +146,7 @@ const SubscriptionGuard: React.FC<SubscriptionGuardProps> = ({
         setSubscription(freshSub);
         setSubscriptionType(fresh ? 'individual' : null);
         setTrialDaysRemaining(freshDays);
+        notificationService.scheduleTrialCountdownNotifications().catch(() => {});
         if (!fresh) {
           setTimeout(() => navigation.navigate('Premium' as never), 500);
         }
@@ -169,6 +171,7 @@ const SubscriptionGuard: React.FC<SubscriptionGuardProps> = ({
       setSubscription(updatedSub);
       setAccessGrant(null);
       setTrialDaysRemaining(updatedDays);
+      notificationService.scheduleTrialCountdownNotifications().catch(() => {});
     }).catch(() => { /* offline — keep current state */ });
   };
 

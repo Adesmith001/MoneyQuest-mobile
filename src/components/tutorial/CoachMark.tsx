@@ -9,7 +9,9 @@ import {
   Dimensions,
   Image,
 } from 'react-native';
+import { Ionicons } from '@expo/vector-icons';
 import { FONT_FAMILY } from '../../constants';
+import { TutorialActionKey } from '../../store/slices/tutorialSlice';
 
 const { width: screenWidth, height: screenHeight } = Dimensions.get('window');
 const isSmallDevice = screenHeight < 700;
@@ -31,8 +33,12 @@ export interface CoachMarkStep {
   tooltipPosition?: 'top' | 'bottom' | 'center';
   /** Optional mascot message (spoken by the fox) */
   mascotMessage?: string;
-  /** Optional icon emoji */
+  /** Optional Ionicons name */
   icon?: string;
+  /** Optional action gate for interactive tutorial steps */
+  requiredActionKey?: TutorialActionKey;
+  /** Optional helper text when the action has not been completed yet */
+  blockedMessage?: string;
 }
 
 interface CoachMarkProps {
@@ -168,7 +174,7 @@ const CoachMark: React.FC<CoachMarkProps> = ({
 
             {/* Icon */}
             {step.icon && (
-              <Text style={styles.stepIcon}>{step.icon}</Text>
+              <Ionicons name={step.icon as any} size={40} color="#FF5722" style={styles.stepIcon} />
             )}
 
             {/* Title */}
@@ -288,7 +294,6 @@ const styles = StyleSheet.create({
     borderLeftColor: 'transparent',
   },
   stepIcon: {
-    fontSize: 40,
     marginBottom: 8,
   },
   title: {

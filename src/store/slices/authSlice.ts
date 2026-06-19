@@ -23,6 +23,9 @@ export const signIn = createAsyncThunk(
     try {
       await AuthService.signIn(email, password);
       const currentUser = await AuthService.getCurrentUser();
+      if (!currentUser?.$id) {
+        throw new Error('Your account exists, but your profile could not be loaded. Please try again.');
+      }
       const userDocument = await AuthService.getUserDocument(currentUser.$id);
       analyticsService.identifyUser(currentUser.$id);
       await analyticsService.trackEvent('login_succeeded', {
@@ -76,6 +79,9 @@ export const signUp = createAsyncThunk(
       
       // Step 3: Get the current user (session is now established)
       const currentUser = await AuthService.getCurrentUser();
+      if (!currentUser?.$id) {
+        throw new Error('Your account was created, but your profile could not be loaded. Please try signing in again.');
+      }
       const userDocument = await AuthService.getUserDocument(currentUser.$id);
       analyticsService.identifyUser(currentUser.$id);
       await analyticsService.trackEvent('sign_up_completed', {

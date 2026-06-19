@@ -1,5 +1,6 @@
 import { databases, DB_ID, Query, COLLECTIONS } from './appwrite';
 import { ID } from 'react-native-appwrite';
+import { getCurrentStreakFromHistory } from '../utils/progressBehavior';
 
 export interface StreakData {
     currentStreak: number;
@@ -85,14 +86,19 @@ class AppwriteStreakService {
      * Get date string in YYYY-MM-DD format
      */
     private getDateString(date: Date): string {
-        return date.toISOString().split('T')[0];
+        const year = date.getFullYear();
+        const month = String(date.getMonth() + 1).padStart(2, '0');
+        const day = String(date.getDate()).padStart(2, '0');
+        return `${year}-${month}-${day}`;
     }
 
     /**
      * Check if two dates are consecutive days
      */
     private areConsecutiveDays(date1: Date, date2: Date): boolean {
-        const diff = Math.abs(date2.getTime() - date1.getTime());
+        const day1 = new Date(date1.getFullYear(), date1.getMonth(), date1.getDate());
+        const day2 = new Date(date2.getFullYear(), date2.getMonth(), date2.getDate());
+        const diff = Math.abs(day2.getTime() - day1.getTime());
         const dayInMs = 24 * 60 * 60 * 1000;
         return Math.round(diff / dayInMs) === 1;
     }
@@ -294,9 +300,12 @@ class AppwriteStreakService {
      * Convert StreakDocument to StreakData
      */
     private convertToStreakData(doc: StreakDocument): StreakData {
+        const derivedCurrentStreak = getCurrentStreakFromHistory(doc.loginHistory || []);
+        const currentStreak = derivedCurrentStreak > 0 ? derivedCurrentStreak : doc.currentStreak;
+
         return {
-            currentStreak: doc.currentStreak,
-            longestStreak: doc.longestStreak,
+            currentStreak,
+            longestStreak: Math.max(doc.longestStreak, currentStreak),
             totalLoginDays: doc.totalLoginDays,
             lastLoginDate: doc.lastLoginDate,
             streakStartDate: doc.streakStartDate,

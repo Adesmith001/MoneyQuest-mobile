@@ -353,20 +353,20 @@ const styles = StyleSheet.create({
     padding: SPACING.xs,
   },
   matchingContainer: {
-    gap: 22,
+    gap: 24,
   },
   matchRow: {
     flexDirection: 'row',
-    gap: 32,
+    gap: 20,
   },
   column: {
     flex: 1,
   },
   matchItem: {
-    minHeight: 42,
-    borderRadius: 8,
-    paddingHorizontal: 12,
-    paddingVertical: 8,
+    minHeight: 64,
+    borderRadius: 14,
+    paddingHorizontal: 16,
+    paddingVertical: 14,
     backgroundColor: '#FFFFFF',
     borderWidth: 1,
     borderColor: '#EEEEEE',
@@ -379,7 +379,7 @@ const styles = StyleSheet.create({
     elevation: 5,
   },
   matchItemPlaceholder: {
-    minHeight: 42,
+    minHeight: 64,
   },
   defaultItem: {
     backgroundColor: '#FFFFFF',
@@ -409,7 +409,8 @@ const styles = StyleSheet.create({
     opacity: 0.3,
   },
   matchText: {
-    fontSize: FONT_SIZES.sm,
+    fontSize: FONT_SIZES.md,
+    lineHeight: 22,
     color: COLORS.text,
     fontWeight: '700',
     textAlign: 'center',

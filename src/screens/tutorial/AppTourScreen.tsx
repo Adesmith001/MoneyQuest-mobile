@@ -33,16 +33,16 @@ const TOUR_SLIDES: TourSlide[] = [
     icon: '🗺️',
     title: 'Your Learning Path',
     description:
-      'Each section covers a financial topic. Tap the glowing star to start your current level! Complete levels to unlock the next one.\n\nSwipe left and right to see more sections.',
+      'Each section covers a financial topic. You can only move one level at a time, so finish the current glowing star before the next level unlocks. Swipe left and right to see more sections, and use refresh when new content is available.',
     mascotMessage: "Let me show you around! This is where all the learning happens.",
     backgroundColor: '#D4E8F5',
     accentColor: '#FF5722',
   },
   {
     icon: '⭐',
-    title: 'Earn XP & Level Up',
+    title: 'Earn XP & Climb',
     description:
-      'Answer questions correctly to earn XP points. The more you learn, the higher you climb on the leaderboard!\n\nEach correct answer earns you XP.',
+      'Answer questions correctly to earn XP points. The leaderboard ranks learners by monthly XP and shows each learner\'s current streak.',
     mascotMessage: "Points make it fun! Try to get as many right as you can.",
     backgroundColor: '#FFF8E1',
     accentColor: '#FF9800',
@@ -51,16 +51,25 @@ const TOUR_SLIDES: TourSlide[] = [
     icon: '❤️',
     title: 'Lives System',
     description:
-      'You start with 5 lives. Each wrong answer costs 1 life. Lives regenerate 1 per 2 hours.\n\nNo lives? Take a break and come back later!',
+      'You start with 5 lives. Each wrong answer costs 1 life. Complete levels to earn lives back, up to 5 max.',
     mascotMessage: "Don't worry if you make mistakes — we all learn from them!",
     backgroundColor: '#FCE4EC',
     accentColor: '#F44336',
   },
   {
     icon: '🔥',
+    title: 'Feedback & Flags',
+    description:
+      'After each answer, the app shows whether you were correct or incorrect with an explanation. If a question looks wrong or confusing, use the flag button.',
+    mascotMessage: "Good feedback helps you learn faster.",
+    backgroundColor: '#FFF3E0',
+    accentColor: '#FF6B35',
+  },
+  {
+    icon: 'ðŸ”¥',
     title: 'Daily Streaks',
     description:
-      'Open the app and learn every day to build your streak! The streak tab shows your weekly progress.\n\nConsistency is the key to mastering money!',
+      'Complete a lesson each day to build your streak. The streak tab shows your current streak and the days you were active this week.',
     mascotMessage: "Can you keep your streak going? I believe in you!",
     backgroundColor: '#FFF3E0',
     accentColor: '#FF6B35',
@@ -69,7 +78,7 @@ const TOUR_SLIDES: TourSlide[] = [
     icon: '🎯',
     title: "You're All Set!",
     description:
-      'Start your first lesson now! Tap the glowing star on your learning path to begin.\n\nYou can always replay this guide from your Profile.',
+      'Start your first lesson now! Tap the glowing star on your learning path to begin.\n\nYou can always replay this guide from Profile > How to Play.',
     mascotMessage: "Go ahead and tap that first level — you've got this! 🦊",
     backgroundColor: '#E8F5E9',
     accentColor: '#4CAF50',

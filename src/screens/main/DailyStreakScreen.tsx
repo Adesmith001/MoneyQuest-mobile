@@ -5,10 +5,17 @@ import { RootState } from "../../store";
 import { LinearGradient } from "expo-linear-gradient";
 import { Ionicons } from "@expo/vector-icons";
 import MaskedView from "@react-native-masked-view/masked-view";
-import { updateStreakOnLogin } from "../../store/slices/streakSlice";
+import { loadStreakData } from "../../store/slices/streakSlice";
 import CoachMark from "../../components/tutorial/CoachMark";
 import { STREAK_COACH_STEPS } from "../../config/coachMarkSteps";
 import { markStreakGuideSeen } from "../../store/slices/tutorialSlice";
+
+const getLocalDateKey = (date: Date) => {
+  const year = date.getFullYear();
+  const month = String(date.getMonth() + 1).padStart(2, "0");
+  const day = String(date.getDate()).padStart(2, "0");
+  return `${year}-${month}-${day}`;
+};
 
 const getPastSevenDays = () => {
   const days = ["Su", "Mo", "Tu", "We", "Th", "Fr", "Sa"];
@@ -26,7 +33,7 @@ const getPastSevenDays = () => {
     d.setDate(today.getDate() - daysSinceLastSunday + i);
     result.push({
       name: days[d.getDay()],
-      date: d.toISOString().split("T")[0],
+      date: getLocalDateKey(d),
     });
   }
   return result;
@@ -46,7 +53,7 @@ const DailyStreakScreen: React.FC = () => {
 
   useEffect(() => {
     if (user?.$id) {
-      dispatch(updateStreakOnLogin(user.$id) as any);
+      dispatch(loadStreakData(user.$id) as any);
     }
   }, [user?.$id, dispatch]);
 
@@ -82,7 +89,7 @@ const DailyStreakScreen: React.FC = () => {
             </MaskedView>
 
             <Text style={styles.streakLabel}>
-              {currentStreak > 2 ? "days streak" : "day streak"}
+              {weeklyStreak > 2 ? "days streak" : "day streak"}
             </Text>
 
             <View style={styles.calendarContainer}>

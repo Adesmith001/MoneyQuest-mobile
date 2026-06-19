@@ -203,10 +203,18 @@ class AnalyticsService {
     this.currentSessionStartedAt = Date.now();
 
     if (reason === 'app_open') {
-      await this.trackEvent('app_open', { trigger: reason });
+      await this.trackEvent(
+        'app_open',
+        { trigger: reason },
+        { featureName: 'app_lifecycle', screenName: 'MainApp' },
+      );
     }
 
-    await this.trackEvent('session_start', { trigger: reason });
+    await this.trackEvent(
+      'session_start',
+      { trigger: reason },
+      { featureName: 'app_lifecycle', screenName: 'MainApp' },
+    );
   }
 
   async endSession(reason: 'background' | 'inactive' | 'logout' | 'shutdown' = 'background') {
@@ -226,6 +234,8 @@ class AnalyticsService {
         duration_seconds: durationSeconds,
       },
       {
+        featureName: 'app_lifecycle',
+        screenName: 'MainApp',
         valueNumber: durationSeconds,
       },
     );

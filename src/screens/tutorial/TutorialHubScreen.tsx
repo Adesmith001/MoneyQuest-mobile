@@ -11,13 +11,19 @@ import {
   StatusBar,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
-import { useDispatch } from 'react-redux';
-import { AppDispatch } from '../../store';
+import { useDispatch, useSelector } from 'react-redux';
+import { AppDispatch, RootState } from '../../store';
 import {
   resetAllTutorials,
   resetGuide,
+  resetTutorialActions,
+  TutorialReplayKey,
 } from '../../store/slices/tutorialSlice';
 import { FONT_FAMILY } from '../../constants';
+import cachedBackendApi from '../../services/cachedBackendApi';
+import { databases, DB_ID, COLLECTIONS, Query } from '../../services/appwrite';
+import { getSectionPlayableLevelId } from '../../utils/progressBehavior';
+import { getTutorialReplayActionKeys } from '../../utils/tutorialBehavior';
 
 const { width: screenWidth, height: screenHeight } = Dimensions.get('window');
 const isSmallDevice = screenHeight < 700;
@@ -28,7 +34,7 @@ interface TutorialTopic {
   icon: string;
   title: string;
   description: string;
-  resetKey: 'hasCompletedAppTour' | 'hasSeenHomeTour' | 'hasSeenQuestionGuide' | 'hasSeenStreakGuide' | 'hasSeenProfileGuide';
+  resetKey: TutorialReplayKey;
   color: string;
 }
 
@@ -37,7 +43,7 @@ const TUTORIAL_TOPICS: TutorialTopic[] = [
     id: 'app-tour',
     icon: '🗺️',
     title: 'App Tour',
-    description: 'Full walkthrough of all app features — learning path, XP, lives, and streaks.',
+    description: 'Full walkthrough of all app features — learning path, XP, lives, streaks, and tutorials.',
     resetKey: 'hasCompletedAppTour',
     color: '#FF5722',
   },
@@ -45,7 +51,7 @@ const TUTORIAL_TOPICS: TutorialTopic[] = [
     id: 'home-guide',
     icon: '🏠',
     title: 'Learning Path',
-    description: 'How to navigate sections, start levels, and track your progress.',
+    description: 'How to navigate sections, swipe between them, refresh content, and start only the current unlocked level.',
     resetKey: 'hasSeenHomeTour',
     color: '#2196F3',
   },
@@ -53,7 +59,7 @@ const TUTORIAL_TOPICS: TutorialTopic[] = [
     id: 'question-guide',
     icon: '❓',
     title: 'Answering Questions',
-    description: 'How to answer MCQ, scenario, matching, and fill-in-gap questions.',
+    description: 'Resume your active lesson and replay how to answer questions, read feedback, manage lives, and flag issues.',
     resetKey: 'hasSeenQuestionGuide',
     color: '#9C27B0',
   },
@@ -61,7 +67,7 @@ const TUTORIAL_TOPICS: TutorialTopic[] = [
     id: 'streak-guide',
     icon: '🔥',
     title: 'Daily Streaks',
-    description: 'How the streak system works and tips to keep your streak alive.',
+    description: 'How the streak system works and why missing today puts your progress at risk.',
     resetKey: 'hasSeenStreakGuide',
     color: '#FF9800',
   },
@@ -69,7 +75,7 @@ const TUTORIAL_TOPICS: TutorialTopic[] = [
     id: 'profile-guide',
     icon: '👤',
     title: 'Your Profile',
-    description: 'Understanding your stats, lives, XP, and how to customize your profile.',
+    description: 'Understand your stats, lives, XP, and how to find tutorials again from your profile.',
     resetKey: 'hasSeenProfileGuide',
     color: '#4CAF50',
   },
@@ -81,31 +87,137 @@ interface Props {
 
 const TutorialHubScreen: React.FC<Props> = ({ navigation }) => {
   const dispatch = useDispatch<AppDispatch>();
+  const { user } = useSelector((state: RootState) => state.auth);
 
-  const handleReplayTopic = (topic: TutorialTopic) => {
-    // Reset the specific guide flag so coach marks show again
+  const resolveQuestionGuideLevel = async () => {
+    if (!user?.$id) {
+      return null;
+    }
+
+    const inProgressDocs = await databases.listDocuments(
+      DB_ID,
+      COLLECTIONS.USER_PROGRESS,
+      [
+        Query.equal('userId', user.$id),
+        Query.equal('isCompleted', false),
+        Query.orderDesc('updatedAt'),
+        Query.limit(1),
+      ]
+    );
+
+    const inProgress = inProgressDocs.documents[0] as any;
+    if (inProgress?.level && typeof inProgress.level === 'string') {
+      const inProgressSectionId =
+        typeof inProgress.sectionId === 'string' ? inProgress.sectionId : user.currentSectionId;
+      let levelTitle = 'Continue Lesson';
+      let sectionTitle = 'Learning Path';
+
+      if (typeof inProgressSectionId === 'string' && inProgressSectionId) {
+        const levels = await cachedBackendApi.getLevels(inProgressSectionId);
+        const matchedLevel = levels.find((level) => level.level_id === inProgress.level);
+        if (matchedLevel?.title) {
+          levelTitle = matchedLevel.title;
+        }
+
+        const sections = await cachedBackendApi.getSections();
+        const matchedSection = sections.find((section) => section.section_id === inProgressSectionId);
+        if (matchedSection?.title) {
+          sectionTitle = matchedSection.title;
+        }
+      }
+
+      if (typeof inProgressSectionId === 'string' && inProgressSectionId) {
+        return {
+          levelId: inProgress.level,
+          sectionId: inProgressSectionId,
+          levelTitle,
+          sectionTitle,
+        };
+      }
+    }
+
+    const completedDocs = await databases.listDocuments(
+      DB_ID,
+      COLLECTIONS.USER_PROGRESS,
+      [Query.equal('userId', user.$id), Query.equal('isCompleted', true)]
+    );
+    const completedLevelIds = new Set(completedDocs.documents.map((doc: any) => doc.level as string));
+    const backendSections = await cachedBackendApi.getSections();
+
+    for (const section of backendSections) {
+      if (!section.section_id) {
+        continue;
+      }
+
+      const levels = await cachedBackendApi.getLevels(section.section_id);
+      const playableLevelId = getSectionPlayableLevelId(
+        levels.map((level) => level.level_id),
+        completedLevelIds
+      );
+
+      if (playableLevelId) {
+        const playableLevel = levels.find((level) => level.level_id === playableLevelId);
+        return {
+          levelId: playableLevelId,
+          sectionId: section.section_id,
+          levelTitle: playableLevel?.title || 'Continue Lesson',
+          sectionTitle: section.title,
+        };
+      }
+    }
+
+    const firstSection = backendSections.find((section) => section.section_id);
+    if (!firstSection?.section_id) {
+      return null;
+    }
+
+    const firstLevels = await cachedBackendApi.getLevels(firstSection.section_id);
+    if (!firstLevels[0]) {
+      return null;
+    }
+
+    return {
+      levelId: firstLevels[0].level_id,
+      sectionId: firstSection.section_id,
+      levelTitle: firstLevels[0].title || 'Continue Lesson',
+      sectionTitle: firstSection.title,
+    };
+  };
+
+  const handleReplayTopic = async (topic: TutorialTopic) => {
     dispatch(resetGuide(topic.resetKey));
+    dispatch(resetTutorialActions(getTutorialReplayActionKeys(topic.resetKey)));
 
-    // Navigate based on topic
     switch (topic.id) {
       case 'app-tour':
-        // Resetting hasCompletedAppTour will trigger AppNavigator to show the tour
         dispatch(resetGuide('hasCompletedAppTour'));
         break;
       case 'home-guide':
-        // Go to Home tab — coach marks will appear
         navigation.navigate('Home');
         break;
       case 'question-guide':
-        // Simply reset the flag — next time they open a question, coach marks appear
-        navigation.goBack();
+        try {
+          const activeLevel = await resolveQuestionGuideLevel();
+          if (!activeLevel) {
+            navigation.navigate('Home');
+            return;
+          }
+
+          navigation.getParent()?.getParent()?.navigate('Question', {
+            levelId: activeLevel.levelId,
+            sectionId: activeLevel.sectionId,
+            levelTitle: activeLevel.levelTitle,
+            sectionTitle: activeLevel.sectionTitle,
+          });
+        } catch (error) {
+          console.error('Failed to open question guide:', error);
+          navigation.navigate('Home');
+        }
         break;
       case 'streak-guide':
-        // Go to Streak tab — coach marks will appear
         navigation.navigate('Streak');
         break;
       case 'profile-guide':
-        dispatch(resetGuide('hasSeenProfileGuide'));
         navigation.goBack();
         break;
       default:
@@ -114,15 +226,14 @@ const TutorialHubScreen: React.FC<Props> = ({ navigation }) => {
   };
 
   const handleReplayAll = () => {
-    // Resetting all tutorials will cause AppNavigator to show the tour
     dispatch(resetAllTutorials());
+    dispatch(resetTutorialActions(undefined));
   };
 
   return (
     <SafeAreaView style={styles.container}>
       <StatusBar barStyle="dark-content" />
 
-      {/* Header */}
       <View style={styles.header}>
         <TouchableOpacity style={styles.backBtn} onPress={() => navigation.goBack()}>
           <Ionicons name="arrow-back" size={24} color="#333" />
@@ -136,7 +247,6 @@ const TutorialHubScreen: React.FC<Props> = ({ navigation }) => {
         contentContainerStyle={styles.scrollContainer}
         showsVerticalScrollIndicator={false}
       >
-        {/* Fox intro message */}
         <View style={styles.introSection}>
           <Image
             source={require('../../../assets/fox.png')}
@@ -145,21 +255,22 @@ const TutorialHubScreen: React.FC<Props> = ({ navigation }) => {
           />
           <View style={styles.introBubble}>
             <Text style={styles.introText}>
-              Need a refresher? Tap any topic below to replay that guide!
+              Need a refresher? Tap any topic below to replay that guide in the right place.
             </Text>
             <View style={styles.introTail} />
           </View>
         </View>
 
-        {/* Tutorial topic cards */}
         {TUTORIAL_TOPICS.map((topic) => (
           <TouchableOpacity
             key={topic.id}
             style={styles.topicCard}
             activeOpacity={0.7}
-            onPress={() => handleReplayTopic(topic)}
+            onPress={() => {
+              void handleReplayTopic(topic);
+            }}
           >
-            <View style={[styles.topicIconContainer, { backgroundColor: topic.color + '15' }]}>
+            <View style={[styles.topicIconContainer, { backgroundColor: `${topic.color}15` }]}>
               <Text style={styles.topicIcon}>{topic.icon}</Text>
             </View>
             <View style={styles.topicContent}>
@@ -170,7 +281,6 @@ const TutorialHubScreen: React.FC<Props> = ({ navigation }) => {
           </TouchableOpacity>
         ))}
 
-        {/* Replay All button */}
         <TouchableOpacity
           style={styles.replayAllBtn}
           activeOpacity={0.8}

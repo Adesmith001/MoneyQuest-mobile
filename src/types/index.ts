@@ -23,10 +23,10 @@ export interface User {
   totalQuestionsAnswered: number;
   correctAnswers: number;
   monthlyXP: number;
-  totalXP: number; // Total XP accumulated (resets monthly like monthlyXP)
-  lastMonthlyReset?: string; // 'YYYY-M' – month this user's monthlyXP was last reset
+  totalXP: number; // Total lifetime XP accumulated
+  lastMonthlyReset?: string; // 'YYYY-MM' month key for the most recent monthly XP reset
   activeDays?: string;
-  // Lives system (max 5, regenerates 1 per hour)
+  // Lives system (max 5, lose 1 on wrong answers, earn 1 on level completion)
   lives: number;
   lastLifeRegenTime: string; // ISO timestamp of last life regeneration
   // Account status

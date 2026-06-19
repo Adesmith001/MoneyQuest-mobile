@@ -5,6 +5,7 @@ import {
   StyleSheet,
   SafeAreaView,
   ScrollView,
+  FlatList,
   TouchableOpacity,
   Dimensions,
   Image,
@@ -28,8 +29,22 @@ import LearningPathSkeleton from "../../components/skeletons/LearningPathSkeleto
 import { getDecorationsForSection } from "../../config/sectionDecorations";
 import CoachMark from "../../components/tutorial/CoachMark";
 import { HOME_COACH_STEPS } from "../../config/coachMarkSteps";
-import { markHomeTourSeen } from "../../store/slices/tutorialSlice";
+import { markHomeTourSeen, markTutorialActionCompleted } from "../../store/slices/tutorialSlice";
 import notificationService from "../../services/notifications";
+import {
+  getInitialSectionIndex,
+  getLevelProgressState,
+  getRecapLevelProgressState,
+  getRecapSectionNumberForCompletedRegularSections,
+  getTopFirstLevelRenderItems,
+  isLevelEnterable,
+  resolveRecapSourceLevelIds,
+} from "../../utils/progressBehavior";
+import {
+  getHomeSwipeTutorialAnchorIndex,
+  getNextHomeSwipeTutorialStage,
+  type HomeSwipeTutorialStage,
+} from "../../utils/tutorialBehavior";
 
 interface Props {
   navigation: any;
@@ -49,6 +64,7 @@ interface LevelNode {
 interface Section {
   id: string;
   title: string;
+  regularSectionNumber?: number;
   levels: LevelNode[];
 }
 
@@ -77,7 +93,8 @@ const HomeScreen: React.FC<Props> = ({ navigation }) => {
 
   // Coach marks
   const [coachStep, setCoachStep] = useState(0);
-  const showCoachMarks = !hasSeenHomeTour && !isLoading && sections.length > 0;
+  const [homeSwipeTutorialStage, setHomeSwipeTutorialStage] = useState<HomeSwipeTutorialStage | null>(null);
+  const showCoachMarks = !hasSeenHomeTour && !isLoading && sections.length > 0 && homeSwipeTutorialStage === null;
   // const [hasScrolledToCurrentSection, setHasScrolledToCurrentSection] = useState(false);
 
   // Track if initial data has been loaded to avoid redundant API calls
@@ -91,8 +108,14 @@ const HomeScreen: React.FC<Props> = ({ navigation }) => {
   const MAX_RETRIES = 3;
 
   // Ref for horizontal scroll to scroll to user's current section
-  const horizontalScrollRef = useRef<ScrollView>(null);
+  const horizontalScrollRef = useRef<FlatList<Section>>(null);
   const hasInitializedSectionPositionRef = useRef(false);
+  const hasUserDraggedSectionsRef = useRef(false);
+  const dropdownScrollY = useRef(new Animated.Value(0)).current;
+  const [dropdownScrollMetrics, setDropdownScrollMetrics] = useState({
+    contentHeight: 0,
+    viewportHeight: 0,
+  });
 
   // Animation values for parallax scrolling (one per section)
   const scrollYValues = useRef<{ [key: string]: Animated.Value }>({});
@@ -391,10 +414,8 @@ const HomeScreen: React.FC<Props> = ({ navigation }) => {
             notificationService.syncAdminBroadcasts(user.$id).catch(() => {});
           }
 
-          // Find the first valid section ID for the "default unlock" logic
-          const firstValidSectionId = backendSections.find(s => s.section_id)?.section_id;
-
           const sectionsData: Section[] = [];
+          let regularSectionsProcessed = 0;
 
           // Process regular sections and insert recap sections after every 9th section
           for (let i = 0; i < backendSections.length; i++) {
@@ -415,23 +436,14 @@ const HomeScreen: React.FC<Props> = ({ navigation }) => {
                 // Use the section_id from the level for progress tracking
                 const levelSectionId = level.section_id || section.section_id!;
 
-                // Check if this level is completed using the latestCompletedLevels
-                // This is the source of truth for completion status
-                const isCompleted = latestCompletedLevels.has(level.level_id);
-
-                // Pass the firstValidSectionId and sectionsData to correctly identify section position
                 const progress = calculateLevelProgress(
                   levelSectionId,
                   level.level_id,
                   levelIndex,
                   levels,
-                  firstValidSectionId,
-                  latestCompletedLevels, // Pass the latest completed levels
-                  sectionsData // Pass the sections being built for accurate index lookup
+                  latestCompletedLevels
                 );
 
-                // CRITICAL FIX: Ensure completed levels are ALWAYS marked as unlocked and completed
-                // This overrides any progress calculation to guarantee completed levels show checkmarks
                 return {
                   id: level.level_id,
                   sectionTitle: section.title,
@@ -439,41 +451,57 @@ const HomeScreen: React.FC<Props> = ({ navigation }) => {
                   sectionId: levelSectionId,
                   levelId: level.level_id,
                   ...progress,
-                  // Explicitly set these AFTER spreading progress to ensure completed levels are never locked
-                  isCompleted: isCompleted,
-                  isUnlocked: isCompleted || progress.isUnlocked, // Completed levels are always unlocked
                 };
               });
+
+              const regularSectionNumber = regularSectionsProcessed + 1;
 
               sectionsData.push({
                 id: section.section_id,
                 title: section.title,
+                regularSectionNumber,
                 levels: levelNodes,
               });
+              regularSectionsProcessed = regularSectionNumber;
 
               // Check if we should insert a recap section after this section
               // After every 9 regular sections, insert a recap at position 10, 20, 30, etc.
               // Recap 10 reviews sections 1-9, recap 20 reviews 11-19, etc.
-              const currentSectionCount = sectionsData.length;
-              if (currentSectionCount % 9 === 0) {
+              const recapSectionNumber = getRecapSectionNumberForCompletedRegularSections(regularSectionsProcessed);
+              if (recapSectionNumber !== null) {
                 try {
-                  // Calculate the recap section number (10, 20, 30, etc.)
-                  // This aligns with backend which expects recap sections at 10, 20, 30
-                  const recapSectionNumber = Math.floor(currentSectionCount / 9) * 10;
                   const recapData = await backendApi.getRecapSection(recapSectionNumber, 10, true);
 
                   // Create level nodes for recap section
                   // Each source section becomes a "level" in the recap
-                  const recapLevelNodes: LevelNode[] = recapData.source_sections.map((sourceSection, idx) => {
+                  const recapLevelIds = recapData.source_sections.map(
+                    (sourceSection) => `recap_${recapSectionNumber}_source_${sourceSection.section_number}`
+                  );
+
+                  const recapLevelNodes: LevelNode[] = recapData.source_sections.map((sourceSection, recapLevelIndex) => {
                     const recapLevelId = `recap_${recapSectionNumber}_source_${sourceSection.section_number}`;
+                    const sourceLevelIds = resolveRecapSourceLevelIds({
+                      sourceSectionId: sourceSection.section_id,
+                      sourceSectionNumber: sourceSection.section_number,
+                      sourceSectionTitle: sourceSection.section_title,
+                      builtSections: sectionsData,
+                    });
+                    const progress = getRecapLevelProgressState({
+                      recapSectionId: recapData.recap_section_id,
+                      recapLevelId,
+                      recapLevelIndex,
+                      recapLevelIds,
+                      sourceLevelIds,
+                      completedLevelIds: latestCompletedLevels,
+                      currentSectionId: user?.currentSectionId,
+                      currentLevelId: user?.currentLevelId,
+                    });
 
                     return {
                       id: recapLevelId,
                       sectionTitle: recapData.recap_section_title,
                       levelTitle: `Review: ${sourceSection.section_title}`,
-                      isUnlocked: false, // Will be calculated by progress logic
-                      isCompleted: false,
-                      isCurrent: false,
+                      ...progress,
                       sectionId: recapData.recap_section_id,
                       levelId: recapLevelId,
                     };
@@ -487,7 +515,7 @@ const HomeScreen: React.FC<Props> = ({ navigation }) => {
                 } catch (recapError: any) {
                   // If recap section doesn't exist or fails, just log and continue
                   // This is expected for section 10 if only 3 sections exist
-                  console.warn(`Could not fetch recap section ${currentSectionCount}:`, recapError.message || recapError);
+                  console.warn(`Could not fetch recap section ${recapSectionNumber}:`, recapError.message || recapError);
                 }
               }
             } catch (error) {
@@ -519,20 +547,16 @@ const HomeScreen: React.FC<Props> = ({ navigation }) => {
 
           // Set the initial horizontal position only once per screen mount.
           if (!hasInitializedSectionPositionRef.current && sectionsData.length > 0) {
-            const userSectionIndex = user?.currentSectionId
-              ? sectionsData.findIndex((s) => s.id === user.currentSectionId)
-              : -1;
-            const initialIndex =
-              activeSectionIndex >= 0 && activeSectionIndex < sectionsData.length
-                ? activeSectionIndex
-                : userSectionIndex >= 0
-                  ? userSectionIndex
-                  : 0;
+            const initialIndex = getInitialSectionIndex(
+              sectionsData,
+              user?.currentSectionId,
+              activeSectionIndex
+            );
 
             setActiveSectionIndex(initialIndex);
             setTimeout(() => {
-              horizontalScrollRef.current?.scrollTo({
-                x: initialIndex * screenWidth,
+              horizontalScrollRef.current?.scrollToIndex({
+                index: initialIndex,
                 animated: false,
               });
               hasInitializedSectionPositionRef.current = true;
@@ -600,28 +624,42 @@ const HomeScreen: React.FC<Props> = ({ navigation }) => {
     refreshStaleState();
   }, [refreshStaleState]);
 
+  useEffect(() => {
+    if (isSectionDropdownOpen) {
+      dropdownScrollY.setValue(0);
+    }
+  }, [dropdownScrollY, isSectionDropdownOpen, activeSectionIndex]);
+
   const navigateToLevel = React.useCallback(
     async (node: LevelNode, sectionIndex: number) => {
-      if (!node.isUnlocked && !node.isCurrent && !node.isCompleted) {
+      const section = sections[sectionIndex];
+      const isRegularSection = Boolean(section?.regularSectionNumber);
+
+      if (isRegularSection) {
+        const canEnter = isLevelEnterable({
+          targetLevelId: node.levelId,
+          sectionLevelIds: section.levels.map((level) => level.levelId),
+          completedLevelIds: completedLevels,
+        });
+
+        if (!canEnter) {
+          Alert.alert(
+            'Level Locked',
+            'Finish the current level in this section before moving to the next one.'
+          );
+          return;
+        }
+      } else if (!node.isUnlocked && !node.isCurrent && !node.isCompleted) {
         return;
       }
 
       if (user) {
-        const { lives } = livesService.calculateCurrentLives(
-          user.lives !== undefined && user.lives !== null ? user.lives : 5,
-          user.lastLifeRegenTime || new Date().toISOString()
-        );
+        const lives = user.lives !== undefined && user.lives !== null ? user.lives : 5;
 
         if (lives === 0) {
-          const timeRemaining = livesService.getTimeUntilNextLife(
-            0,
-            user.lastLifeRegenTime || new Date().toISOString()
-          );
-          const timeFormatted = livesService.formatTimeRemaining(timeRemaining);
-
           Alert.alert(
             'No Lives Available',
-            `You have 0 lives remaining. Your next life will regenerate in ${timeFormatted}.`,
+            'You have 0 lives remaining. Complete a level to earn another life.',
             [{ text: 'OK', style: 'default' }]
           );
           return;
@@ -654,12 +692,12 @@ const HomeScreen: React.FC<Props> = ({ navigation }) => {
         sectionTitle: node.sectionTitle,
       });
     },
-    [dispatch, navigation, user]
+    [completedLevels, dispatch, navigation, sections, user]
   );
 
   const scrollToSection = React.useCallback((sectionIndex: number) => {
-    horizontalScrollRef.current?.scrollTo({
-      x: sectionIndex * screenWidth,
+    horizontalScrollRef.current?.scrollToIndex({
+      index: sectionIndex,
       animated: true,
     });
     setActiveSectionIndex(sectionIndex);
@@ -677,56 +715,47 @@ const HomeScreen: React.FC<Props> = ({ navigation }) => {
     [sections]
   );
 
+  const showDropdownScrollCue =
+    dropdownScrollMetrics.contentHeight > dropdownScrollMetrics.viewportHeight + 4;
+  const dropdownThumbHeight =
+    dropdownScrollMetrics.contentHeight > 0 && dropdownScrollMetrics.viewportHeight > 0
+      ? Math.max(
+          34,
+          (dropdownScrollMetrics.viewportHeight / dropdownScrollMetrics.contentHeight) *
+            dropdownScrollMetrics.viewportHeight
+        )
+      : 34;
+  const dropdownMaxScroll = Math.max(
+    1,
+    dropdownScrollMetrics.contentHeight - dropdownScrollMetrics.viewportHeight
+  );
+  const dropdownMaxThumbOffset = Math.max(
+    0,
+    dropdownScrollMetrics.viewportHeight - dropdownThumbHeight
+  );
+  const dropdownThumbTranslateY = dropdownScrollY.interpolate({
+    inputRange: [0, dropdownMaxScroll],
+    outputRange: [0, dropdownMaxThumbOffset],
+    extrapolate: 'clamp',
+  });
+
   // Calculate level progress based on user's current position
   const calculateLevelProgress = (
     sectionId: string,
     levelId: string,
     levelIndex: number,
     sectionLevels: any[],
-    firstSectionId?: string,
-    completedLevelsSet?: Set<string>,
-    builtSectionsData?: Section[] // Pass the sections data being built
+    completedLevelsSet?: Set<string>
   ) => {
-    const currentSectionId = user?.currentSectionId;
-    const currentLevelId = user?.currentLevelId;
-
-    // Use provided completedLevelsSet or fall back to state
-    const levelsToCheck = completedLevelsSet || completedLevels;
-
-    // Check if this level is completed
-    const isCompleted = levelsToCheck.has(levelId);
-
-    // CRITICAL: A completed level is ALWAYS unlocked - no exceptions!
-    // This ensures completed levels always show checkmarks, never locks
-    if (isCompleted) {
-      const isCurrent = sectionId === currentSectionId && levelId === currentLevelId;
-      return { isUnlocked: true, isCompleted: true, isCurrent };
-    }
-
-    // If no progress exists, unlock first level of every section
-    if (!currentSectionId || !currentLevelId) {
-      return {
-        isUnlocked: levelIndex === 0,
-        isCompleted: false,
-        isCurrent: false,
-      };
-    }
-
-    const isCurrent = sectionId === currentSectionId && levelId === currentLevelId;
-
-    // Start with: unlock if this is the current level
-    let isUnlocked = isCurrent;
-
-    if (levelIndex > 0) {
-      // For levels after the first in a section, unlock if previous level is completed
-      const previousLevel = sectionLevels[levelIndex - 1];
-      isUnlocked = isUnlocked || levelsToCheck.has(previousLevel.level_id);
-    } else if (levelIndex === 0) {
-      // First level of any section is always unlocked – users can start from any section
-      isUnlocked = true;
-    }
-
-    return { isUnlocked, isCompleted: false, isCurrent };
+    return getLevelProgressState({
+      sectionId,
+      levelId,
+      levelIndex,
+      sectionLevelIds: sectionLevels.map((level) => level.level_id),
+      completedLevelIds: completedLevelsSet || completedLevels,
+      currentSectionId: user?.currentSectionId,
+      currentLevelId: user?.currentLevelId,
+    });
   };
 
   const renderLevelNode = (
@@ -942,7 +971,29 @@ const HomeScreen: React.FC<Props> = ({ navigation }) => {
           {isSectionDropdownOpen && activeSectionIndex === sectionIndex && (
             <View style={styles.sectionDropdownPanel}>
               <Text style={styles.sectionDropdownTitle}>Sections</Text>
-              <ScrollView style={styles.sectionDropdownList} showsVerticalScrollIndicator={false}>
+              <View style={styles.sectionDropdownListWrap}>
+              <Animated.ScrollView
+                style={styles.sectionDropdownList}
+                showsVerticalScrollIndicator={false}
+                scrollEventThrottle={16}
+                onLayout={(event) => {
+                  const viewportHeight = event.nativeEvent.layout.height;
+                  setDropdownScrollMetrics((metrics) => ({
+                    ...metrics,
+                    viewportHeight,
+                  }));
+                }}
+                onContentSizeChange={(_, height) => {
+                  setDropdownScrollMetrics((metrics) => ({
+                    ...metrics,
+                    contentHeight: height,
+                  }));
+                }}
+                onScroll={Animated.event(
+                  [{ nativeEvent: { contentOffset: { y: dropdownScrollY } } }],
+                  { useNativeDriver: false }
+                )}
+              >
                 {sectionPickerItems.map((item) => (
                   <TouchableOpacity
                     key={item.key}
@@ -965,7 +1016,28 @@ const HomeScreen: React.FC<Props> = ({ navigation }) => {
                 {sectionPickerItems.length === 0 && (
                   <Text style={styles.sectionDropdownEmptyText}>No sections available yet.</Text>
                 )}
-              </ScrollView>
+              </Animated.ScrollView>
+
+              {showDropdownScrollCue && (
+                <View
+                  style={[
+                    styles.sectionDropdownScrollTrack,
+                    { height: dropdownScrollMetrics.viewportHeight },
+                  ]}
+                  pointerEvents="none"
+                >
+                  <Animated.View
+                    style={[
+                      styles.sectionDropdownScrollThumb,
+                      {
+                        height: dropdownThumbHeight,
+                        transform: [{ translateY: dropdownThumbTranslateY }],
+                      },
+                    ]}
+                  />
+                </View>
+              )}
+              </View>
             </View>
           )}
         </View>
@@ -981,14 +1053,12 @@ const HomeScreen: React.FC<Props> = ({ navigation }) => {
           scrollEventThrottle={16}
         >
           <View style={styles.levelsContainer}>
-            {section.levels
-              .slice()
-              .map((node, reverseIndex) => {
-                const originalIndex = section.levels.length - 1 - reverseIndex;
+            {getTopFirstLevelRenderItems(section.levels)
+              .map(({ node, pathIndex, isLast }) => {
                 return renderLevelNode(
                   node,
-                  originalIndex,
-                  originalIndex === 0, // First level is now at bottom
+                  pathIndex,
+                  isLast,
                   sectionIndex
                 );
               })}
@@ -1043,22 +1113,68 @@ const HomeScreen: React.FC<Props> = ({ navigation }) => {
 
   return (
     <SafeAreaView style={styles.container}>
-      <ScrollView
+      <FlatList
         ref={horizontalScrollRef}
         horizontal
         pagingEnabled
         showsHorizontalScrollIndicator={false}
         style={styles.scrollView}
+        data={sections}
+        keyExtractor={(section) => section.id}
+        renderItem={({ item, index }) => renderSection(item, index)}
+        getItemLayout={(_, index) => ({
+          length: screenWidth,
+          offset: screenWidth * index,
+          index,
+        })}
+        initialScrollIndex={activeSectionIndex}
+        initialNumToRender={1}
+        maxToRenderPerBatch={2}
+        windowSize={3}
+        removeClippedSubviews
+        decelerationRate="fast"
+        extraData={{
+          activeSectionIndex,
+          isSectionDropdownOpen,
+          dropdownScrollMetrics,
+        }}
+        onScrollToIndexFailed={(info) => {
+          setTimeout(() => {
+            horizontalScrollRef.current?.scrollToIndex({
+              index: Math.min(info.index, sections.length - 1),
+              animated: false,
+            });
+          }, 100);
+        }}
+        onScrollBeginDrag={() => {
+          hasUserDraggedSectionsRef.current = true;
+        }}
         onMomentumScrollEnd={(event) => {
           const nextIndex = Math.round(event.nativeEvent.contentOffset.x / screenWidth);
           if (nextIndex >= 0 && nextIndex < sections.length) {
+            if (hasUserDraggedSectionsRef.current && nextIndex !== activeSectionIndex && homeSwipeTutorialStage) {
+              const nextStage = getNextHomeSwipeTutorialStage(
+                homeSwipeTutorialStage,
+                activeSectionIndex,
+                nextIndex
+              );
+
+              if (homeSwipeTutorialStage === 'left' && nextStage === 'right') {
+                dispatch(markTutorialActionCompleted('home_swipe_left_performed'));
+                setHomeSwipeTutorialStage('right');
+              } else if (homeSwipeTutorialStage === 'right' && nextStage === 'complete') {
+                dispatch(markTutorialActionCompleted('home_swipe_right_performed'));
+                dispatch(markHomeTourSeen());
+                setHomeSwipeTutorialStage(null);
+                setCoachStep(0);
+              }
+            }
             setActiveSectionIndex(nextIndex);
             setIsSectionDropdownOpen(false);
           }
+          hasUserDraggedSectionsRef.current = false;
         }}
-      >
-        {sections.map((section, index) => renderSection(section, index))}
-      </ScrollView>
+      />
 
       <TouchableOpacity
         style={[
@@ -1110,13 +1226,66 @@ const HomeScreen: React.FC<Props> = ({ navigation }) => {
         onNext={() => setCoachStep((prev) => prev + 1)}
         onSkip={() => {
           dispatch(markHomeTourSeen());
+          setHomeSwipeTutorialStage(null);
           setCoachStep(0);
         }}
         onComplete={() => {
-          dispatch(markHomeTourSeen());
-          setCoachStep(0);
+          if (sections.length <= 1) {
+            dispatch(markHomeTourSeen());
+            setCoachStep(0);
+            return;
+          }
+
+          const anchorIndex = getHomeSwipeTutorialAnchorIndex(activeSectionIndex, sections.length);
+          if (anchorIndex !== activeSectionIndex) {
+            horizontalScrollRef.current?.scrollToIndex({
+              index: anchorIndex,
+              animated: false,
+            });
+            setActiveSectionIndex(anchorIndex);
+          }
+
+          setHomeSwipeTutorialStage('left');
         }}
       /> 
+
+      <CoachMark
+        visible={homeSwipeTutorialStage !== null}
+        steps={[
+          homeSwipeTutorialStage === 'right'
+            ? {
+                icon: 'arrow-back',
+                title: 'Now Swipe Right',
+                description:
+                  'Nice. Swipe right once to return to the previous section. When you do, this prompt will close automatically.',
+                mascotMessage: 'Perfect. Swipe back right and you are done.',
+                tooltipPosition: 'center' as const,
+              }
+            : {
+                icon: 'arrow-forward',
+                title: 'Swipe Left',
+                description:
+                  'Swipe left once to move to the next section. As soon as you do, the app will prompt you for the return swipe.',
+                mascotMessage: 'Give the learning path one real left swipe now.',
+                tooltipPosition: 'center' as const,
+              },
+        ]}
+        currentStep={0}
+        onNext={() => {
+          Alert.alert(
+            'Swipe to continue',
+            homeSwipeTutorialStage === 'right'
+              ? 'Swipe right on the learning path to finish this tutorial.'
+              : 'Swipe left on the learning path to continue.'
+          );
+        }}
+        onSkip={() => {
+          dispatch(markHomeTourSeen());
+          setHomeSwipeTutorialStage(null);
+          setCoachStep(0);
+        }}
+        onComplete={() => {}}
+      />
     </SafeAreaView>
   );
 };
@@ -1490,6 +1659,22 @@ const styles = StyleSheet.create({
   },
   sectionDropdownList: {
     maxHeight: screenHeight * 0.26,
+  },
+  sectionDropdownListWrap: {
+    position: 'relative',
+  },
+  sectionDropdownScrollTrack: {
+    position: 'absolute',
+    right: 1,
+    top: 0,
+    width: 4,
+    borderRadius: 2,
+    backgroundColor: 'rgba(255, 107, 53, 0.14)',
+  },
+  sectionDropdownScrollThumb: {
+    width: 4,
+    borderRadius: 2,
+    backgroundColor: '#FF6B35',
   },
   sectionDropdownItem: {
     borderRadius: 18,

@@ -14,9 +14,30 @@ import * as WebBrowser from "expo-web-browser";
 import * as Linking from "expo-linking";
 import { backendApi } from "./backendApi";
 import { levelProgressService } from "./levelProgress";
-import { getCurrentMonthKey, normalizeMonthKey, shouldResetMonthlyXP } from "../utils";
+import { getCurrentMonthKey, shouldResetMonthlyXP } from "../utils";
+import { buildUserDocumentData, findOrCreateUserDocument } from "./authProfile";
 
 class AuthService {
+  private async ensureUserDocument(
+    accountInfo: { $id: string; email: string; name: string },
+    profileSeed?: {
+      username?: string;
+      phoneNumber?: string;
+      age?: number;
+      learningLimit?: string;
+      mainGoal?: string;
+      referralSource?: string;
+      avatar?: string;
+    }
+  ): Promise<any> {
+    return findOrCreateUserDocument({
+      databases,
+      dbId: DB_ID,
+      usersCollectionId: COLLECTIONS.USERS,
+      accountInfo,
+      profileSeed,
+    });
+  }
 
   // Check if a username is already taken
   async isUsernameTaken(username: string): Promise<boolean> {
@@ -138,7 +159,7 @@ class AuthService {
 
       // Check if account is disabled before proceeding
       const accountInfo = await account.get();
-      const userDoc = await this.getUserDocument(accountInfo.$id);
+      const userDoc = await this.ensureUserDocument(accountInfo);
       if (userDoc?.accountStatus === 'disabled') {
         // Keep session alive so the user can reactivate from the login screen
         throw new Error('ACCOUNT_DISABLED:' + accountInfo.$id);
@@ -181,8 +202,8 @@ class AuthService {
       // Get the account info
       const account_info = await account.get();
 
-      // Get the user document from your database using userId field
-      const userDoc = await this.getUserDocument(account_info.$id);
+      // Ensure the Appwrite auth user has a corresponding profile document.
+      const userDoc = await this.ensureUserDocument(account_info);
 
       if (!userDoc) {
         return null;
@@ -232,7 +253,6 @@ class AuthService {
       );
 
       const currentMonthKey = getCurrentMonthKey();
-      const normalizedLastMonthlyReset = normalizeMonthKey(userDoc.lastMonthlyReset);
       const needsMonthlyReset = shouldResetMonthlyXP(userDoc.lastMonthlyReset);
 
       if (needsMonthlyReset) {
@@ -250,18 +270,6 @@ class AuthService {
 
         userDoc.monthlyXP = 0;
         userDoc.lastMonthlyReset = currentMonthKey;
-      } else if (normalizedLastMonthlyReset !== currentMonthKey) {
-        const markerPayload = {
-          lastMonthlyReset: currentMonthKey,
-          updatedAt: new Date().toISOString(),
-        };
-
-        try {
-          await databases.updateDocument(DB_ID, COLLECTIONS.USERS, userId, markerPayload);
-          userDoc.lastMonthlyReset = currentMonthKey;
-        } catch (markerError) {
-          console.error("Monthly XP marker update error:", markerError);
-        }
       }
 
       // Type-safe conversion from Appwrite document to User interface
@@ -312,10 +320,8 @@ class AuthService {
     name: string,
     phoneNumber?: string,
     username?: string
-  ): Promise<void> {
+  ): Promise<any> {
     try {
-      const currentDate = new Date().toISOString();
-
       if (!DB_ID) {
         throw new Error('Database ID is not configured');
       }
@@ -324,44 +330,20 @@ class AuthService {
         throw new Error('Users collection ID is not configured');
       }
 
-      const userData: any = {
-        email,
-        name,
-        xp: 0,
-        level: 1,
-        currentSection: 1,
-        streak: 0,
-        lastLoginDate: currentDate,
-        totalQuestionsAnswered: 0,
-        correctAnswers: 0,
-        monthlyXP: 0,
-        totalXP: 0,
-        // Lives system - start with 5 lives
-        lives: 5,
-        lastLifeRegenTime: currentDate,
-        // Current level/section tracking (will be set when user starts)
-        currentLevelId: null,
-        currentSectionId: null,
-        // createdAt: currentDate,
-        // updatedAt: currentDate,
-      };
-
-      if (phoneNumber && phoneNumber.trim() !== '') {
-        userData.phoneNumber = phoneNumber;
-      }
-
-      if (username && username.trim() !== '') {
-        userData.username = username.toLowerCase().trim();
-      }
-
-      // Use the Appwrite user ID as the document ID to maintain consistency
-      const document = await databases.createDocument(
-        DB_ID,
-        COLLECTIONS.USERS,
-        userId, // Use the Appwrite user ID as the document ID
-        userData
-      );
-
+      return await findOrCreateUserDocument({
+        databases,
+        dbId: DB_ID,
+        usersCollectionId: COLLECTIONS.USERS,
+        accountInfo: {
+          $id: userId,
+          email,
+          name,
+        },
+        profileSeed: {
+          phoneNumber,
+          username,
+        },
+      });
     } catch (error: any) {
       console.error("Create user document error:", error);
       console.error("DB_ID:", DB_ID);
@@ -503,33 +485,23 @@ class AuthService {
       // Step 3: Now get the current user (session is established)
       const user = await account.get();
 
-      // Step 4: Create user document with ALL data including onboarding
-      const userDocument = await databases.createDocument(
-        DB_ID,
-        COLLECTIONS.USERS,
-        user.$id, // Use the Appwrite user ID as the document ID
-        {
-          email: user.email,
-          name: user.name,
-          username: username || '',
-          phoneNumber: phoneNumber || '',
-          profilePicture: '',
-          profilePictureId: '',
-          age,
-          learningLimit,
-          mainGoal,
-          referralSource,
-          avatar,
-          xp: 0,
-          level: 1,
-          currentSection: 1,
-          streak: 0,
-          lastLoginDate: new Date().toISOString(),
-          totalQuestionsAnswered: 0,
-          correctAnswers: 0,
-          monthlyXP: 0,
-        }
-      );
+      // Step 4: Create or repair the user document with all onboarding data
+      const seededPayload = buildUserDocumentData(user, {
+        username,
+        phoneNumber,
+        age,
+        learningLimit,
+        mainGoal,
+        referralSource,
+        avatar,
+      });
+      const userDocument = await findOrCreateUserDocument({
+        databases,
+        dbId: DB_ID,
+        usersCollectionId: COLLECTIONS.USERS,
+        accountInfo: user,
+        profileSeed: seededPayload as any,
+      });
 
       // Initialize progress with first level from backend
       try {

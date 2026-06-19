@@ -1,12 +1,33 @@
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import * as Application from 'expo-application';
-import { Alert, Linking, Platform } from 'react-native';
+import { Alert, Linking, NativeEventEmitter, NativeModules, Platform } from 'react-native';
 
 const LAST_PROMPTED_VERSION_KEY_PREFIX = '@moneyquest_last_prompted_store_version';
 const CHECK_INTERVAL_MS = 30 * 60 * 1000; // 30 minutes
 const IOS_BUNDLE_ID = 'com.expo.moneyquest';
-const ANDROID_PACKAGE_NAME = 'com.expo.moneyquest';
-const PLAY_STORE_URL = `https://play.google.com/store/apps/details?id=${ANDROID_PACKAGE_NAME}`;
+const IN_APP_UPDATE_EVENT_NAME = 'inAppUpdateStatus';
+
+type AndroidInAppUpdateStatus =
+  | 'accepted'
+  | 'canceled'
+  | 'downloaded'
+  | 'downloading'
+  | 'failed'
+  | 'installed'
+  | 'installing'
+  | 'pending'
+  | 'started'
+  | 'unknown'
+  | 'up_to_date';
+
+type InAppUpdateModule = {
+  checkForFlexibleUpdate: () => Promise<AndroidInAppUpdateStatus>;
+  completeFlexibleUpdate: () => Promise<void>;
+};
+
+type InAppUpdateEventPayload = {
+  status?: AndroidInAppUpdateStatus;
+};
 
 const compareVersions = (left: string, right: string): number => {
   const leftParts = left.split('.').map(part => Number.parseInt(part, 10) || 0);
@@ -47,6 +68,84 @@ const getIosStoreUpdate = async (): Promise<{
 class AppUpdateService {
   private isChecking = false;
   private lastCheckAt = 0;
+  private androidUpdateEmitter: NativeEventEmitter | null = null;
+  private androidUpdateSubscription: { remove: () => void } | null = null;
+  private hasWarnedAboutMissingAndroidModule = false;
+  private isRestartPromptVisible = false;
+
+  private getAndroidInAppUpdateModule(): InAppUpdateModule | null {
+    if (Platform.OS !== 'android') {
+      return null;
+    }
+
+    return (NativeModules.InAppUpdateModule as InAppUpdateModule | undefined) || null;
+  }
+
+  private ensureAndroidUpdateListener() {
+    if (Platform.OS !== 'android' || this.androidUpdateSubscription) {
+      return;
+    }
+
+    const nativeModule = this.getAndroidInAppUpdateModule();
+    if (!nativeModule) {
+      if (!this.hasWarnedAboutMissingAndroidModule) {
+        console.warn('InAppUpdateModule is unavailable on Android. Native flexible updates are disabled.');
+        this.hasWarnedAboutMissingAndroidModule = true;
+      }
+      return;
+    }
+
+    this.androidUpdateEmitter = new NativeEventEmitter(NativeModules.InAppUpdateModule);
+    this.androidUpdateSubscription = this.androidUpdateEmitter.addListener(
+      IN_APP_UPDATE_EVENT_NAME,
+      (payload: InAppUpdateEventPayload) => {
+        this.handleAndroidUpdateStatus(payload?.status || 'unknown');
+      }
+    );
+  }
+
+  private handleAndroidUpdateStatus(status: AndroidInAppUpdateStatus) {
+    if (status === 'downloaded') {
+      this.promptAndroidRestartToInstall();
+    }
+  }
+
+  private promptAndroidRestartToInstall() {
+    if (this.isRestartPromptVisible) {
+      return;
+    }
+
+    const nativeModule = this.getAndroidInAppUpdateModule();
+    if (!nativeModule) {
+      return;
+    }
+
+    this.isRestartPromptVisible = true;
+
+    Alert.alert(
+      'Update Ready',
+      'The latest MoneyQuest update has been downloaded. Restart the app now to finish installing it.',
+      [
+        {
+          text: 'Later',
+          style: 'cancel',
+          onPress: () => {
+            this.isRestartPromptVisible = false;
+          },
+        },
+        {
+          text: 'Restart now',
+          onPress: () => {
+            this.isRestartPromptVisible = false;
+            nativeModule.completeFlexibleUpdate().catch(error => {
+              console.warn('Flexible update completion failed:', error);
+            });
+          },
+        },
+      ],
+      { cancelable: false }
+    );
+  }
 
   async checkForStoreUpdate(force: boolean = false): Promise<void> {
     if (Platform.OS !== 'android' && Platform.OS !== 'ios') {
@@ -65,14 +164,25 @@ class AppUpdateService {
     this.lastCheckAt = Date.now();
 
     try {
+      if (Platform.OS === 'android') {
+        this.ensureAndroidUpdateListener();
+        const nativeModule = this.getAndroidInAppUpdateModule();
+
+        if (!nativeModule) {
+          return;
+        }
+
+        const status = await nativeModule.checkForFlexibleUpdate();
+        this.handleAndroidUpdateStatus(status);
+        return;
+      }
+
       const currentVersion = Application.nativeApplicationVersion || '';
-      const storeName = Platform.OS === 'ios' ? 'App Store' : 'Play Store';
+      const storeName = 'App Store';
       const promptKey = `${LAST_PROMPTED_VERSION_KEY_PREFIX}_${Platform.OS}`;
-      const updateInfo = Platform.OS === 'ios'
-        ? await getIosStoreUpdate()
-        : null;
+      const updateInfo = await getIosStoreUpdate();
       const latestVersion = updateInfo?.latestVersion || '';
-      const storeUrl = updateInfo?.storeUrl || (Platform.OS === 'android' ? PLAY_STORE_URL : '');
+      const storeUrl = updateInfo?.storeUrl || '';
 
       if (
         !currentVersion ||
@@ -96,7 +206,7 @@ class AppUpdateService {
         [
           { text: 'Later', style: 'cancel' },
           {
-            text: Platform.OS === 'ios' ? 'Open App Store' : 'Open Play Store',
+            text: 'Open App Store',
             onPress: () => {
               Linking.openURL(storeUrl).catch(() => {});
             },

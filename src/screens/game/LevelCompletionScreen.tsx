@@ -13,8 +13,9 @@ import { COLORS, FONT_SIZES, SPACING } from "../../constants";
 import * as StoreReview from 'expo-store-review';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import analyticsService from '../../services/analytics';
+import { shouldPromptForReview, getReviewMilestone } from '../../utils/reviewPrompt';
 
-const REVIEW_KEY_PREFIX = 'review_shown_section_';
+const REVIEW_MILESTONE_KEY = 'review_last_prompted_milestone';
 
 const { width } = Dimensions.get("window");
 
@@ -27,29 +28,31 @@ interface Props {
       sectionId?: string;
       passed?: boolean;
       nextLevelId?: string;
+      completedLevelsCount?: number;
     };
   };
 }
 
 const LessonCompleteScreen: React.FC<Props> = ({ navigation, route }) => {
-  const { xpGained, accuracy, sectionId } = route.params;
+  const { xpGained, accuracy, sectionId, completedLevelsCount = 0 } = route.params;
 
-  // Trigger native in-app review once per section
+  // Trigger native in-app review every 10 first-time completed levels
   useEffect(() => {
-    if (!sectionId) return;
-
     const maybeRequestReview = async () => {
       try {
-        const key = `${REVIEW_KEY_PREFIX}${sectionId}`;
-        const alreadyShown = await AsyncStorage.getItem(key);
+        const lastPromptedMilestone = Number(
+          (await AsyncStorage.getItem(REVIEW_MILESTONE_KEY)) || '0'
+        );
 
-        if (!alreadyShown) {
+        if (shouldPromptForReview({ completedLevelsCount, lastPromptedMilestone })) {
+          const milestone = getReviewMilestone(completedLevelsCount);
           const isAvailable = await StoreReview.isAvailableAsync();
-          // Mark as shown regardless so we don't re-attempt on error
-          await AsyncStorage.setItem(key, 'true');
+          await AsyncStorage.setItem(REVIEW_MILESTONE_KEY, milestone.toString());
           if (isAvailable) {
             analyticsService.trackEvent('review_prompt_requested', {
               section_id: sectionId,
+              completed_levels_count: completedLevelsCount,
+              milestone,
             }, {
               screenName: 'LevelCompletion',
               featureName: 'store_review',
@@ -66,7 +69,7 @@ const LessonCompleteScreen: React.FC<Props> = ({ navigation, route }) => {
     };
 
     maybeRequestReview();
-  }, [sectionId]);
+  }, [completedLevelsCount, sectionId]);
 
   const handleContinue = () => {
     navigation.popToTop();

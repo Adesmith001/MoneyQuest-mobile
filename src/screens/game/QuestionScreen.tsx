@@ -53,6 +53,12 @@ import analyticsService from "../../services/analytics";
 import notificationService from "../../services/notifications";
 import { RenderContentWithTables } from "../../utils/tableParser";
 import { getCurrentMonthKey } from "../../utils";
+import {
+  getLevelCompletionLives,
+  getNextPlayableLevelTarget,
+  isLevelEnterable,
+  removeQuestionAtIndex,
+} from "../../utils/progressBehavior";
 import CoachMark from "../../components/tutorial/CoachMark";
 import { QUESTION_COACH_STEPS } from "../../config/coachMarkSteps";
 import { markQuestionGuideSeen } from "../../store/slices/tutorialSlice";
@@ -376,6 +382,28 @@ const QuestionScreen: React.FC<Props> = ({ navigation, route }) => {
 
       try {
         setIsLoading(true);
+
+        if (!isRecapLevel && user?.$id) {
+          const sectionLevels = await cachedBackendApi.getLevels(sectionId);
+          const completedDocs = await databases.listDocuments(
+            DB_ID,
+            COLLECTIONS.USER_PROGRESS,
+            [Query.equal("userId", user.$id), Query.equal("isCompleted", true)]
+          );
+          const completedLevelIds = new Set(completedDocs.documents.map((doc: any) => doc.level as string));
+          const canEnterLevel = isLevelEnterable({
+            targetLevelId: levelId,
+            sectionLevelIds: sectionLevels.map((level) => level.level_id),
+            completedLevelIds,
+          });
+
+          if (!canEnterLevel) {
+            Alert.alert("Level Locked", "Finish the current level in this section before moving to the next one.", [
+              { text: "OK", onPress: () => navigation.goBack() },
+            ]);
+            return;
+          }
+        }
 
         if (isRecapLevel) {
           // Extract recap section number from levelId (e.g., "recap_10_source_1" -> 10)
@@ -838,16 +866,9 @@ const QuestionScreen: React.FC<Props> = ({ navigation, route }) => {
 
         // Check if lives reached zero
         if (lives === 0) {
-          // Calculate time until next life
-          const timeUntilNextLife = livesService.getTimeUntilNextLife(
-            lives,
-            lastLifeRegenTime
-          );
-          const timeFormatted = livesService.formatTimeRemaining(timeUntilNextLife);
-
           Alert.alert(
             "Out of Lives! ❤️",
-            `You've run out of lives. Your next life will regenerate in ${timeFormatted}.`,
+            "You've run out of lives. Complete a level to earn another life.",
             [
               {
                 text: "OK",
@@ -930,15 +951,9 @@ const QuestionScreen: React.FC<Props> = ({ navigation, route }) => {
     
     // If lives is 0, user cannot continue
     if (currentLives <= 0) {
-      const timeUntilNextLife = livesService.getTimeUntilNextLife(
-        currentLives,
-        user?.lastLifeRegenTime || new Date().toISOString()
-      );
-      const timeFormatted = livesService.formatTimeRemaining(timeUntilNextLife);
-
       Alert.alert(
         "Out of Lives! ❤️",
-        `You've run out of lives. Your next life will regenerate in ${timeFormatted}.`,
+        "You've run out of lives. Complete a level to earn another life.",
         [
           {
             text: "OK",
@@ -1045,37 +1060,56 @@ const QuestionScreen: React.FC<Props> = ({ navigation, route }) => {
             console.error("Failed to update progress:", progressError);
           }
         }
-        await cacheService.addCompletedLevel(levelId);
+        if (result.passed) {
+          await cacheService.addCompletedLevel(levelId);
+        }
 
-        // Determine next level: check if this was the last level in the section
-        let nextLevelToUnlock = result.next_level_id;
+        const cachedCompletedLevels = await cacheService.getCompletedLevels();
+        const completedLevelIds = new Set(cachedCompletedLevels);
+        const completedLevelsCount = cachedCompletedLevels.length;
+
+        let nextLevelToUnlock: string | null = result.next_level_id ?? null;
         let nextSectionId = sectionId;
         let nextSectionTitle: string | null = null;
 
-        if (result.passed && !result.next_level_id) {
-          // No next level returned means we're at the end of the current section
+        if (result.passed) {
           try {
-            // Get all sections with caching
             const allSections = await cachedBackendApi.getSections();
-            const currentSectionIndex = allSections.findIndex(s => s.section_id === sectionId);
-            
-            if (currentSectionIndex !== -1 && currentSectionIndex < allSections.length - 1) {
-              // There is a next section
-              const nextSection = allSections[currentSectionIndex + 1];
-              // Get the first level of the next section with caching
-              if (nextSection.section_id) {
-                const nextSectionLevels = await cachedBackendApi.getLevels(nextSection.section_id);
-                
-                if (nextSectionLevels.length > 0) {
-                  nextLevelToUnlock = nextSectionLevels[0].level_id;
-                  nextSectionId = nextSection.section_id;
-                  nextSectionTitle = nextSection.title;
-                }
+            const regularSections = await Promise.all(
+              allSections
+                .filter((section) => section.section_id)
+                .map(async (section) => ({
+                  id: section.section_id!,
+                  title: section.title,
+                  levelIds: (await cachedBackendApi.getLevels(section.section_id!)).map((level) => level.level_id),
+                }))
+            );
+            const fallbackSectionId = regularSections[0]?.id;
+            const referenceSectionId = regularSections.some((section) => section.id === sectionId)
+              ? sectionId
+              : fallbackSectionId;
+
+            if (referenceSectionId) {
+              const nextTarget = getNextPlayableLevelTarget({
+                currentSectionId: referenceSectionId,
+                completedLevelIds,
+                regularSections: regularSections.map((section) => ({
+                  id: section.id,
+                  levelIds: section.levelIds,
+                })),
+              });
+
+              if (nextTarget) {
+                nextLevelToUnlock = nextTarget.levelId;
+                nextSectionId = nextTarget.sectionId;
+                nextSectionTitle =
+                  regularSections.find((section) => section.id === nextTarget.sectionId)?.title ?? null;
+              } else {
+                nextLevelToUnlock = null;
               }
-            } else {
             }
           } catch (error) {
-            console.error('Failed to find next section:', error);
+            console.error('Failed to resolve next playable target:', error);
           }
         }
 
@@ -1086,8 +1120,8 @@ const QuestionScreen: React.FC<Props> = ({ navigation, route }) => {
 
           // Add 1 life on level completion (cap at 5)
           const currentLivesValue = user.lives !== undefined && user.lives !== null ? user.lives : 5;
-          const newLives = Math.min(currentLivesValue + 1, 5);
-          const newLastLifeRegenTime = new Date().toISOString(); // Reset regeneration time
+          const newLives = getLevelCompletionLives(currentLivesValue);
+          const newLastLifeRegenTime = new Date().toISOString();
           
           updateData.lives = newLives;
           updateData.lastLifeRegenTime = newLastLifeRegenTime;
@@ -1115,7 +1149,7 @@ const QuestionScreen: React.FC<Props> = ({ navigation, route }) => {
 
           // Add 1 life on level completion (cap at 5)
           const currentLivesValue = user.lives !== undefined && user.lives !== null ? user.lives : 5;
-          const newLives = Math.min(currentLivesValue + 1, 5);
+          const newLives = getLevelCompletionLives(currentLivesValue);
           const newLastLifeRegenTime = new Date().toISOString();
           
           updateData.lives = newLives;
@@ -1173,6 +1207,7 @@ const QuestionScreen: React.FC<Props> = ({ navigation, route }) => {
           passed: result.passed,
           nextLevelId: nextLevelToUnlock,
           sectionId,
+          completedLevelsCount,
         });
       } catch (error) {
         console.error("Error submitting level:", error);
@@ -1383,7 +1418,15 @@ const QuestionScreen: React.FC<Props> = ({ navigation, route }) => {
         featureName: 'question_flag',
       });
 
-      setIsFlagged(true);
+      const removal = removeQuestionAtIndex(questions, currentQuestionIndex);
+      setQuestions(removal.questions);
+      setCurrentQuestionIndex(removal.nextIndex);
+      setSelectedAnswer("");
+      setMatchingAnswers({});
+      setFillInGapAnswers({});
+      setMatchingResults({ correct: [], incorrect: [] });
+      setIsWaitingForNext(false);
+      setIsFlagged(false);
     } catch (error) {
       console.error("Error flagging question:", error);
       // Still mark as flagged even if API call fails
@@ -1529,7 +1572,7 @@ const QuestionScreen: React.FC<Props> = ({ navigation, route }) => {
           title={"Next"}
           onPress={handleSubmit}
           disabled={!canSubmit || isWaitingForNext}
-          size={isMatchingQuestionView ? "small" : "medium"}
+          size="medium"
           style={isMatchingQuestionView ? styles.matchingNextButton : undefined}
         />
       </View>

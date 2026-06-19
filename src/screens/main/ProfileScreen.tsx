@@ -20,7 +20,7 @@ import { useFocusEffect } from "@react-navigation/native";
 import { Ionicons } from "@expo/vector-icons";
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { RootState } from "../../store";
-import { formatXP, formatMonthlyXP, formatLifeRegenTime, getDaysUntilMonthEnd } from "../../utils";
+import { formatXP, formatMonthlyXP, getDaysUntilMonthEnd } from "../../utils";
 import { getAvatarById } from "../../utils/avatarUtils";
 import InviteFriendsModal from "../../components/modals/InviteFriendsModal";
 import CustomButton from "../../components/CustomButton";
@@ -33,8 +33,9 @@ import { Subscription } from "../../types/subscription";
 import AuthService from "../../services/auth";
 import CoachMark from "../../components/tutorial/CoachMark";
 import { PROFILE_COACH_STEPS } from "../../config/coachMarkSteps";
-import { markProfileGuideSeen } from "../../store/slices/tutorialSlice";
+import { markProfileGuideSeen, markTutorialActionCompleted } from "../../store/slices/tutorialSlice";
 import { useRevenueCat } from "../../hooks/useRevenueCat";
+import { canAdvanceTutorialStep } from "../../utils/tutorialBehavior";
 
 const { width: screenWidth } = Dimensions.get("window");
 
@@ -45,12 +46,11 @@ interface Props {
 const ProfileScreen: React.FC<Props> = ({ navigation }) => {
   const dispatch = useDispatch();
   const { user } = useSelector((state: RootState) => state.auth);
-  const { currentStreak, totalStreak, daysThisMonth, weeklyStreak } = useSelector(
+  const { currentStreak, totalStreak, daysThisMonth } = useSelector(
     (state: RootState) => state.streak
   );
-  const { hasSeenProfileGuide } = useSelector((state: RootState) => state.tutorial);
+  const { hasSeenProfileGuide, completedActions } = useSelector((state: RootState) => state.tutorial);
   const [isInviteModalVisible, setInviteModalVisible] = useState(false);
-  const [lifeRegenTime, setLifeRegenTime] = useState('');
   const [subscription, setSubscription] = useState<Subscription | null>(null);
   const [isTogglingAutoRenew, setIsTogglingAutoRenew] = useState(false);
   const { isPremium, presentCustomerCenter } = useRevenueCat();
@@ -62,7 +62,8 @@ const ProfileScreen: React.FC<Props> = ({ navigation }) => {
 
   // Coach marks
   const [coachStep, setCoachStep] = useState(0);
-  const showCoachMarks = !hasSeenProfileGuide;
+  const [isCoachPaused, setIsCoachPaused] = useState(false);
+  const showCoachMarks = !hasSeenProfileGuide && !isCoachPaused;
 
   // Refresh lives when screen is focused
   useFocusEffect(
@@ -108,35 +109,7 @@ const ProfileScreen: React.FC<Props> = ({ navigation }) => {
     }
 
     // Log Appwrite data
-  }, [user?.$id, currentStreak, weeklyStreak, dispatch]);
-
-  // Update lives and regeneration timer
-  useEffect(() => {
-    if (!user) return;
-
-    const updateLivesTimer = () => {
-      try {
-        // Use lives directly from user object (Appwrite)
-        const currentLivesValue = user.lives !== undefined && user.lives !== null ? user.lives : 5;
-        const regenTime = user.lastLifeRegenTime || new Date().toISOString();
-
-        const timeRemaining = livesService.getTimeUntilNextLife(
-          currentLivesValue,
-          regenTime
-        );
-        setLifeRegenTime(formatLifeRegenTime(timeRemaining));
-      } catch (error) {
-        console.error('Error updating lives timer:', error);
-        // Set default values on error
-        setLifeRegenTime('Full');
-      }
-    };
-
-    updateLivesTimer();
-    const interval = setInterval(updateLivesTimer, 1000); // Update every second
-
-    return () => clearInterval(interval);
-  }, [user, user?.lives, user?.lastLifeRegenTime]);
+  }, [user?.$id, dispatch]);
 
   if (!user) {
     return (
@@ -148,6 +121,12 @@ const ProfileScreen: React.FC<Props> = ({ navigation }) => {
 
   const handleEditProfile = () => {
     navigation.navigate("EditProfile");
+  };
+
+  const handleOpenTutorialHub = () => {
+    dispatch(markTutorialActionCompleted('profile_tutorial_hub_opened'));
+    setIsCoachPaused(false);
+    navigation.navigate('TutorialHub');
   };
 
   const handleToggleAutoRenew = async (value: boolean) => {
@@ -363,7 +342,7 @@ const ProfileScreen: React.FC<Props> = ({ navigation }) => {
                   <Text style={styles.statIcon}>🔥</Text>
                 </View>
                 <View style={styles.statBottomRow}>
-                  <Text style={styles.statValue}>{weeklyStreak}</Text>
+                  <Text style={styles.statValue}>{currentStreak}</Text>
                   <Text style={styles.statLabel}>Current streak</Text>
                 </View>
               </View>
@@ -405,7 +384,7 @@ const ProfileScreen: React.FC<Props> = ({ navigation }) => {
                   <Text style={styles.statLabel}>Lives</Text>
                   {currentLivesValue < maxLives && (
                     <Text style={styles.statSubLabel}>
-                      Next in {lifeRegenTime}
+                      Earn +1 by completing a level
                     </Text>
                   )}
                 </View>
@@ -496,7 +475,7 @@ const ProfileScreen: React.FC<Props> = ({ navigation }) => {
         <TouchableOpacity
           style={styles.howToPlayButton}
           activeOpacity={0.7}
-          onPress={() => navigation.navigate('TutorialHub')}
+          onPress={handleOpenTutorialHub}
         >
           <Ionicons name="help-circle-outline" size={22} color="#FF5722" />
           <Text style={styles.howToPlayText}>How to Play</Text>
@@ -537,13 +516,29 @@ const ProfileScreen: React.FC<Props> = ({ navigation }) => {
         visible={showCoachMarks}
         steps={PROFILE_COACH_STEPS}
         currentStep={coachStep}
-        onNext={() => setCoachStep((prev) => prev + 1)}
+        onNext={() => {
+          const step = PROFILE_COACH_STEPS[coachStep];
+          const canAdvance = canAdvanceTutorialStep({
+            requiredActionKey: step?.requiredActionKey,
+            completedActions,
+          });
+
+          if (!canAdvance) {
+            setIsCoachPaused(true);
+            Alert.alert('Try this first', step?.blockedMessage || 'Complete the highlighted action first.');
+            return;
+          }
+
+          setCoachStep((prev) => prev + 1);
+        }}
         onSkip={() => {
           dispatch(markProfileGuideSeen());
+          setIsCoachPaused(false);
           setCoachStep(0);
         }}
         onComplete={() => {
           dispatch(markProfileGuideSeen());
+          setIsCoachPaused(false);
           setCoachStep(0);
         }}
       />

@@ -5,6 +5,7 @@ import { ID, OAuthProvider } from 'react-native-appwrite';
 import { User } from '../types';
 import Constants from 'expo-constants';
 import { URL } from 'react-native-url-polyfill';
+import { findOrCreateUserDocument } from './authProfile';
 
 WebBrowser.maybeCompleteAuthSession();
 
@@ -114,53 +115,22 @@ class GoogleAuthService {
     }
   }
 
-  // ... (Keep your existing findOrCreateUserDocument method here)
   private async findOrCreateUserDocument(userAccount: any): Promise<any> {
-    // ... paste your existing logic here
-     try {
-      // Try to get existing user document
-      try {
-        const existingDoc = await databases.getDocument(
-          DB_ID,
-          COLLECTIONS.USERS,
-          userAccount.$id
-        );
-        return existingDoc;
-      } catch (error: any) {
-        if (error.code === 404) {
-          const currentDate = new Date().toISOString();
-          const newUserDoc = await databases.createDocument(
-            DB_ID,
-            COLLECTIONS.USERS,
-            userAccount.$id,
-            {
-              email: userAccount.email,
-              name: userAccount.name,
-              username: userAccount.email.split('@')[0],
-              avatar: 'needs_onboarding',
-              age: 7,
-              learningLimit: 'needs_onboarding',
-              mainGoal: 'needs_onboarding',
-              referralSource: 'google',
-              xp: 0,
-              level: 1,
-              currentSection: 1,
-              streak: 0,
-              lastLoginDate: currentDate,
-              totalQuestionsAnswered: 0,
-              correctAnswers: 0,
-              monthlyXP: 0,
-              totalXP: 0,
-              lives: 5,
-              lastLifeRegenTime: currentDate,
-              currentLevelId: null,
-              currentSectionId: null,
-            }
-          );
-          return newUserDoc;
-        }
-        throw error;
-      }
+    try {
+      return await findOrCreateUserDocument({
+        databases,
+        dbId: DB_ID,
+        usersCollectionId: COLLECTIONS.USERS,
+        accountInfo: userAccount,
+        profileSeed: {
+          username: userAccount.email.split('@')[0],
+          avatar: 'needs_onboarding',
+          age: 7,
+          learningLimit: 'needs_onboarding',
+          mainGoal: 'needs_onboarding',
+          referralSource: 'google',
+        },
+      });
     } catch (error) {
       console.error('Error with user document:', error);
       throw new Error('Failed to setup user profile.');
@@ -195,6 +165,7 @@ class GoogleAuthService {
       lastLifeRegenTime: userDoc.lastLifeRegenTime || new Date().toISOString(),
       currentLevelId: userDoc.currentLevelId,
       currentSectionId: userDoc.currentSectionId,
+      hasCompletedTutorial: userDoc.hasCompletedTutorial || false,
       $createdAt: userDoc.$createdAt || userAccount.$createdAt,
       $updatedAt: userDoc.$updatedAt || userAccount.$updatedAt,
     };

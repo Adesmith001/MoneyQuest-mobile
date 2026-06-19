@@ -1,5 +1,17 @@
 import { createSlice, PayloadAction } from '@reduxjs/toolkit';
 
+export type TutorialActionKey =
+  | 'home_swipe_left_performed'
+  | 'home_swipe_right_performed'
+  | 'profile_tutorial_hub_opened';
+
+export type TutorialReplayKey =
+  | 'hasCompletedAppTour'
+  | 'hasSeenHomeTour'
+  | 'hasSeenQuestionGuide'
+  | 'hasSeenStreakGuide'
+  | 'hasSeenProfileGuide';
+
 export interface TutorialState {
   // Per-screen coach mark flags
   hasSeenHomeTour: boolean;
@@ -11,6 +23,7 @@ export interface TutorialState {
   // Whether the tour is actively showing
   isTourActive: boolean;
   currentTourStep: number;
+  completedActions: Partial<Record<TutorialActionKey, boolean>>;
 }
 
 const initialState: TutorialState = {
@@ -21,6 +34,7 @@ const initialState: TutorialState = {
   hasCompletedAppTour: false,
   isTourActive: false,
   currentTourStep: 0,
+  completedActions: {},
 };
 
 const tutorialSlice = createSlice({
@@ -56,6 +70,19 @@ const tutorialSlice = createSlice({
       state.currentTourStep = 0;
       state.hasCompletedAppTour = true;
     },
+    markTutorialActionCompleted: (state, action: PayloadAction<TutorialActionKey>) => {
+      state.completedActions[action.payload] = true;
+    },
+    resetTutorialActions: (state, action: PayloadAction<TutorialActionKey[] | undefined>) => {
+      if (!action.payload || action.payload.length === 0) {
+        state.completedActions = {};
+        return;
+      }
+
+      action.payload.forEach((key) => {
+        delete state.completedActions[key];
+      });
+    },
     // Reset all tutorial flags (for settings "Replay Tutorial")
     resetAllTutorials: (state) => {
       state.hasSeenHomeTour = false;
@@ -65,9 +92,10 @@ const tutorialSlice = createSlice({
       state.hasCompletedAppTour = false;
       state.isTourActive = false;
       state.currentTourStep = 0;
+      state.completedActions = {};
     },
     // Reset a specific guide for replay
-    resetGuide: (state, action: PayloadAction<keyof Omit<TutorialState, 'isTourActive' | 'currentTourStep'>>) => {
+    resetGuide: (state, action: PayloadAction<TutorialReplayKey>) => {
       const key = action.payload;
       if (key in state && typeof state[key] === 'boolean') {
         (state as any)[key] = false;
@@ -85,6 +113,8 @@ export const {
   startAppTour,
   nextTourStep,
   skipTour,
+  markTutorialActionCompleted,
+  resetTutorialActions,
   resetAllTutorials,
   resetGuide,
 } = tutorialSlice.actions;

@@ -196,6 +196,7 @@ export const isNewMonth = (lastUpdateDate: string): boolean => {
 };
 
 export { getCurrentMonthKey, getMonthKey, normalizeMonthKey, shouldResetMonthlyXP } from './monthlyXP';
+export { applyMonthlyLeaderboardReset, getMonthlyResetMonthKey } from './monthlyLeaderboardReset';
 
 /**
  * Get month name from month key
@@ -224,7 +225,7 @@ export const getDaysUntilMonthEnd = (): number => {
 /**
  * Format XP with monthly reset info
  * @param monthlyXP - XP for current month
- * @param totalXP - Total XP (also resets monthly)
+ * @param totalXP - Total lifetime XP
  * @returns Formatted string
  */
 export const formatMonthlyXP = (monthlyXP: number, totalXP: number): string => {

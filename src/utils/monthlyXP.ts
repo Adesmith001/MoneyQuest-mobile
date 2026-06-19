@@ -27,11 +27,17 @@ export const normalizeMonthKey = (monthKey?: string | null): string | null => {
 };
 
 /**
- * Monthly XP should only be cleared on the first day of a new month.
+ * Monthly XP should be treated as stale whenever the last reset marker does
+ * not match the current month.
  */
 export const shouldResetMonthlyXP = (
   lastMonthlyReset?: string | null,
   now: Date = new Date()
 ): boolean => {
-  return now.getDate() === 1 && normalizeMonthKey(lastMonthlyReset) !== getMonthKey(now);
+  const normalizedMonthKey = normalizeMonthKey(lastMonthlyReset);
+  if (!normalizedMonthKey) {
+    return false;
+  }
+
+  return normalizedMonthKey !== getMonthKey(now);
 };
