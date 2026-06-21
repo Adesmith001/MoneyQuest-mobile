@@ -384,7 +384,7 @@ const ProfileScreen: React.FC<Props> = ({ navigation }) => {
                   <Text style={styles.statLabel}>Lives</Text>
                   {currentLivesValue < maxLives && (
                     <Text style={styles.statSubLabel}>
-                      Earn +1 by completing a level
+                      Completing a level also gives +1.
                     </Text>
                   )}
                 </View>

@@ -7,7 +7,7 @@ import gameReducer from './slices/gameSlice';
 import leaderboardReducer from './slices/leaderboardSlice';
 import streakReducer from './slices/streakSlice';
 import learningReducer from './slices/learningSlice';
-import tutorialReducer from './slices/tutorialSlice';
+import tutorialReducer, { normalizeTutorialState, TutorialState } from './slices/tutorialSlice';
 import { AuthState } from '../types';
 
 const rootReducer = combineReducers({
@@ -37,10 +37,16 @@ const authStateTransform = createTransform<AuthState, AuthState, RootReducerStat
   { whitelist: ['auth'] }
 );
 
+const tutorialStateTransform = createTransform<TutorialState, TutorialState, RootReducerState>(
+  (inboundState) => normalizeTutorialState(inboundState),
+  (outboundState) => normalizeTutorialState(outboundState),
+  { whitelist: ['tutorial'] }
+);
+
 const persistConfig: PersistConfig<RootReducerState> = {
   key: 'root',
   storage: AsyncStorage,
-  transforms: [authStateTransform],
+  transforms: [authStateTransform, tutorialStateTransform],
   whitelist: ['auth', 'game', 'streak', 'learning', 'tutorial'], // Persist auth, game, streak, learning, and tutorial state
 };
 

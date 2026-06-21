@@ -23,10 +23,9 @@ const streakImage = require('../../../assets/streakIcon.png');
 
 const LeaderboardScreen: React.FC = () => {
   const dispatch = useDispatch();
-  const { entries, isLoading, hasLoaded } = useSelector(
+  const { entries, hasLoaded, isLoading } = useSelector(
     (state: RootState) => state.leaderboard,
   );
-  const { weeklyStreak, currentStreak } = useSelector( (state: RootState) => state.streak);
   const { user: currentUser } = useSelector((state: RootState) => state.auth);
 
   // Keep stable refs so the interval always calls the latest dispatch
@@ -58,6 +57,7 @@ const LeaderboardScreen: React.FC = () => {
           avatar: currentUser.avatar || entry.avatar,
           profilePicture: currentUser.profilePicture || entry.profilePicture,
           monthlyXP: currentUser.monthlyXP ?? entry.monthlyXP,
+          streak: entry.streak ?? 0,
         };
       }
       return entry;
@@ -119,7 +119,7 @@ const LeaderboardScreen: React.FC = () => {
           <Text style={styles.podiumXP}>{player.monthlyXP} XP</Text>
           <View style={styles.streakInline}>
             <Image source={streakImage} style={styles.streakIcon} resizeMode="contain" />
-            <Text style={styles.streakValue}>{ currentStreak}</Text>
+            <Text style={styles.streakValue}>{player.streak ?? 0}</Text>
           </View>
         </View>
       </View>
@@ -156,7 +156,7 @@ const LeaderboardScreen: React.FC = () => {
           <Text style={styles.listXP}>{item.monthlyXP} XP</Text>
           <View style={styles.streakInline}>
             <Image source={streakImage} style={styles.streakIcon} resizeMode="contain" />
-            <Text style={styles.streakValue}>{ currentStreak}</Text>
+            <Text style={styles.streakValue}>{item.streak ?? 0}</Text>
           </View>
         </View>
       </View>

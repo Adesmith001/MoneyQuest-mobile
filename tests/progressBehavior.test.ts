@@ -155,6 +155,34 @@ assertProgressState(
 assertProgressState(
   getLevelProgressState({
     sectionId: 'section-1',
+    levelId: 'level-1',
+    levelIndex: 0,
+    sectionLevelIds: ['level-1', 'level-2'],
+    completedLevelIds: new Set(['level-1']),
+    currentSectionId: 'section-1',
+    currentLevelId: 'level-1',
+  }),
+  { isUnlocked: true, isCompleted: true, isCurrent: false },
+  'stops treating a completed level as current when the next playable level should take over'
+);
+
+assertProgressState(
+  getLevelProgressState({
+    sectionId: 'section-1',
+    levelId: 'level-2',
+    levelIndex: 1,
+    sectionLevelIds: ['level-1', 'level-2'],
+    completedLevelIds: new Set(['level-1']),
+    currentSectionId: 'section-1',
+    currentLevelId: 'level-1',
+  }),
+  { isUnlocked: true, isCompleted: false, isCurrent: true },
+  'promotes the next playable level to current when persisted progress still points at the completed level'
+);
+
+assertProgressState(
+  getLevelProgressState({
+    sectionId: 'section-1',
     levelId: 'level-3',
     levelIndex: 2,
     sectionLevelIds: ['level-1', 'level-2', 'level-3'],

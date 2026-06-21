@@ -94,6 +94,7 @@ const HomeScreen: React.FC<Props> = ({ navigation }) => {
   // Coach marks
   const [coachStep, setCoachStep] = useState(0);
   const [homeSwipeTutorialStage, setHomeSwipeTutorialStage] = useState<HomeSwipeTutorialStage | null>(null);
+  const [isHomeSwipePromptVisible, setIsHomeSwipePromptVisible] = useState(false);
   const showCoachMarks = !hasSeenHomeTour && !isLoading && sections.length > 0 && homeSwipeTutorialStage === null;
   // const [hasScrolledToCurrentSection, setHasScrolledToCurrentSection] = useState(false);
 
@@ -380,22 +381,6 @@ const HomeScreen: React.FC<Props> = ({ navigation }) => {
               // 💾 Save merged data to cache for next time
               await cacheService.saveCompletedLevels(Array.from(latestCompletedLevels));
 
-              // If user has completed levels but no currentLevelId, update it
-              if (latestCompletedLevels.size > 0 && !user.currentLevelId) {
-                const sortedCompletedLevels = Array.from(latestCompletedLevels);
-                const lastCompletedLevel = sortedCompletedLevels[sortedCompletedLevels.length - 1];
-
-                await databases.updateDocument(
-                  DB_ID,
-                  COLLECTIONS.USERS,
-                  user.$id,
-                  {
-                    currentLevelId: lastCompletedLevel,
-                  }
-                );
-
-                dispatch(updateUser({ currentLevelId: lastCompletedLevel }));
-              }
             } catch (error) {
               console.error('❌ Failed to fetch from Appwrite:', error);
               // If network fails, we still have cached data!
@@ -636,11 +621,7 @@ const HomeScreen: React.FC<Props> = ({ navigation }) => {
       const isRegularSection = Boolean(section?.regularSectionNumber);
 
       if (isRegularSection) {
-        const canEnter = isLevelEnterable({
-          targetLevelId: node.levelId,
-          sectionLevelIds: section.levels.map((level) => level.levelId),
-          completedLevelIds: completedLevels,
-        });
+        const canEnter = node.isUnlocked || node.isCurrent || node.isCompleted;
 
         if (!canEnter) {
           Alert.alert(
@@ -835,7 +816,7 @@ const HomeScreen: React.FC<Props> = ({ navigation }) => {
         </View>
 
         {/* Avatar next to current level */}
-        {node.isCurrent && (
+        {node.isCurrent && !node.isCompleted && (
           <View
             style={[
               styles.avatarContainer,
@@ -1162,9 +1143,11 @@ const HomeScreen: React.FC<Props> = ({ navigation }) => {
               if (homeSwipeTutorialStage === 'left' && nextStage === 'right') {
                 dispatch(markTutorialActionCompleted('home_swipe_left_performed'));
                 setHomeSwipeTutorialStage('right');
+                setIsHomeSwipePromptVisible(true);
               } else if (homeSwipeTutorialStage === 'right' && nextStage === 'complete') {
                 dispatch(markTutorialActionCompleted('home_swipe_right_performed'));
                 dispatch(markHomeTourSeen());
+                setIsHomeSwipePromptVisible(false);
                 setHomeSwipeTutorialStage(null);
                 setCoachStep(0);
               }
@@ -1226,6 +1209,7 @@ const HomeScreen: React.FC<Props> = ({ navigation }) => {
         onNext={() => setCoachStep((prev) => prev + 1)}
         onSkip={() => {
           dispatch(markHomeTourSeen());
+          setIsHomeSwipePromptVisible(false);
           setHomeSwipeTutorialStage(null);
           setCoachStep(0);
         }}
@@ -1246,11 +1230,12 @@ const HomeScreen: React.FC<Props> = ({ navigation }) => {
           }
 
           setHomeSwipeTutorialStage('left');
+          setIsHomeSwipePromptVisible(true);
         }}
       /> 
 
       <CoachMark
-        visible={homeSwipeTutorialStage !== null}
+        visible={homeSwipeTutorialStage !== null && isHomeSwipePromptVisible}
         steps={[
           homeSwipeTutorialStage === 'right'
             ? {
@@ -1271,20 +1256,14 @@ const HomeScreen: React.FC<Props> = ({ navigation }) => {
               },
         ]}
         currentStep={0}
-        onNext={() => {
-          Alert.alert(
-            'Swipe to continue',
-            homeSwipeTutorialStage === 'right'
-              ? 'Swipe right on the learning path to finish this tutorial.'
-              : 'Swipe left on the learning path to continue.'
-          );
-        }}
+        onNext={() => setIsHomeSwipePromptVisible(false)}
         onSkip={() => {
           dispatch(markHomeTourSeen());
+          setIsHomeSwipePromptVisible(false);
           setHomeSwipeTutorialStage(null);
           setCoachStep(0);
         }}
-        onComplete={() => {}}
+        onComplete={() => setIsHomeSwipePromptVisible(false)}
       />
     </SafeAreaView>
   );

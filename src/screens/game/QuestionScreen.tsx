@@ -13,6 +13,7 @@ import {
   TextInput,
 } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
+import AsyncStorage from "@react-native-async-storage/async-storage";
 import { useDispatch, useSelector } from "react-redux";
 import { useFocusEffect } from "@react-navigation/native";
 import { COLORS, FONT_SIZES, SPACING } from "../../constants";
@@ -53,6 +54,7 @@ import analyticsService from "../../services/analytics";
 import notificationService from "../../services/notifications";
 import { RenderContentWithTables } from "../../utils/tableParser";
 import { getCurrentMonthKey } from "../../utils";
+import { calculateQuizAccuracy, normalizeSavedQuizProgress } from "../../utils/quizProgress";
 import {
   getLevelCompletionLives,
   getNextPlayableLevelTarget,
@@ -76,6 +78,9 @@ interface Props {
     };
   };
 }
+
+const getQuizAttemptsStorageKey = (userId: string, levelId: string) =>
+  `@moneyquest_quiz_attempts:${userId}:${levelId}`;
 
 /**
  * Mix and limit questions to exactly 5 with specified distribution:
@@ -385,13 +390,23 @@ const QuestionScreen: React.FC<Props> = ({ navigation, route }) => {
 
         if (!isRecapLevel && user?.$id) {
           const sectionLevels = await cachedBackendApi.getLevels(sectionId);
+          const cachedCompletedLevels = await cacheService.getCompletedLevels();
           const completedDocs = await databases.listDocuments(
             DB_ID,
             COLLECTIONS.USER_PROGRESS,
             [Query.equal("userId", user.$id), Query.equal("isCompleted", true)]
           );
-          const completedLevelIds = new Set(completedDocs.documents.map((doc: any) => doc.level as string));
-          const canEnterLevel = isLevelEnterable({
+          const completedLevelIds = new Set<string>(cachedCompletedLevels);
+          completedDocs.documents.forEach((doc: any) => {
+            if (typeof doc.level === "string" && doc.level.length > 0) {
+              completedLevelIds.add(doc.level);
+            }
+          });
+          await cacheService.saveCompletedLevels(Array.from(completedLevelIds));
+
+          const isUsersCurrentLevel =
+            user.currentSectionId === sectionId && user.currentLevelId === levelId;
+          const canEnterLevel = isUsersCurrentLevel || isLevelEnterable({
             targetLevelId: levelId,
             sectionLevelIds: sectionLevels.map((level) => level.level_id),
             completedLevelIds,
@@ -584,15 +599,32 @@ const QuestionScreen: React.FC<Props> = ({ navigation, route }) => {
 
             if (progressDocs.documents.length > 0) {
               const progress = progressDocs.documents[0];
+              const savedAttemptsValue = await AsyncStorage.getItem(
+                getQuizAttemptsStorageKey(user.$id, levelId)
+              );
+              const resumedProgress = normalizeSavedQuizProgress({
+                currentQuestionIndex: progress.currentQuestionIndex,
+                questionsCorrect: progress.questionsCorrect,
+                xpEarned: progress.xpEarned,
+                attempts:
+                  progress.attempts ??
+                  (savedAttemptsValue !== null ? Number(savedAttemptsValue) : undefined),
+              });
 
               // Resume from saved question index
               if (progress.currentQuestionIndex !== undefined) {
-                setCurrentQuestionIndex(progress.currentQuestionIndex);
-                setCorrectAnswersCount(progress.questionsCorrect || 0);
-                setXpGained(progress.xpEarned || 0);
+                setCurrentQuestionIndex(resumedProgress.currentQuestionIndex);
+                setCorrectAnswersCount(resumedProgress.questionsCorrect);
+                setXpGained(resumedProgress.xpEarned);
+                setTotalAttempts(resumedProgress.totalAttempts);
 
                 // If there's saved progress, skip directly to quiz
-                if (progress.currentQuestionIndex > 0) {
+                if (
+                  resumedProgress.currentQuestionIndex > 0 ||
+                  resumedProgress.totalAttempts > 0 ||
+                  resumedProgress.questionsCorrect > 0 ||
+                  resumedProgress.xpEarned > 0
+                ) {
                   setViewMode("quiz");
                 }
               }
@@ -655,10 +687,17 @@ const QuestionScreen: React.FC<Props> = ({ navigation, route }) => {
       if (!user?.$id || viewMode !== "quiz" || isLoading) return;
 
       try {
+        const attemptsStorageKey = getQuizAttemptsStorageKey(user.$id, levelId);
+        await AsyncStorage.setItem(attemptsStorageKey, String(totalAttempts));
+
         const progressDocs = await databases.listDocuments(
           DB_ID,
           COLLECTIONS.USER_PROGRESS,
-          [Query.equal("userId", user.$id), Query.equal("level", levelId)]
+          [
+            Query.equal("userId", user.$id),
+            Query.equal("level", levelId),
+            Query.equal("isCompleted", false),
+          ]
         );
 
         const progressData = {
@@ -669,26 +708,54 @@ const QuestionScreen: React.FC<Props> = ({ navigation, route }) => {
           questionsAnswered: currentQuestionIndex + 1,
           questionsCorrect: correctAnswersCount,
           xpEarned: xpGained,
+          attempts: totalAttempts,
           isCompleted: false,
           updatedAt: new Date().toISOString(),
         };
+        const fallbackProgressData = {
+          userId: user.$id,
+          level: levelId,
+          section: 1,
+          currentQuestionIndex,
+          questionsAnswered: currentQuestionIndex + 1,
+          questionsCorrect: correctAnswersCount,
+          xpEarned: xpGained,
+          isCompleted: false,
+          updatedAt: progressData.updatedAt,
+        };
 
         if (progressDocs.documents.length > 0) {
-          // Update existing progress
-          await databases.updateDocument(
-            DB_ID,
-            COLLECTIONS.USER_PROGRESS,
-            progressDocs.documents[0].$id,
-            progressData
-          );
+          try {
+            await databases.updateDocument(
+              DB_ID,
+              COLLECTIONS.USER_PROGRESS,
+              progressDocs.documents[0].$id,
+              progressData
+            );
+          } catch (error) {
+            await databases.updateDocument(
+              DB_ID,
+              COLLECTIONS.USER_PROGRESS,
+              progressDocs.documents[0].$id,
+              fallbackProgressData
+            );
+          }
         } else {
-          // Create new progress record
-          await databases.createDocument(
-            DB_ID,
-            COLLECTIONS.USER_PROGRESS,
-            "unique()",
-            progressData
-          );
+          try {
+            await databases.createDocument(
+              DB_ID,
+              COLLECTIONS.USER_PROGRESS,
+              "unique()",
+              progressData
+            );
+          } catch (error) {
+            await databases.createDocument(
+              DB_ID,
+              COLLECTIONS.USER_PROGRESS,
+              "unique()",
+              fallbackProgressData
+            );
+          }
         }
       } catch (error) {
         console.error("Failed to save progress:", error);
@@ -696,7 +763,7 @@ const QuestionScreen: React.FC<Props> = ({ navigation, route }) => {
     }
 
     saveProgress();
-  }, [currentQuestionIndex, correctAnswersCount, xpGained, viewMode]);
+  }, [currentQuestionIndex, correctAnswersCount, xpGained, totalAttempts, viewMode]);
 
   /**
    * Background sync function to ensure user progress is saved to Appwrite
@@ -979,11 +1046,7 @@ const QuestionScreen: React.FC<Props> = ({ navigation, route }) => {
 
       const timeSpentMinutes = Math.round((Date.now() - startTime) / 60000);
       
-      // Calculate accuracy based on total attempts (correct answers / total attempts)
-      // This penalizes wrong answers: if you needed 15 attempts for 10 questions, accuracy = 67%
-      const accuracy = totalAttempts > 0 
-        ? Math.round((correctAnswersCount / totalAttempts) * 100)
-        : 0;
+      const accuracy = calculateQuizAccuracy(correctAnswersCount, totalAttempts);
 
       try {
         // Submit level completion to backend — pass xpGained so Appwrite gets the real per-question XP
@@ -1024,37 +1087,81 @@ const QuestionScreen: React.FC<Props> = ({ navigation, route }) => {
             const existingProgress = await databases.listDocuments(
               DB_ID,
               COLLECTIONS.USER_PROGRESS,
-              [Query.equal("userId", user.$id), Query.equal("level", levelId)]
+              [
+                Query.equal("userId", user.$id),
+                Query.equal("level", levelId),
+                Query.equal("isCompleted", false),
+              ]
             );
 
             if (existingProgress.documents.length > 0) {
               // Update existing progress
-              await databases.updateDocument(
-                DB_ID,
-                COLLECTIONS.USER_PROGRESS,
-                existingProgress.documents[0].$id,
-                {
-                  isCompleted: true,
-                  completedAt: new Date().toISOString(),
-                }
-              );
+              try {
+                await databases.updateDocument(
+                  DB_ID,
+                  COLLECTIONS.USER_PROGRESS,
+                  existingProgress.documents[0].$id,
+                  {
+                    isCompleted: true,
+                    completedAt: new Date().toISOString(),
+                    currentQuestionIndex: questions.length - 1,
+                    questionsAnswered: questions.length,
+                    questionsCorrect: correctAnswersCount,
+                    xpEarned: xpGained,
+                    attempts: totalAttempts,
+                  }
+                );
+              } catch (error) {
+                await databases.updateDocument(
+                  DB_ID,
+                  COLLECTIONS.USER_PROGRESS,
+                  existingProgress.documents[0].$id,
+                  {
+                    isCompleted: true,
+                    completedAt: new Date().toISOString(),
+                    currentQuestionIndex: questions.length - 1,
+                    questionsAnswered: questions.length,
+                    questionsCorrect: correctAnswersCount,
+                    xpEarned: xpGained,
+                  }
+                );
+              }
             } else {
               // Create new progress record
-              await databases.createDocument(
-                DB_ID,
-                COLLECTIONS.USER_PROGRESS,
-                "unique()",
-                {
-                  userId: user.$id,
-                  level: levelId,
-                  section: 1,
-                  questionsAnswered: questions.length,
-                  questionsCorrect: correctAnswersCount,
-                  xpEarned: xpGained,
-                  isCompleted: true,
-                  completedAt: new Date().toISOString(),
-                }
-              );
+              try {
+                await databases.createDocument(
+                  DB_ID,
+                  COLLECTIONS.USER_PROGRESS,
+                  "unique()",
+                  {
+                    userId: user.$id,
+                    level: levelId,
+                    section: 1,
+                    questionsAnswered: questions.length,
+                    questionsCorrect: correctAnswersCount,
+                    xpEarned: xpGained,
+                    attempts: totalAttempts,
+                    isCompleted: true,
+                    completedAt: new Date().toISOString(),
+                  }
+                );
+              } catch (error) {
+                await databases.createDocument(
+                  DB_ID,
+                  COLLECTIONS.USER_PROGRESS,
+                  "unique()",
+                  {
+                    userId: user.$id,
+                    level: levelId,
+                    section: 1,
+                    questionsAnswered: questions.length,
+                    questionsCorrect: correctAnswersCount,
+                    xpEarned: xpGained,
+                    isCompleted: true,
+                    completedAt: new Date().toISOString(),
+                  }
+                );
+              }
             }
           } catch (progressError) {
             console.error("Failed to update progress:", progressError);
@@ -1199,6 +1306,7 @@ const QuestionScreen: React.FC<Props> = ({ navigation, route }) => {
 
         // Silently refresh leaderboard so the user's new rank is visible immediately
         dispatch(fetchLeaderboard({ silent: true }) as any);
+        await AsyncStorage.removeItem(getQuizAttemptsStorageKey(user.$id, levelId));
 
         dispatch(nextLevel());
         navigation.replace("LevelCompletion", {
@@ -1211,6 +1319,7 @@ const QuestionScreen: React.FC<Props> = ({ navigation, route }) => {
         });
       } catch (error) {
         console.error("Error submitting level:", error);
+        await AsyncStorage.removeItem(getQuizAttemptsStorageKey(user.$id, levelId));
         // Still navigate to completion screen even if submission fails
         navigation.replace("LevelCompletion", {
           xpGained: xpGained,

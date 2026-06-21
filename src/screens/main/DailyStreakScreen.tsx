@@ -9,6 +9,7 @@ import { loadStreakData } from "../../store/slices/streakSlice";
 import CoachMark from "../../components/tutorial/CoachMark";
 import { STREAK_COACH_STEPS } from "../../config/coachMarkSteps";
 import { markStreakGuideSeen } from "../../store/slices/tutorialSlice";
+import { getCurrentWeekActivity } from "../../utils/progressBehavior";
 
 const getLocalDateKey = (date: Date) => {
   const year = date.getFullYear();
@@ -17,37 +18,31 @@ const getLocalDateKey = (date: Date) => {
   return `${year}-${month}-${day}`;
 };
 
-const getPastSevenDays = () => {
+const getPastSevenDays = (today: Date = new Date()) => {
   const days = ["Su", "Mo", "Tu", "We", "Th", "Fr", "Sa"];
   const result = [];
+  const daysSinceLastSunday = today.getDay();
 
-  // Get today's date
-  const today = new Date();
-
-  // Find how many days back to go to get to the most recent Sunday
-  const daysSinceLastSunday = today.getDay(); // 0=Sunday, 1=Monday, etc.
-
-  // Start from the most recent Sunday and go forward 7 days
   for (let i = 0; i < 7; i++) {
-    const d = new Date(today);
-    d.setDate(today.getDate() - daysSinceLastSunday + i);
+    const date = new Date(today);
+    date.setDate(today.getDate() - daysSinceLastSunday + i);
     result.push({
-      name: days[d.getDay()],
-      date: getLocalDateKey(d),
+      name: days[date.getDay()],
+      date: getLocalDateKey(date),
     });
   }
+
   return result;
 };
 
 const DailyStreakScreen: React.FC = () => {
   const dispatch = useDispatch();
   const { user } = useSelector((state: RootState) => state.auth);
-  const { currentStreak, loginHistory, isLoading, weeklyStreak } = useSelector(
+  const { currentStreak, weeklyStreak,loginHistory, isLoading } = useSelector(
     (state: RootState) => state.streak
   );
   const { hasSeenStreakGuide } = useSelector((state: RootState) => state.tutorial);
 
-  // Coach marks
   const [coachStep, setCoachStep] = useState(0);
   const showCoachMarks = !hasSeenStreakGuide && !isLoading;
 
@@ -57,74 +52,77 @@ const DailyStreakScreen: React.FC = () => {
     }
   }, [user?.$id, dispatch]);
 
-  // Use the loginHistory array to create a Set for quick lookups.
   const activeDays = new Set(loginHistory || []);
   const week = getPastSevenDays();
+  const currentWeekDates = getCurrentWeekActivity(loginHistory || []);
+  const displayedStreak = Math.max(0, currentStreak);
 
   return (
     <SafeAreaView style={styles.container}>
-      <ScrollView 
+      <ScrollView
         contentContainerStyle={styles.scrollContent}
         showsVerticalScrollIndicator={false}
       >
         <View style={styles.content}>
-        {isLoading ? (
-          <Text style={styles.loadingText}>Loading streak data...</Text>
-        ) : (
-          <>
-            <MaskedView
-              style={styles.maskedView}
-              maskElement={
-                <View style={styles.maskedView}>
-                  <Text style={styles.streakNumberText}>{currentStreak}</Text>
-                </View>
-              }
-            >
-              <LinearGradient
-                colors={["#FFC107", "#FF6B35"]}
-                start={{ x: 0.5, y: 0 }}
-                end={{ x: 0.5, y: 1 }}
+          {isLoading ? (
+            <Text style={styles.loadingText}>Loading streak data...</Text>
+          ) : (
+            <>
+              <MaskedView
                 style={styles.maskedView}
-              />
-            </MaskedView>
-
-            <Text style={styles.streakLabel}>
-              {weeklyStreak > 2 ? "days streak" : "day streak"}
-            </Text>
-
-            <View style={styles.calendarContainer}>
-              {week.map((day, index) => {
-                const isCompleted = activeDays.has(day.date);
-                return (
-                  <View key={index} style={styles.dayContainer}>
-                    <Text
-                      style={[
-                        styles.dayLabel,
-                        !isCompleted && styles.dayLabelIncomplete,
-                      ]}
-                    >
-                      {day.name}
-                    </Text>
-                    {isCompleted ? (
-                      <View style={styles.dayCircleCompleted}>
-                        <Ionicons name="checkmark" size={24} color="#FFFFFF" />
-                      </View>
-                    ) : (
-                      <View style={styles.dayCircleIncomplete} />
-                    )}
+                maskElement={
+                  <View style={styles.maskedView}>
+                    <Text style={styles.streakNumberText}>{weeklyStreak}</Text>
                   </View>
-                );
-              })}
-            </View>
+                }
+              >
+                <LinearGradient
+                  colors={["#FFC107", "#FF6B35"]}
+                  start={{ x: 0.5, y: 0 }}
+                  end={{ x: 0.5, y: 1 }}
+                  style={styles.maskedView}
+                />
+              </MaskedView>
 
-            <Text style={styles.footerText}>
-              Practice each day so your streak won’t reset
-            </Text>
-          </>
-        )}
+              <Text style={styles.streakLabel}>
+                {displayedStreak === 1 ? "day streak" : "days streak"}
+              </Text>
+
+              <View style={styles.calendarContainer}>
+                {week.map((day, index) => {
+                  const isCompleted =
+                    currentWeekDates.includes(day.date) && activeDays.has(day.date);
+
+                  return (
+                    <View key={index} style={styles.dayContainer}>
+                      <Text
+                        style={[
+                          styles.dayLabel,
+                          !isCompleted && styles.dayLabelIncomplete,
+                        ]}
+                      >
+                        {day.name}
+                      </Text>
+                      {isCompleted ? (
+                        <View style={styles.dayCircleCompleted}>
+                          <Ionicons name="checkmark" size={24} color="#FFFFFF" />
+                        </View>
+                      ) : (
+                        <View style={styles.dayCircleIncomplete} />
+                      )}
+                    </View>
+                  );
+                })}
+              </View>
+
+              <Text style={styles.footerText}>
+                Practice each day so your streak won't reset
+              </Text>
+            </>
+          )}
         </View>
       </ScrollView>
-      {/* Coach marks for first-time streak visitors */}
+
       <CoachMark
         visible={showCoachMarks}
         steps={STREAK_COACH_STEPS}
@@ -138,7 +136,7 @@ const DailyStreakScreen: React.FC = () => {
           dispatch(markStreakGuideSeen());
           setCoachStep(0);
         }}
-      />    
+      />
     </SafeAreaView>
   );
 };

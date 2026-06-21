@@ -26,6 +26,8 @@ export interface TutorialState {
   completedActions: Partial<Record<TutorialActionKey, boolean>>;
 }
 
+type TutorialStateLike = Partial<TutorialState> | undefined;
+
 const initialState: TutorialState = {
   hasSeenHomeTour: false,
   hasSeenQuestionGuide: false,
@@ -36,6 +38,12 @@ const initialState: TutorialState = {
   currentTourStep: 0,
   completedActions: {},
 };
+
+export const normalizeTutorialState = (state: TutorialStateLike): TutorialState => ({
+  ...initialState,
+  ...state,
+  completedActions: state?.completedActions ?? {},
+});
 
 const tutorialSlice = createSlice({
   name: 'tutorial',
@@ -71,9 +79,11 @@ const tutorialSlice = createSlice({
       state.hasCompletedAppTour = true;
     },
     markTutorialActionCompleted: (state, action: PayloadAction<TutorialActionKey>) => {
+      state.completedActions ??= {};
       state.completedActions[action.payload] = true;
     },
     resetTutorialActions: (state, action: PayloadAction<TutorialActionKey[] | undefined>) => {
+      state.completedActions ??= {};
       if (!action.payload || action.payload.length === 0) {
         state.completedActions = {};
         return;

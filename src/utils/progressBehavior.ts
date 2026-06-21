@@ -212,15 +212,22 @@ export const getLevelProgressState = ({
   currentLevelId,
 }: LevelProgressInput): ProgressState => {
   const isCompleted = completedLevelIds.has(levelId);
-  const isCurrent = sectionId === currentSectionId && levelId === currentLevelId;
+  const explicitCurrent = sectionId === currentSectionId && levelId === currentLevelId;
   const playableLevelId = getSectionPlayableLevelId(sectionLevelIds, completedLevelIds);
+  const shouldPromotePlayableLevel =
+    sectionId === currentSectionId &&
+    playableLevelId !== null &&
+    (!currentLevelId || completedLevelIds.has(currentLevelId));
+  const isCurrent =
+    explicitCurrent && (!isCompleted || !shouldPromotePlayableLevel) ||
+    (playableLevelId === levelId && shouldPromotePlayableLevel);
 
   if (isCompleted) {
     return { isUnlocked: true, isCompleted: true, isCurrent };
   }
 
   if (playableLevelId === levelId) {
-    return { isUnlocked: true, isCompleted: false, isCurrent: true };
+    return { isUnlocked: true, isCompleted: false, isCurrent };
   }
 
   return {
@@ -322,6 +329,39 @@ const formatLocalDateKey = (date: Date): string => {
   const month = String(date.getMonth() + 1).padStart(2, '0');
   const day = String(date.getDate()).padStart(2, '0');
   return `${year}-${month}-${day}`;
+};
+
+export const getCurrentWeekActivity = (
+  loginHistory: unknown[],
+  todayKey: string = formatLocalDateKey(new Date())
+): string[] => {
+  const today = parseLocalDateKey(todayKey);
+
+  if (!today) {
+    return [];
+  }
+
+  const weekStart = new Date(today);
+  weekStart.setDate(today.getDate() - today.getDay());
+
+  const activity = Array.from({ length: 7 }, (_, index) => {
+    const date = new Date(weekStart);
+    date.setDate(weekStart.getDate() + index);
+    return formatLocalDateKey(date);
+  });
+
+  return activity;
+};
+
+export const getWeeklyActivityCount = (
+  loginHistory: unknown[],
+  todayKey: string = formatLocalDateKey(new Date())
+): number => {
+  const activeDays = new Set(
+    loginHistory.filter((day): day is string => typeof day === 'string' && day.length > 0)
+  );
+
+  return getCurrentWeekActivity(loginHistory, todayKey).filter((dateKey) => activeDays.has(dateKey)).length;
 };
 
 export const getCurrentStreakFromHistory = (

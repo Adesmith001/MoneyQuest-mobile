@@ -30,56 +30,56 @@ interface TourSlide {
 
 const TOUR_SLIDES: TourSlide[] = [
   {
-    icon: '🗺️',
+    icon: '\u{1F5FA}\uFE0F',
     title: 'Your Learning Path',
     description:
       'Each section covers a financial topic. You can only move one level at a time, so finish the current glowing star before the next level unlocks. Swipe left and right to see more sections, and use refresh when new content is available.',
-    mascotMessage: "Let me show you around! This is where all the learning happens.",
+    mascotMessage: 'Let me show you around! This is where all the learning happens.',
     backgroundColor: '#D4E8F5',
     accentColor: '#FF5722',
   },
   {
-    icon: '⭐',
+    icon: '\u2B50',
     title: 'Earn XP & Climb',
     description:
-      'Answer questions correctly to earn XP points. The leaderboard ranks learners by monthly XP and shows each learner\'s current streak.',
-    mascotMessage: "Points make it fun! Try to get as many right as you can.",
+      "Answer questions correctly to earn XP points. The leaderboard ranks learners by monthly XP and shows each learner's current streak.",
+    mascotMessage: 'Points make it fun! Try to get as many right as you can.',
     backgroundColor: '#FFF8E1',
     accentColor: '#FF9800',
   },
   {
-    icon: '❤️',
+    icon: '\u2764\uFE0F',
     title: 'Lives System',
     description:
       'You start with 5 lives. Each wrong answer costs 1 life. Complete levels to earn lives back, up to 5 max.',
-    mascotMessage: "Don't worry if you make mistakes — we all learn from them!",
+    mascotMessage: "Don't worry if you make mistakes - we all learn from them!",
     backgroundColor: '#FCE4EC',
     accentColor: '#F44336',
   },
   {
-    icon: '🔥',
+    icon: '\u{1F4AC}',
     title: 'Feedback & Flags',
     description:
       'After each answer, the app shows whether you were correct or incorrect with an explanation. If a question looks wrong or confusing, use the flag button.',
-    mascotMessage: "Good feedback helps you learn faster.",
+    mascotMessage: 'Good feedback helps you learn faster.',
     backgroundColor: '#FFF3E0',
     accentColor: '#FF6B35',
   },
   {
-    icon: 'ðŸ”¥',
+    icon: '\u{1F525}',
     title: 'Daily Streaks',
     description:
       'Complete a lesson each day to build your streak. The streak tab shows your current streak and the days you were active this week.',
-    mascotMessage: "Can you keep your streak going? I believe in you!",
+    mascotMessage: 'Can you keep your streak going? I believe in you!',
     backgroundColor: '#FFF3E0',
     accentColor: '#FF6B35',
   },
   {
-    icon: '🎯',
+    icon: '\u{1F3AF}',
     title: "You're All Set!",
     description:
       'Start your first lesson now! Tap the glowing star on your learning path to begin.\n\nYou can always replay this guide from Profile > How to Play.',
-    mascotMessage: "Go ahead and tap that first level — you've got this! 🦊",
+    mascotMessage: "Go ahead and tap that first level - you've got this! \u{1F98A}",
     backgroundColor: '#E8F5E9',
     accentColor: '#4CAF50',
   },
@@ -100,7 +100,6 @@ const AppTourScreen: React.FC<Props> = ({ onComplete }) => {
   const isLast = currentSlide === TOUR_SLIDES.length - 1;
 
   useEffect(() => {
-    // Bounce animation for the icon
     const bounce = Animated.loop(
       Animated.sequence([
         Animated.timing(iconBounce, {
@@ -117,7 +116,7 @@ const AppTourScreen: React.FC<Props> = ({ onComplete }) => {
     );
     bounce.start();
     return () => bounce.stop();
-  }, [currentSlide]);
+  }, [currentSlide, iconBounce]);
 
   const animateTransition = (nextIndex: number) => {
     Animated.parallel([
@@ -153,9 +152,10 @@ const AppTourScreen: React.FC<Props> = ({ onComplete }) => {
     if (isLast) {
       dispatch(completeAppTour());
       onComplete();
-    } else {
-      animateTransition(currentSlide + 1);
+      return;
     }
+
+    animateTransition(currentSlide + 1);
   };
 
   const handleSkip = () => {
@@ -173,7 +173,6 @@ const AppTourScreen: React.FC<Props> = ({ onComplete }) => {
     <SafeAreaView style={[styles.container, { backgroundColor: slide.backgroundColor }]}>
       <StatusBar barStyle="dark-content" />
 
-      {/* Skip button */}
       <TouchableOpacity style={styles.skipBtn} onPress={handleSkip}>
         <Text style={styles.skipBtnText}>Skip Tour</Text>
       </TouchableOpacity>
@@ -184,7 +183,6 @@ const AppTourScreen: React.FC<Props> = ({ onComplete }) => {
           { opacity: fadeAnim, transform: [{ translateY: slideAnim }] },
         ]}
       >
-        {/* Fox + Speech Bubble */}
         <View style={styles.mascotRow}>
           <Image
             source={require('../../../assets/fox.png')}
@@ -197,21 +195,15 @@ const AppTourScreen: React.FC<Props> = ({ onComplete }) => {
           </View>
         </View>
 
-        {/* Large Icon */}
         <Animated.View style={{ transform: [{ translateY: iconBounce }] }}>
           <Text style={styles.bigIcon}>{slide.icon}</Text>
         </Animated.View>
 
-        {/* Title */}
         <Text style={[styles.title, { color: slide.accentColor }]}>{slide.title}</Text>
-
-        {/* Description */}
         <Text style={styles.description}>{slide.description}</Text>
       </Animated.View>
 
-      {/* Bottom Controls */}
       <View style={styles.bottomControls}>
-        {/* Dots */}
         <View style={styles.dotsRow}>
           {TOUR_SLIDES.map((_, idx) => (
             <View
@@ -225,7 +217,6 @@ const AppTourScreen: React.FC<Props> = ({ onComplete }) => {
           ))}
         </View>
 
-        {/* Buttons */}
         <View style={styles.buttonRow}>
           {currentSlide > 0 ? (
             <TouchableOpacity style={styles.backButton} onPress={handleBack}>
@@ -241,7 +232,7 @@ const AppTourScreen: React.FC<Props> = ({ onComplete }) => {
             activeOpacity={0.8}
           >
             <Text style={styles.nextText}>
-              {isLast ? "Let's Go! 🚀" : 'Next'}
+              {isLast ? "Let's Go! \u{1F680}" : 'Next'}
             </Text>
           </TouchableOpacity>
         </View>

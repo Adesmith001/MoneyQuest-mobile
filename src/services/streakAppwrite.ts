@@ -1,6 +1,6 @@
 import { databases, DB_ID, Query, COLLECTIONS } from './appwrite';
 import { ID } from 'react-native-appwrite';
-import { getCurrentStreakFromHistory } from '../utils/progressBehavior';
+import { getCurrentStreakFromHistory, getWeeklyActivityCount } from '../utils/progressBehavior';
 
 export interface StreakData {
     currentStreak: number;
@@ -133,12 +133,10 @@ class AppwriteStreakService {
             const docWeekStart = new Date(streakDoc.weekStartDate);
 
             let newCurrentStreak = streakDoc.currentStreak;
-            let newWeeklyStreak = streakDoc.weeklyStreak;
             let newWeekStartDate = streakDoc.weekStartDate;
 
             // Check if we need to reset weekly streak (new week started)
             if (currentWeekStart.getTime() !== docWeekStart.getTime()) {
-                newWeeklyStreak = 0;
                 newWeekStartDate = currentWeekStart.toISOString();
             }
 
@@ -159,11 +157,6 @@ class AppwriteStreakService {
                 newCurrentStreak = 1;
             }
 
-            // Increment weekly streak if in current week
-            if (this.isInCurrentWeek(now, currentWeekStart)) {
-                newWeeklyStreak += 1;
-            }
-
             // Update login history (keep last 30 days to prevent bloat)
             const updatedHistory = [...streakDoc.loginHistory, today];
             const thirtyDaysAgo = new Date();
@@ -171,6 +164,7 @@ class AppwriteStreakService {
             const cleanedHistory = updatedHistory.filter(
                 dateStr => new Date(dateStr) >= thirtyDaysAgo
             );
+            const newWeeklyStreak = getWeeklyActivityCount(cleanedHistory, today);
 
             // Calculate new longest streak
             const newLongestStreak = Math.max(streakDoc.longestStreak, newCurrentStreak);
@@ -310,7 +304,7 @@ class AppwriteStreakService {
             lastLoginDate: doc.lastLoginDate,
             streakStartDate: doc.streakStartDate,
             loginHistory: doc.loginHistory,
-            weeklyStreak: doc.weeklyStreak,
+            weeklyStreak: getWeeklyActivityCount(doc.loginHistory || []),
         };
     }
 

@@ -1,6 +1,6 @@
 "use strict";
 Object.defineProperty(exports, "__esModule", { value: true });
-exports.getCurrentStreakFromHistory = exports.selectLeaderboardStreak = exports.getTopFirstLevelRenderItems = exports.getRecapSectionNumberForCompletedRegularSections = exports.resolveRecapSourceLevelIds = exports.getRecapLevelProgressState = exports.getLevelProgressState = exports.getNextPlayableLevelTarget = exports.isLevelEnterable = exports.getSectionPlayableLevelId = exports.getLevelCompletionLives = exports.getLifeDeductionResult = exports.shouldSendLivesRestoredNotification = exports.removeQuestionAtIndex = exports.getInitialSectionIndex = void 0;
+exports.getCurrentStreakFromHistory = exports.getWeeklyActivityCount = exports.getCurrentWeekActivity = exports.selectLeaderboardStreak = exports.getTopFirstLevelRenderItems = exports.getRecapSectionNumberForCompletedRegularSections = exports.resolveRecapSourceLevelIds = exports.getRecapLevelProgressState = exports.getLevelProgressState = exports.getNextPlayableLevelTarget = exports.isLevelEnterable = exports.getSectionPlayableLevelId = exports.getLevelCompletionLives = exports.getLifeDeductionResult = exports.shouldSendLivesRestoredNotification = exports.removeQuestionAtIndex = exports.getInitialSectionIndex = void 0;
 const MAX_LIVES = 5;
 const getInitialSectionIndex = (sections, savedSectionId, fallbackIndex = 0) => {
     if (savedSectionId) {
@@ -162,6 +162,26 @@ const formatLocalDateKey = (date) => {
     const day = String(date.getDate()).padStart(2, '0');
     return `${year}-${month}-${day}`;
 };
+const getCurrentWeekActivity = (loginHistory, todayKey = formatLocalDateKey(new Date())) => {
+    const today = parseLocalDateKey(todayKey);
+    if (!today) {
+        return [];
+    }
+    const weekStart = new Date(today);
+    weekStart.setDate(today.getDate() - today.getDay());
+    const activity = Array.from({ length: 7 }, (_, index) => {
+        const date = new Date(weekStart);
+        date.setDate(weekStart.getDate() + index);
+        return formatLocalDateKey(date);
+    });
+    return activity;
+};
+exports.getCurrentWeekActivity = getCurrentWeekActivity;
+const getWeeklyActivityCount = (loginHistory, todayKey = formatLocalDateKey(new Date())) => {
+    const activeDays = new Set(loginHistory.filter((day) => typeof day === 'string' && day.length > 0));
+    return (0, exports.getCurrentWeekActivity)(loginHistory, todayKey).filter((dateKey) => activeDays.has(dateKey)).length;
+};
+exports.getWeeklyActivityCount = getWeeklyActivityCount;
 const getCurrentStreakFromHistory = (loginHistory, todayKey = formatLocalDateKey(new Date())) => {
     const activeDays = new Set(loginHistory.filter((day) => typeof day === 'string' && day.length > 0));
     if (!activeDays.has(todayKey)) {

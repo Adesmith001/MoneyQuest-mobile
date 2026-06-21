@@ -1,5 +1,6 @@
 import React from 'react';
 import { View, Text, StyleSheet, TextStyle } from 'react-native';
+import { normalizeDisplayText } from './displayText';
 
 interface TableRow {
   cells: string[];
@@ -70,7 +71,7 @@ const parseInlineFormatting = (text: string): React.ReactNode[] => {
 export const parseTextWithTables = (content: string): ParsedContent[] => {
   if (!content) return [];
 
-  const lines = content.split('\n');
+  const lines = normalizeDisplayText(content).split('\n');
   const sections: ParsedContent[] = [];
   let currentTextBlock: string[] = [];
   let currentTableRows: TableRow[] = [];

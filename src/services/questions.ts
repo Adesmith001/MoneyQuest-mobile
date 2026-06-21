@@ -2,7 +2,6 @@ import { databases, DB_ID, COLLECTIONS, Query } from './appwrite';
 import { Question, BackendQuestion, GeneratedQuestion, UserProgress, AnyQuestion, ScenarioQuestion, MatchingQuestion, FillInGapQuestion } from '../types';
 import { backendApi } from './backendApi';
 import cachedBackendApi from './cachedBackendApi';
-import { levelProgressService } from './levelProgress';
 import { livesService } from './lives';
 import { getCurrentMonthKey, shouldResetMonthlyXP } from '../utils';
 
@@ -547,19 +546,23 @@ class QuestionService {
   ) {
     try {
       const score = Math.round((questionsCorrect / totalQuestions) * 100);
-      
-      // Submit to backend and update progress
-      const result = await levelProgressService.submitLevelProgress(
+
+      const backendResponse = await backendApi.submitLevelResults(
         userId,
         levelId,
         score,
-        timeSpentMinutes,
-        questionsCorrect,
-        totalQuestions,
-        xpEarned          // thread through so Appwrite gets the real per-question XP
+        timeSpentMinutes
       );
+      const userDoc = await databases.getDocument(DB_ID, COLLECTIONS.USERS, userId);
 
-      return result;
+      return {
+        ...backendResponse,
+        writtenXP: {
+          xp: Number(userDoc.xp || 0),
+          monthlyXP: Number(userDoc.monthlyXP || 0),
+          totalXP: Number(userDoc.totalXP || 0),
+        },
+      };
     } catch (error) {
       console.error('Submit level quiz error:', error);
       throw error;
