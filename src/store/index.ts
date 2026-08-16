@@ -9,8 +9,12 @@ import streakReducer from './slices/streakSlice';
 import learningReducer from './slices/learningSlice';
 import tutorialReducer, { normalizeTutorialState, TutorialState } from './slices/tutorialSlice';
 import { AuthState } from '../types';
+import {
+  getAuthenticatedActionUserId,
+  shouldResetUserScopedState,
+} from '../utils/userScopedPersistence';
 
-const rootReducer = combineReducers({
+const appReducer = combineReducers({
   auth: authReducer,
   game: gameReducer,
   leaderboard: leaderboardReducer,
@@ -19,7 +23,38 @@ const rootReducer = combineReducers({
   tutorial: tutorialReducer,
 });
 
-type RootReducerState = ReturnType<typeof rootReducer>;
+type RootReducerState = ReturnType<typeof appReducer>;
+
+const getInitialUserScopedState = () => ({
+  game: gameReducer(undefined, { type: '@@moneyquest/INIT_USER_SCOPED_STATE' }),
+  streak: streakReducer(undefined, { type: '@@moneyquest/INIT_USER_SCOPED_STATE' }),
+  tutorial: tutorialReducer(undefined, { type: '@@moneyquest/INIT_USER_SCOPED_STATE' }),
+});
+
+const rootReducer = (
+  state: RootReducerState | undefined,
+  action: Parameters<typeof appReducer>[1]
+): RootReducerState => {
+  const previousUserId = state?.auth?.user?.$id ?? null;
+  const reducedState = appReducer(state, action);
+
+  if (action.type === 'auth/signOut/fulfilled') {
+    return {
+      ...reducedState,
+      ...getInitialUserScopedState(),
+    };
+  }
+
+  const nextUserId = getAuthenticatedActionUserId(action);
+  if (shouldResetUserScopedState(previousUserId, nextUserId)) {
+    return {
+      ...reducedState,
+      ...getInitialUserScopedState(),
+    };
+  }
+
+  return reducedState;
+};
 
 const authStateTransform = createTransform<AuthState, AuthState, RootReducerState>(
   (inboundState) => ({

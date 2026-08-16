@@ -16,6 +16,7 @@ import { useNavigation } from '@react-navigation/native';
 import { useSelector } from 'react-redux';
 import { Ionicons } from '@expo/vector-icons';
 import { RootState } from '../../store';
+import schoolEntitlementService from '../../services/schoolEntitlementService';
 import { schoolService } from '../../services/schoolService';
 import { SchoolCode, School } from '../../types/school';
 
@@ -30,6 +31,7 @@ const SchoolCodeEntryScreen: React.FC = () => {
   const [validatedCode, setValidatedCode] = useState<SchoolCode | null>(null);
   const [validatedSchool, setValidatedSchool] = useState<School | null>(null);
   const [showConfirmation, setShowConfirmation] = useState(false);
+  const [isLegacyCode, setIsLegacyCode] = useState(false);
   
   const shakeAnimation = useRef(new Animated.Value(0)).current;
   const successAnimation = useRef(new Animated.Value(0)).current;
@@ -62,16 +64,26 @@ const SchoolCodeEntryScreen: React.FC = () => {
     setError('');
 
     try {
-      const result = await schoolService.validateCode(code);
+      const result = await schoolEntitlementService.previewCode(code);
       
-      if (result.isValid && result.code && result.school) {
+      if (result.ok && result.code && result.school) {
+        setIsLegacyCode(false);
         setValidatedCode(result.code);
         setValidatedSchool(result.school);
         setShowConfirmation(true);
         showSuccess();
       } else {
-        setError(result.errorMessage || 'Invalid code');
-        shake();
+        const legacyResult = await schoolService.validateCode(code);
+        if (legacyResult.isValid && legacyResult.code && legacyResult.school) {
+          setIsLegacyCode(true);
+          setValidatedCode(legacyResult.code);
+          setValidatedSchool(legacyResult.school);
+          setShowConfirmation(true);
+          showSuccess();
+        } else {
+          setError(result.message || legacyResult.errorMessage || 'Invalid code');
+          shake();
+        }
       }
     } catch (err: any) {
       setError(err.message || 'Failed to validate code');
@@ -88,21 +100,40 @@ const SchoolCodeEntryScreen: React.FC = () => {
     setError('');
 
     try {
-      const result = await schoolService.enrollStudent(
-        user.$id,
-        validatedCode.$id!,
-        validatedSchool.$id!,
-        validatedCode.expirationDate
-      );
+      if (isLegacyCode) {
+        const legacyResult = await schoolService.enrollStudent(
+          user.$id,
+          validatedCode.$id!,
+          validatedSchool.$id!,
+          validatedCode.expirationDate,
+        );
 
-      if (result.success) {
+        if (legacyResult.success) {
+          navigation.reset({
+            index: 0,
+            routes: [{ name: 'MainApp' as never }],
+          });
+        } else {
+          setError(legacyResult.errorMessage || 'Failed to enroll');
+          shake();
+        }
+        return;
+      }
+
+      const result = await schoolEntitlementService.claimByCode(code);
+
+      if (result.ok && result.claimed) {
         // Navigate to success screen or main app
         navigation.reset({
           index: 0,
           routes: [{ name: 'MainApp' as never }],
         });
       } else {
-        setError(result.errorMessage || 'Failed to enroll');
+        setError(result.reason === 'email_unverified'
+          ? 'Verify your email before claiming school access.'
+          : result.reason === 'email_mismatch'
+            ? 'This code belongs to a different school email.'
+            : 'Failed to enroll');
         shake();
       }
     } catch (err: any) {
@@ -118,6 +149,7 @@ const SchoolCodeEntryScreen: React.FC = () => {
       setShowConfirmation(false);
       setValidatedCode(null);
       setValidatedSchool(null);
+      setIsLegacyCode(false);
       successAnimation.setValue(0);
     } else {
       navigation.goBack();

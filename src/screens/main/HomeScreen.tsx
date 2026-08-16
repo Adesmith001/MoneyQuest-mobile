@@ -11,6 +11,7 @@ import {
   Image,
   Alert,
   Animated,
+  Platform,
 } from "react-native";
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import Svg, { Path } from "react-native-svg";
@@ -110,6 +111,14 @@ const HomeScreen: React.FC<Props> = ({ navigation }) => {
 
   // Ref for horizontal scroll to scroll to user's current section
   const horizontalScrollRef = useRef<FlatList<Section>>(null);
+
+  // RNW fails to resolve flex/percentage heights inside the horizontal pager
+  // pages on web, which clips the levels and breaks wheel scrolling. The
+  // FlatList height is stable (flex-resolved), so measure it plus each
+  // section's header and size the levels ScrollView explicitly on web.
+  // Native keeps normal flex layout. State so measurements re-render.
+  const [pagerHeight, setPagerHeight] = useState(0);
+  const [headerHeights, setHeaderHeights] = useState<Record<string, number>>({});
   const hasInitializedSectionPositionRef = useRef(false);
   const hasUserDraggedSectionsRef = useRef(false);
   const dropdownScrollY = useRef(new Animated.Value(0)).current;
@@ -357,15 +366,15 @@ const HomeScreen: React.FC<Props> = ({ navigation }) => {
           let latestCompletedLevels = new Set<string>();
 
           // 🚀 STEP 1: Load cached completed levels FIRST (instant!)
-          const cachedCompletedLevels = await cacheService.getCompletedLevels();
-          if (cachedCompletedLevels.length > 0) {
-            latestCompletedLevels = new Set(cachedCompletedLevels);
-          }
-
           // 🌐 STEP 2: Fetch fresh data from Appwrite and MERGE with cache
           // CRITICAL: Merge instead of replace to prevent race conditions where
           // Appwrite might not yet have the just-completed level synced
           if (user?.$id) {
+            const cachedCompletedLevels = await cacheService.getCompletedLevels(user.$id);
+            if (cachedCompletedLevels.length > 0) {
+              latestCompletedLevels = new Set(cachedCompletedLevels);
+            }
+
             try {
               const progressDocs = await databases.listDocuments(
                 DB_ID,
@@ -379,7 +388,7 @@ const HomeScreen: React.FC<Props> = ({ navigation }) => {
                 latestCompletedLevels.add(levelId);
               });
               // 💾 Save merged data to cache for next time
-              await cacheService.saveCompletedLevels(Array.from(latestCompletedLevels));
+              await cacheService.saveCompletedLevels(user.$id, Array.from(latestCompletedLevels));
 
             } catch (error) {
               console.error('❌ Failed to fetch from Appwrite:', error);
@@ -836,6 +845,12 @@ const HomeScreen: React.FC<Props> = ({ navigation }) => {
   };
 
   const renderSection = (section: Section, sectionIndex: number) => {
+    const headerHeight = headerHeights[section.id] ?? 0;
+    const webScrollHeight =
+      Platform.OS === 'web' && pagerHeight > 0 && headerHeight > 0
+        ? Math.max(pagerHeight - headerHeight, 160)
+        : undefined;
+
     const sectionDecorations = getDecorationsForSection(section.title, sectionIndex);
     
     // Get or create scroll value for this section
@@ -911,7 +926,15 @@ const HomeScreen: React.FC<Props> = ({ navigation }) => {
         </View>
 
         {/* Fixed Section Header */}
-        <View style={styles.sectionHeaderContainer}>
+        <View
+          style={styles.sectionHeaderContainer}
+          onLayout={(event) => {
+            const height = Math.round(event.nativeEvent.layout.height);
+            setHeaderHeights((prev) =>
+              prev[section.id] === height ? prev : { ...prev, [section.id]: height }
+            );
+          }}
+        >
           <View style={styles.sectionHeader}>
             <View style={styles.sectionHeaderContent}>
               <TouchableOpacity
@@ -1025,7 +1048,18 @@ const HomeScreen: React.FC<Props> = ({ navigation }) => {
 
         {/* Scrollable Levels with scroll tracking */}
         <Animated.ScrollView
-          style={styles.sectionScrollView}
+          style={[
+            styles.sectionScrollView,
+            webScrollHeight
+              ? {
+                  height: webScrollHeight,
+                  flexGrow: 0,
+                  flexShrink: 0,
+                  // `flex: 1` sets flex-basis 0%, which would win over height.
+                  flexBasis: 'auto',
+                }
+              : null,
+          ]}
           showsVerticalScrollIndicator={false}
           onScroll={Animated.event(
             [{ nativeEvent: { contentOffset: { y: scrollY } } }],
@@ -1098,6 +1132,9 @@ const HomeScreen: React.FC<Props> = ({ navigation }) => {
         ref={horizontalScrollRef}
         horizontal
         pagingEnabled
+        onLayout={(event) => {
+          setPagerHeight(Math.round(event.nativeEvent.layout.height));
+        }}
         showsHorizontalScrollIndicator={false}
         style={styles.scrollView}
         data={sections}

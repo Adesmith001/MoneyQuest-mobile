@@ -7,6 +7,10 @@ import {
   ScrollView,
   Image,
   Dimensions,
+  Platform,
+  useWindowDimensions,
+  StyleProp,
+  ViewStyle,
 } from "react-native";
 import CustomButton from "../../components/CustomButton";
 import { COLORS, FONT_SIZES, SPACING } from "../../constants";
@@ -75,8 +79,24 @@ const LessonCompleteScreen: React.FC<Props> = ({ navigation, route }) => {
     navigation.popToTop();
   };
 
+  // On web, react-navigation's stack card (CardContent) uses `min-height: 100%`
+  // without flex-shrink, so it grows to content height and the internal
+  // ScrollView never becomes scrollable. Constrain to the viewport on web.
+  const { height: windowHeight } = useWindowDimensions();
+  const screenContainerStyle: StyleProp<ViewStyle> = [
+    styles.container,
+    Platform.OS === 'web'
+      ? {
+          height: windowHeight,
+          flexGrow: 0,
+          flexShrink: 0,
+          flexBasis: 'auto',
+        }
+      : null,
+  ];
+
   return (
-    <SafeAreaView style={styles.container}>
+    <SafeAreaView style={screenContainerStyle}>
       <ScrollView 
         contentContainerStyle={styles.scrollContent}
         showsVerticalScrollIndicator={false}
@@ -161,23 +181,32 @@ const styles = StyleSheet.create({
     justifyContent: "center",
     paddingHorizontal: 24,
     paddingVertical: 30,
+    // The web frame is shorter than a phone viewport; tighten spacing so the
+    // whole screen (including the Continue button) fits without scrolling.
+    ...(Platform.OS === 'web' ? { paddingVertical: 14 } : {}),
   },
   foxImage: {
-    width: 341,
-    height: 342,
-    left: 35
+    // Phone layout tuned the offset to compensate for the asset's internal
+    // padding; on the centered web frame it pushed the fox off-center, and the
+    // frame is shorter than a phone viewport, so scale the fox down on web to
+    // fit the whole screen without scrolling.
+    ...(Platform.OS === 'web'
+      ? { width: 300, height: 301, left: 0 }
+      : { width: 341, height: 342, left: 35 }),
   },
   title: {
     fontSize: 20,
     fontWeight: "bold",
     color: "#FF5C02",
     marginBottom: SPACING.xxl,
+    ...(Platform.OS === 'web' ? { marginBottom: SPACING.lg } : {}),
   },
   statsContainer: {
     flexDirection: "row",
     justifyContent: "center",
     gap: 15,
     marginBottom: SPACING.xxl,
+    ...(Platform.OS === 'web' ? { marginBottom: SPACING.lg } : {}),
   },
   statBox: {
     width: "40%",
@@ -198,7 +227,9 @@ const styles = StyleSheet.create({
     borderBottomLeftRadius: 17,
     borderBottomRightRadius: 17,
     borderTopWidth: 0,
-    height: width * 0.25,
+    // Cap against the app frame (480) so the cards don't balloon on desktop
+    // browsers where `width` is the full window, not the phone frame.
+    height: Math.min(width, 480) * 0.25,
     alignItems: "center",
     justifyContent: "center",
   },

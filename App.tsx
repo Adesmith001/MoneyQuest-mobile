@@ -9,6 +9,7 @@ import { Alert, Platform, ErrorUtils, View, Text, StyleSheet, LogBox, AppState }
 import * as Font from 'expo-font';
 import * as NavigationBar from 'expo-navigation-bar';
 import LoadingScreen from './src/components/LoadingScreen';
+import AppFrame from './src/components/AppFrame';
 import notificationService from './src/services/notifications';
 import soundService from './src/services/soundService';
 import revenueCatService from './src/services/revenueCatService';
@@ -244,8 +245,10 @@ function AppContent() {
   return (
     <Provider store={store}>
       <PersistGate loading={<LoadingScreen />} persistor={persistor}>
-        <AppNavigator />
-        <StatusBar style="dark" translucent backgroundColor="transparent" />
+        <AppFrame>
+          <AppNavigator />
+          <StatusBar style="dark" translucent backgroundColor="transparent" />
+        </AppFrame>
       </PersistGate>
     </Provider>
   );

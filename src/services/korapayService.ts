@@ -1,6 +1,12 @@
 import { ENV } from '../config/environment';
 import { getRandomBytes } from 'expo-crypto';
 import {
+  databases,
+  DB_ID,
+  COLLECTIONS,
+  Query,
+} from './appwrite';
+import {
   KoraPayInitializeResponse,
   PlanType,
   SUBSCRIPTION_PLANS,
@@ -69,6 +75,75 @@ class KoraPayService {
           error.message ||
           'Failed to initialize payment'
       );
+    }
+  }
+
+  /**
+   * Check whether a KoraPay transaction has been granted. The deployed webhook
+   * (school-dashboard/api/webhooks/korapay.js) writes the granted subscription
+   * to the `subscriptions` collection with korapayTransactionReference = the
+   * payment reference, and also creates a `premium_codes` document. This polls
+   * Appwrite so the app never needs KoraPay API credentials.
+   */
+  async getPaymentStatus(
+    reference: string
+  ): Promise<{
+    status: 'pending' | 'success' | 'failed';
+    data?: {
+      amount?: number;
+      customer?: { email?: string };
+    };
+  }> {
+    try {
+      // The webhook activates the subscription directly (primary path).
+      const subs = await databases.listDocuments(
+        DB_ID,
+        COLLECTIONS.SUBSCRIPTIONS,
+        [
+          Query.equal('korapayTransactionReference', reference),
+          Query.limit(1),
+        ]
+      );
+
+      const sub = subs.documents[0] as any;
+      if (sub) {
+        const status = String(sub.status || '').toLowerCase();
+        if (status === 'active' || status === 'trial' || status === 'grace_period') {
+          return {
+            status: 'success',
+            data: {
+              amount: Number(sub.amount) || undefined,
+              customer: { email: sub.userEmail },
+            },
+          };
+        }
+        if (status === 'expired' || status === 'cancelled') {
+          return { status: 'failed' };
+        }
+      }
+
+      // Fallback: the webhook also creates a premium code on success.
+      const codes = await databases.listDocuments(
+        DB_ID,
+        'premium_codes',
+        [
+          Query.equal('paymentReference', reference),
+          Query.limit(1),
+        ]
+      );
+      if (codes.documents.length > 0) {
+        return {
+          status: 'success',
+          data: {
+            amount: Number((codes.documents[0] as any).amount) || undefined,
+          },
+        };
+      }
+
+      return { status: 'pending' };
+    } catch (error) {
+      console.error('KoraPay getPaymentStatus error:', error);
+      return { status: 'pending' };
     }
   }
 

@@ -9,6 +9,7 @@ import {
 } from "./appwrite";
 import client from "./appwrite";
 import { ID, OAuthProvider } from "react-native-appwrite";
+import { Platform } from 'react-native';
 import { User } from "../types";
 import * as WebBrowser from "expo-web-browser";
 import * as Linking from "expo-linking";
@@ -16,6 +17,8 @@ import { backendApi } from "./backendApi";
 import { levelProgressService } from "./levelProgress";
 import { getCurrentMonthKey, shouldResetMonthlyXP } from "../utils";
 import { buildUserDocumentData, findOrCreateUserDocument } from "./authProfile";
+import schoolEntitlementService from './schoolEntitlementService';
+import { getPasswordValidationError } from '../utils/passwordValidation';
 
 class AuthService {
   private async ensureUserDocument(
@@ -68,8 +71,9 @@ class AuthService {
         throw new Error('Email, password, and name are required');
       }
 
-      if (password.length < 8) {
-        throw new Error('Password must be at least 8 characters long');
+      const passwordError = getPasswordValidationError(password);
+      if (passwordError) {
+        throw new Error(passwordError);
       }
 
       // Check username uniqueness before creating the Appwrite account
@@ -359,14 +363,22 @@ class AuthService {
     imageUri: string
   ): Promise<string> {
     try {
-      // Create file object for React Native Appwrite
       const fileName = `profile_${userId}_${Date.now()}.jpg`;
-      const fileObject = {
-        name: fileName,
-        type: "image/jpeg",
-        size: 0, // This will be set by the library
-        uri: imageUri,
-      };
+
+      // Web uses the official appwrite SDK, which accepts a browser File/Blob;
+      // native uses react-native-appwrite's { uri, name, type } file object.
+      let fileObject: any;
+      if (Platform.OS === 'web') {
+        const blob = await (await fetch(imageUri)).blob();
+        fileObject = new File([blob], fileName, { type: 'image/jpeg' });
+      } else {
+        fileObject = {
+          name: fileName,
+          type: 'image/jpeg',
+          size: 0, // This will be set by the library
+          uri: imageUri,
+        };
+      }
 
       // Upload to Appwrite storage
       const file = await storage.createFile(
@@ -471,6 +483,11 @@ class AuthService {
     let newAccount: any = null;
 
     try {
+      const passwordError = getPasswordValidationError(password);
+      if (passwordError) {
+        throw new Error(passwordError);
+      }
+
       // Step 1: Create the account
       newAccount = await account.create(
         ID.unique(),
@@ -502,6 +519,8 @@ class AuthService {
         accountInfo: user,
         profileSeed: seededPayload as any,
       });
+
+      await schoolEntitlementService.claimByEmail();
 
       // Initialize progress with first level from backend
       try {
@@ -817,6 +836,11 @@ class AuthService {
 
   async signUp(email: string, password: string, name: string, phoneNumber?: string, username?: string) {
     try {
+      const passwordError = getPasswordValidationError(password);
+      if (passwordError) {
+        throw new Error(passwordError);
+      }
+
       // Step 1: Create the account
       const newAccount = await account.create(
         ID.unique(),

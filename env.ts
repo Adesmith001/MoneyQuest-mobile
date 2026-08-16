@@ -17,6 +17,7 @@ import {
   MONEYQUEST_CACHE_TTL_SECONDS as _MONEYQUEST_CACHE_TTL_SECONDS,
   KORAPAY_PUBLIC_KEY as _KORAPAY_PUBLIC_KEY,
   KORAPAY_API_URL as _KORAPAY_API_URL,
+  REVENUECAT_WEB_KEY as _REVENUECAT_WEB_KEY,
 } from '@env';
 
 // Appwrite Configuration
@@ -52,3 +53,6 @@ export const API_BASE_URL = __DEV__ ? _MONEYQUEST_API_BASE_URL : _MONEYQUEST_API
 // KoraPay Configuration (only public key for frontend)
 export const KORAPAY_PUBLIC_KEY = _KORAPAY_PUBLIC_KEY;
 export const KORAPAY_API_URL = _KORAPAY_API_URL;
+
+// RevenueCat web billing key (used only on web; requires RevenueCat Web Billing)
+export const REVENUECAT_WEB_KEY = _REVENUECAT_WEB_KEY;

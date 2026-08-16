@@ -6,6 +6,7 @@ import { updateStreakOnLogin, resetStreakState } from './streakSlice';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import revenueCatService from '../../services/revenueCatService';
 import analyticsService from '../../services/analytics';
+import schoolEntitlementService from '../../services/schoolEntitlementService';
 
 const initialState: AuthState = {
   user: null,
@@ -193,6 +194,7 @@ export const getCurrentUser = createAsyncThunk(
       const currentUser = await AuthService.getCurrentUser();
       if (currentUser) {
         const userDocument = await AuthService.getUserDocument(currentUser.$id);
+        await schoolEntitlementService.claimByEmail();
         
         // Update streak on app startup if user is already logged in (silently fail if there are permission issues)
         if (userDocument?.$id) {
@@ -220,6 +222,7 @@ export const checkAuthStatus = createAsyncThunk(
       const currentUser = await AuthService.getCurrentUser();
       if (currentUser) {
         const userDocument = await AuthService.getUserDocument(currentUser.$id);
+        await schoolEntitlementService.claimByEmail();
 
         // Block disabled accounts on session restore
         if (userDocument?.accountStatus === 'disabled') {
@@ -398,6 +401,7 @@ export const completeOAuthOnboarding = createAsyncThunk(
       // Update existing user document with onboarding data
       await AuthService.updateUserOnboarding(userId, onboardingData);
       const updatedUser = await AuthService.getUserDocument(userId);
+      await schoolEntitlementService.claimByEmail();
       analyticsService.identifyUser(userId);
       await analyticsService.trackEvent('onboarding_completed', {
         source: 'oauth',

@@ -1,12 +1,15 @@
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { BackendSection, BackendLevel } from '../types';
 import { ENV } from '../config/environment';
+import {
+  getCompletedLevelsStorageKey,
+  LEGACY_COMPLETED_LEVELS_KEY,
+} from '../utils/userScopedPersistence';
 
 export const LEARNING_CACHE_VERSION = 2;
 const HARD_FALLBACK_CACHE_TTL_MS = 60 * 60 * 1000;
 
 const CACHE_KEYS = {
-  COMPLETED_LEVELS: '@moneyquest_completed_levels',
   SECTIONS: '@moneyquest_sections',
   SECTIONS_TIMESTAMP: '@moneyquest_sections_timestamp',
   LEVELS_PREFIX: '@moneyquest_levels_',
@@ -59,6 +62,8 @@ class CacheService {
         );
         cacheVersionBumped = true;
       }
+
+      await AsyncStorage.removeItem(LEGACY_COMPLETED_LEVELS_KEY);
     } catch (error) {
       console.error('Failed to initialize learning cache version:', error);
     }
@@ -78,9 +83,9 @@ class CacheService {
    * Get all completed level IDs from cache
    * @returns Array of completed level IDs
    */
-  async getCompletedLevels(): Promise<string[]> {
+  async getCompletedLevels(userId: string): Promise<string[]> {
     try {
-      const cached = await AsyncStorage.getItem(CACHE_KEYS.COMPLETED_LEVELS);
+      const cached = await AsyncStorage.getItem(getCompletedLevelsStorageKey(userId));
       if (cached) {
         return JSON.parse(cached);
       }
@@ -95,10 +100,10 @@ class CacheService {
    * Save completed level IDs to cache
    * @param levels Array of completed level IDs
    */
-  async saveCompletedLevels(levels: string[]): Promise<void> {
+  async saveCompletedLevels(userId: string, levels: string[]): Promise<void> {
     try {
       await AsyncStorage.setItem(
-        CACHE_KEYS.COMPLETED_LEVELS,
+        getCompletedLevelsStorageKey(userId),
         JSON.stringify(levels)
       );
     } catch (error) {
@@ -110,14 +115,14 @@ class CacheService {
    * Add a single completed level to cache
    * @param levelId Level ID to add
    */
-  async addCompletedLevel(levelId: string): Promise<void> {
+  async addCompletedLevel(userId: string, levelId: string): Promise<void> {
     try {
-      const currentLevels = await this.getCompletedLevels();
+      const currentLevels = await this.getCompletedLevels(userId);
       
       // Only add if not already in the list
       if (!currentLevels.includes(levelId)) {
         const updatedLevels = [...currentLevels, levelId];
-        await this.saveCompletedLevels(updatedLevels);
+        await this.saveCompletedLevels(userId, updatedLevels);
       }
     } catch (error) {
       console.error('Failed to add completed level to cache:', error);

@@ -13,6 +13,7 @@ import BuySeatsPage from './pages/BuySeatsPage';
 import ResetPasswordPage from './pages/ResetPasswordPage';
 import SubscribePage from './pages/SubscribePage';
 import SubscribeSuccessPage from './pages/SubscribeSuccessPage';
+import RosterPage from './pages/RosterPage';
 
 // Layout
 import DashboardLayout from './components/layout/DashboardLayout';
@@ -99,6 +100,7 @@ function App() {
           <Route path="students" element={<StudentsPage />} />
           <Route path="payments" element={<PaymentsPage />} />
           <Route path="buy-seats" element={<BuySeatsPage />} />
+          <Route path="roster" element={<RosterPage />} />
           <Route path="settings" element={<SettingsPage />} />
         </Route>
 

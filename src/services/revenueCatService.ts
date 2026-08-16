@@ -15,6 +15,7 @@ export const ENTITLEMENT_ID = 'premium';
 
 const IOS_KEY = ENV.REVENUECAT_IOS_KEY;
 const ANDROID_KEY = ENV.REVENUECAT_ANDROID_KEY;
+const WEB_KEY = ENV.REVENUECAT_WEB_KEY;
 
 export interface RevenueCatPackageState {
   monthly: PurchasesPackage | null;
@@ -46,7 +47,9 @@ class RevenueCatService {
   }
 
   private getStoreLabel(): string {
-    return Platform.OS === 'ios' ? 'App Store' : 'Google Play';
+    if (Platform.OS === 'ios') return 'App Store';
+    if (Platform.OS === 'web') return 'Web';
+    return 'Google Play';
   }
 
   private getOfferingsErrorMessage(error?: unknown): string {
@@ -86,7 +89,8 @@ class RevenueCatService {
    */
   configure(userId?: string | null): void {
     if (this.configured) return;
-    const apiKey = Platform.OS === 'ios' ? IOS_KEY : ANDROID_KEY;
+    const apiKey =
+      Platform.OS === 'ios' ? IOS_KEY : Platform.OS === 'web' ? WEB_KEY : ANDROID_KEY;
     if (!apiKey) {
       console.warn('RevenueCat: API key not set. Purchases will not be available.');
       return;
@@ -103,7 +107,11 @@ class RevenueCatService {
    */
   async identifyUser(userId: string): Promise<void> {
     try {
-      if (!this.configured) this.configure(userId);
+      if (!this.configured) {
+        this.configure(userId);
+        // No API key configured (e.g. web without a Web Billing key) — skip.
+        if (!this.configured) return;
+      }
       await Purchases.logIn(userId);
     } catch (err) {
       console.warn('RevenueCat identifyUser failed:', err);
@@ -239,7 +247,8 @@ class RevenueCatService {
    * Returns true if the user successfully purchased or restored.
    */
   async presentPaywall(): Promise<boolean> {
-    if (!this.configured) return false;
+    // The RevenueCat paywall UI is native-only; web uses a custom paywall (M3).
+    if (!this.configured || Platform.OS === 'web') return false;
     try {
       const result: PAYWALL_RESULT = await RevenueCatUI.presentPaywall();
       switch (result) {
@@ -263,7 +272,8 @@ class RevenueCatService {
    * Returns true if the user now has access (pre-existing OR just purchased/restored).
    */
   async presentPaywallIfNeeded(): Promise<boolean> {
-    if (!this.configured) return false;
+    // The RevenueCat paywall UI is native-only; web uses a custom paywall (M3).
+    if (!this.configured || Platform.OS === 'web') return false;
     try {
       const result: PAYWALL_RESULT = await RevenueCatUI.presentPaywallIfNeeded({
         requiredEntitlementIdentifier: ENTITLEMENT_ID,
@@ -290,7 +300,8 @@ class RevenueCatService {
    * leaving your app.
    */
   async presentCustomerCenter(): Promise<void> {
-    if (!this.configured) return;
+    // The RevenueCat customer center is native-only; web falls back to the custom paywall.
+    if (!this.configured || Platform.OS === 'web') return;
     try {
       await RevenueCatUI.presentCustomerCenter();
     } catch (err) {

@@ -62,6 +62,11 @@ export interface SchoolStudent {
     name: string;
     email: string;
     avatar?: string;
+    xp?: number;
+    currentLevelId?: string | null;
+    currentSectionId?: string | null;
+    streak?: number;
+    lastActiveAt?: string | null;
   };
   code?: SchoolCode;
 }

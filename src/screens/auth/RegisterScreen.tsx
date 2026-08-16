@@ -17,6 +17,7 @@ import { signUp, signInWithGoogle } from '../../store/slices/authSlice';
 import { RootState, AppDispatch } from '../../store';
 import AnimatedTextInput from '../../components/AnimatedTextInput';
 import authService from '../../services/auth';
+import { getPasswordValidationError } from '../../utils/passwordValidation';
 
 interface Props {
   navigation: any;
@@ -33,6 +34,7 @@ const RegisterScreen: React.FC<Props> = ({ navigation }) => {
   const dispatch = useDispatch<AppDispatch>();
   const { isLoading, error } = useSelector((state: RootState) => state.auth);
   const debounceTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const passwordError = getPasswordValidationError(password);
 
   // Debounced real-time username availability check
   useEffect(() => {
@@ -76,8 +78,8 @@ const RegisterScreen: React.FC<Props> = ({ navigation }) => {
       return;
     }
 
-    if (password.length < 8) {
-      Alert.alert('Error', 'Password must be at least 8 characters long');
+    if (passwordError) {
+      Alert.alert('Invalid password', passwordError);
       return;
     }
 
@@ -194,11 +196,14 @@ const RegisterScreen: React.FC<Props> = ({ navigation }) => {
                 autoCapitalize="none"
                 showPasswordToggle={true}
               />
+              {passwordError ? (
+                <Text style={styles.passwordError}>{passwordError}</Text>
+              ) : null}
 
               <TouchableOpacity
-                style={[styles.signUpButton, isLoading && styles.disabledButton]}
+                style={[styles.signUpButton, (isLoading || Boolean(passwordError)) && styles.disabledButton]}
                 onPress={handleSignUp}
-                disabled={isLoading}
+                disabled={isLoading || Boolean(passwordError)}
               >
                 <Text style={styles.signUpButtonText}>
                   {isLoading ? 'Creating Account...' : 'Sign Up'}
@@ -282,6 +287,13 @@ const styles = StyleSheet.create({
   usernameStatusText: {
     fontSize: 13,
     color: '#888',
+  },
+  passwordError: {
+    color: '#F44336',
+    fontSize: 12,
+    marginTop: -8,
+    marginBottom: 12,
+    marginLeft: 4,
   },
   signUpButton: {
     backgroundColor: "#FF5722",

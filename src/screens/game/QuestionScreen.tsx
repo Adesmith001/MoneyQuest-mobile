@@ -11,6 +11,10 @@ import {
   Alert,
   Modal,
   TextInput,
+  Platform,
+  useWindowDimensions,
+  StyleProp,
+  ViewStyle,
 } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
 import AsyncStorage from "@react-native-async-storage/async-storage";
@@ -275,6 +279,23 @@ const QuestionScreen: React.FC<Props> = ({ navigation, route }) => {
   const { user } = useSelector((state: RootState) => state.auth);
   const gameHealth = useSelector((state: RootState) => state.game.health);
 
+  // On web, react-navigation's stack card (CardContent) uses `min-height: 100%`
+  // without flex-shrink, so it grows to the screen's content height and the
+  // internal ScrollView never becomes scrollable. Constrain the screen to the
+  // viewport height on web (native keeps normal flex layout).
+  const { height: windowHeight } = useWindowDimensions();
+  const screenContainerStyle: StyleProp<ViewStyle> = [
+    styles.container,
+    Platform.OS === 'web'
+      ? {
+          height: windowHeight,
+          flexGrow: 0,
+          flexShrink: 0,
+          flexBasis: 'auto',
+        }
+      : null,
+  ];
+
   const { hasSeenQuestionGuide } = useSelector((state: RootState) => state.tutorial);
 
   const [questions, setQuestions] = useState<AnyQuestion[]>([]);
@@ -390,7 +411,7 @@ const QuestionScreen: React.FC<Props> = ({ navigation, route }) => {
 
         if (!isRecapLevel && user?.$id) {
           const sectionLevels = await cachedBackendApi.getLevels(sectionId);
-          const cachedCompletedLevels = await cacheService.getCompletedLevels();
+          const cachedCompletedLevels = await cacheService.getCompletedLevels(user.$id);
           const completedDocs = await databases.listDocuments(
             DB_ID,
             COLLECTIONS.USER_PROGRESS,
@@ -402,7 +423,7 @@ const QuestionScreen: React.FC<Props> = ({ navigation, route }) => {
               completedLevelIds.add(doc.level);
             }
           });
-          await cacheService.saveCompletedLevels(Array.from(completedLevelIds));
+          await cacheService.saveCompletedLevels(user.$id, Array.from(completedLevelIds));
 
           const isUsersCurrentLevel =
             user.currentSectionId === sectionId && user.currentLevelId === levelId;
@@ -1167,11 +1188,13 @@ const QuestionScreen: React.FC<Props> = ({ navigation, route }) => {
             console.error("Failed to update progress:", progressError);
           }
         }
-        if (result.passed) {
-          await cacheService.addCompletedLevel(levelId);
+        if (result.passed && user?.$id) {
+          await cacheService.addCompletedLevel(user.$id, levelId);
         }
 
-        const cachedCompletedLevels = await cacheService.getCompletedLevels();
+        const cachedCompletedLevels = user?.$id
+          ? await cacheService.getCompletedLevels(user.$id)
+          : [];
         const completedLevelIds = new Set(cachedCompletedLevels);
         const completedLevelsCount = cachedCompletedLevels.length;
 
@@ -1332,7 +1355,7 @@ const QuestionScreen: React.FC<Props> = ({ navigation, route }) => {
 
   if (isLoading || !levelData) {
     return (
-      <SafeAreaView style={styles.container}>
+      <SafeAreaView style={screenContainerStyle}>
         <View style={styles.loadingContainer}>
           <ActivityIndicator size="large" color={COLORS.primary} />
         </View>
@@ -1343,7 +1366,7 @@ const QuestionScreen: React.FC<Props> = ({ navigation, route }) => {
   // --- ARTICLE VIEW ---
   if (viewMode === "article") {
     return (
-      <SafeAreaView style={styles.container}>
+      <SafeAreaView style={screenContainerStyle}>
         <View style={styles.header}>
           <TouchableOpacity onPress={() => navigation.goBack()}>
             <Text style={styles.closeButton}>✕</Text>
@@ -1391,7 +1414,7 @@ const QuestionScreen: React.FC<Props> = ({ navigation, route }) => {
   // Safety check for empty questions array or undefined question
   if (!currentQuestion) {
     return (
-      <SafeAreaView style={styles.container}>
+      <SafeAreaView style={screenContainerStyle}>
         <View style={styles.content}>
           <Text style={styles.questionText}>
             No questions available for this level.
@@ -1632,7 +1655,7 @@ const QuestionScreen: React.FC<Props> = ({ navigation, route }) => {
   };
 
   return (
-    <SafeAreaView style={styles.container}>
+    <SafeAreaView style={screenContainerStyle}>
       <View style={styles.header}>
         <ProgressBar
           progress={progress}

@@ -20,6 +20,7 @@ import { useSelector } from "react-redux";
 import { PurchasesPackage } from "react-native-purchases";
 import { RootState } from "../../store";
 import { subscriptionService } from "../../services/subscriptionService";
+import paymentService from "../../services/paymentService";
 import revenueCatService, {
   RevenueCatPackageState,
 } from "../../services/revenueCatService";
@@ -49,6 +50,8 @@ const PremiumScreen: React.FC = () => {
   const [isRCLoading, setIsRCLoading] = useState(false);
   const [isRestoring, setIsRestoring] = useState(false);
   const [selectedPlan, setSelectedPlan] = useState<PlanType>("monthly");
+  const [isKorapayLoading, setIsKorapayLoading] = useState(false);
+  const [korapayError, setKorapayError] = useState<string | null>(null);
   // RevenueCat offerings — used to show localised store prices
   const [rcPackages, setRcPackages] = useState<Record<PlanType, PurchasesPackage | null>>({
     monthly: null,
@@ -250,6 +253,56 @@ const PremiumScreen: React.FC = () => {
   const isStoreButtonDisabled =
     isRCLoading || (hasLoadedStorePackages && !isSelectedPlanStoreReady);
 
+  /**
+   * Web-only KoraPay card checkout. The modal reports success synchronously;
+   * the deployed webhook also activates the subscription server-side as a
+   * backup. Mobile keeps store-only billing (external checkout is blocked).
+   */
+  const handleKorapayPayment = async () => {
+    if (!user) {
+      setKorapayError("User not found. Please log in again.");
+      return;
+    }
+
+    setIsKorapayLoading(true);
+    setKorapayError(null);
+    try {
+      await analyticsService.trackEvent('checkout_started', {
+        checkout_type: 'korapay_web',
+        selected_plan: selectedPlan,
+        platform: 'web',
+      }, {
+        screenName: 'Premium',
+        featureName: 'korapay_checkout',
+        valueText: selectedPlan,
+      });
+
+      const result = await paymentService.startCheckout({
+        userId: user.$id,
+        planType: selectedPlan,
+        provider: 'korapay',
+        userEmail: user.email,
+        userName: user.name,
+      });
+
+      if (result.status === 'completed' && result.reference) {
+        await subscriptionService.activateProviderSubscription(user.$id, {
+          provider: 'korapay',
+          planType: selectedPlan,
+          transactionReference: result.reference,
+          autoRenew: false,
+        });
+        navigation.reset({ index: 0, routes: [{ name: "MainTabs" }] });
+      } else {
+        setKorapayError(result.message || "Payment was not completed.");
+      }
+    } catch (err: any) {
+      setKorapayError(err?.message || "Payment failed. Please try again.");
+    } finally {
+      setIsKorapayLoading(false);
+    }
+  };
+
   const handleSchoolCodePress = () => {
     analyticsService.trackFeatureUsage('school_code_entry_opened', {
       source: 'premium_screen',
@@ -374,6 +427,29 @@ const PremiumScreen: React.FC = () => {
               </TouchableOpacity>
             ) : null}
 
+            {/* ── KoraPay card checkout (web only) ────────────────────────── */}
+            {Platform.OS === 'web' ? (
+              <TouchableOpacity
+                style={styles.korapayButton}
+                onPress={handleKorapayPayment}
+                activeOpacity={0.85}
+                disabled={isKorapayLoading}
+              >
+                {isKorapayLoading ? (
+                  <ActivityIndicator color="#1A1A1A" size="small" />
+                ) : (
+                  <>
+                    <Ionicons name="card-outline" size={20} color="#1A1A1A" />
+                    <Text style={styles.korapayButtonText}>Pay with Card</Text>
+                  </>
+                )}
+              </TouchableOpacity>
+            ) : null}
+
+            {korapayError ? (
+              <Text style={styles.korapayErrorText}>{korapayError}</Text>
+            ) : null}
+
             {/* ── Restore Purchases ────────────────────────────────────────── */}
             {revenueCatService.isConfigured() ? (
               <>
@@ -416,7 +492,7 @@ const PremiumScreen: React.FC = () => {
             ) : (
               <>
                 <Ionicons name="gift-outline" size={20} color="#FF6B35" />
-                <Text style={styles.freeTrialButtonText}>Start 30-Day Free Trial</Text>
+                <Text style={styles.freeTrialButtonText}>Start 14-Day Free Trial</Text>
               </>
             )}
           </TouchableOpacity>
@@ -627,6 +703,28 @@ const styles = StyleSheet.create({
   storeErrorText: {
     fontSize: 12,
     color: "#FFE7A8",
+    lineHeight: 18,
+  },
+  korapayButton: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    backgroundColor: "#FFF",
+    borderRadius: 16,
+    paddingVertical: 16,
+    gap: 8,
+    borderWidth: 1,
+    borderColor: "rgba(0, 0, 0, 0.08)",
+  },
+  korapayButtonText: {
+    fontSize: 17,
+    fontWeight: "bold",
+    color: "#1A1A1A",
+  },
+  korapayErrorText: {
+    fontSize: 13,
+    color: "#FFF4D6",
+    textAlign: "center",
     lineHeight: 18,
   },
   schoolCodeButton: {

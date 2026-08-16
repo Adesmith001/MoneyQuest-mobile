@@ -30,4 +30,5 @@ declare module '@env' {
   export const OPENAI_API_KEY: string;
   export const REVENUECAT_IOS_KEY: string;
   export const REVENUECAT_ANDROID_KEY: string;
+  export const REVENUECAT_WEB_KEY: string;
 }

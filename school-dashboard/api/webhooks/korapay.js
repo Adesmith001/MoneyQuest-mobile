@@ -2,8 +2,15 @@ import crypto from 'crypto';
 
 // Subscription plan prices (must match web frontend)
 const SUBSCRIPTION_PLANS = {
-  monthly: { price: 3500, billingCycle: 'month' },
-  annual: { price: 42000, billingCycle: 'year' },
+  monthly: { price: 2000, billingCycle: 'month' },
+  annual: { price: 24000, billingCycle: 'year' },
+};
+
+const SCHOOL_SEAT_PRICES = {
+  monthly: 3500,
+  annual: 42000,
+  school_monthly_100: 3200,
+  school_annual_100: 38400,
 };
 
 export default async function handler(req, res) {
@@ -191,10 +198,15 @@ export default async function handler(req, res) {
  */
 async function handleSchoolPayment(data, res) {
   const { reference, metadata } = data;
-  const { schoolId, seats, planType, codeName } = metadata;
+  const { schoolId, seats, planType, codeName, rosterBatchId } = metadata;
 
   if (!schoolId || !seats || !planType) {
     return res.status(400).json({ error: 'Invalid school payment metadata' });
+  }
+
+  const expectedAmount = Number(seats) * Number(SCHOOL_SEAT_PRICES[planType] || 0);
+  if (!expectedAmount || Number(data.amount) < expectedAmount) {
+    return res.status(400).json({ error: 'Invalid school payment amount' });
   }
 
   const { Client, Databases, Query } = await import('node-appwrite');
@@ -205,6 +217,47 @@ async function handleSchoolPayment(data, res) {
 
   const databases = new Databases(client);
   const dbId = process.env.APPWRITE_DATABASE_ID;
+
+  if (rosterBatchId) {
+    const batch = await databases.getDocument(dbId, 'school_seat_batches', rosterBatchId);
+    if (batch.schoolId !== schoolId || batch.paymentReference !== reference) {
+      return res.status(400).json({ error: 'Roster payment does not match batch' });
+    }
+
+    if (batch.status !== 'active') {
+      await databases.updateDocument(dbId, 'school_seat_batches', rosterBatchId, {
+        status: 'active',
+        updatedAt: new Date().toISOString(),
+      });
+
+      const pendingInvites = await databases.listDocuments(dbId, 'school_invites', [
+        Query.equal('batchId', rosterBatchId),
+        Query.equal('status', 'pending_payment'),
+        Query.limit(500),
+      ]);
+
+      for (let index = 0; index < pendingInvites.documents.length; index += 20) {
+        const chunk = pendingInvites.documents.slice(index, index + 20);
+        await Promise.all(chunk.map((invite) => databases.updateDocument(dbId, 'school_invites', invite.$id, {
+          status: 'unused',
+          updatedAt: new Date().toISOString(),
+        })));
+      }
+    }
+
+    const payments = await databases.listDocuments(dbId, 'school_payments', [
+      Query.equal('transactionReference', reference),
+      Query.limit(1),
+    ]);
+    if (payments.documents.length > 0 && payments.documents[0].status !== 'success') {
+      await databases.updateDocument(dbId, 'school_payments', payments.documents[0].$id, {
+        status: 'success',
+        paidAt: new Date().toISOString(),
+      });
+    }
+
+    return res.status(200).json({ success: true, message: 'Roster invites activated' });
+  }
 
   // Check if code already exists for this payment
   const existingCodes = await databases.listDocuments(dbId, 'school_codes', [
@@ -223,14 +276,14 @@ async function handleSchoolPayment(data, res) {
     // Calculate expiration
     const now = new Date();
     const expirationDate = new Date(now);
-    if (planType === 'annual') {
+    if (String(planType).includes('annual')) {
       expirationDate.setFullYear(expirationDate.getFullYear() + 1);
     } else {
       expirationDate.setMonth(expirationDate.getMonth() + 1);
     }
 
     // School bulk pricing: 3200/month, 38400/year per seat
-    const pricePerSeat = planType === 'annual' ? 38400 : 3200;
+    const pricePerSeat = SCHOOL_SEAT_PRICES[planType] || 0;
 
     await databases.createDocument(dbId, 'school_codes', 'unique()', {
       schoolId,

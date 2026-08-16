@@ -1,7 +1,7 @@
 import { useState } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useAuthStore } from "../stores/authStore";
-import { studentsApi, codesApi } from "../api";
+import { schoolInvitesApi, codesApi } from "../api";
 import { formatDate } from "../lib/utils";
 import { Card } from "../components/ui/Card";
 import Button from "../components/ui/Button";
@@ -20,7 +20,7 @@ export default function StudentsPage() {
 
   const { data: students, isLoading } = useQuery({
     queryKey: ["students", school?.$id],
-    queryFn: () => studentsApi.getAll(school!.$id),
+    queryFn: () => schoolInvitesApi.listStudents(school!.$id),
     enabled: !!school?.$id,
   });
 
@@ -33,11 +33,9 @@ export default function StudentsPage() {
   const revokeMutation = useMutation({
     mutationFn: ({
       studentId,
-      codeId,
     }: {
       studentId: string;
-      codeId: string;
-    }) => studentsApi.revoke(studentId, codeId),
+    }) => schoolInvitesApi.revokeStudent(school!.$id, studentId),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["students"] });
       queryClient.invalidateQueries({ queryKey: ["codes"] });
@@ -46,6 +44,16 @@ export default function StudentsPage() {
     onError: () => {
       toast.error("Failed to revoke access");
     },
+  });
+
+  const extendMutation = useMutation({
+    mutationFn: ({ studentId, expiresAt }: { studentId: string; expiresAt: string }) =>
+      schoolInvitesApi.extendStudent(school!.$id, studentId, expiresAt),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["students", school?.$id] });
+      toast.success("Student access extended");
+    },
+    onError: () => toast.error("Failed to extend access"),
   });
 
   const getCodeInfo = (codeId: string) => {
@@ -165,6 +173,9 @@ export default function StudentsPage() {
                   <th className="text-left text-sm font-medium text-white/50 px-6 py-4">
                     Status
                   </th>
+                  <th className="text-left text-sm font-medium text-white/50 px-6 py-4">
+                    Progress
+                  </th>
                   <th className="text-right text-sm font-medium text-white/50 px-6 py-4">
                     Actions
                   </th>
@@ -217,22 +228,34 @@ export default function StudentsPage() {
                       <td className="px-6 py-4">
                         <Badge status={student.status} />
                       </td>
+                      <td className="px-6 py-4 text-sm text-white/70">
+                        {student.user?.xp || 0} XP · {student.user?.streak || 0} streak
+                      </td>
                       <td className="px-6 py-4 text-right">
                         {student.status === "active" && (
-                          <Button
-                            variant="ghost"
-                            size="sm"
-                            onClick={() =>
-                              revokeMutation.mutate({
-                                studentId: student.$id,
-                                codeId: student.codeId,
-                              })
-                            }
-                            disabled={revokeMutation.isPending}
-                          >
-                            <UserX className="w-4 h-4 text-red-400" />
-                            Revoke
-                          </Button>
+                          <div className="flex justify-end gap-2">
+                            <Button
+                              variant="outline"
+                              size="sm"
+                              onClick={() => {
+                                const date = new Date(student.expiresAt);
+                                date.setMonth(date.getMonth() + 1);
+                                extendMutation.mutate({ studentId: student.$id, expiresAt: date.toISOString() });
+                              }}
+                              disabled={extendMutation.isPending}
+                            >
+                              Extend
+                            </Button>
+                            <Button
+                              variant="ghost"
+                              size="sm"
+                              onClick={() => revokeMutation.mutate({ studentId: student.$id })}
+                              disabled={revokeMutation.isPending}
+                            >
+                              <UserX className="w-4 h-4 text-red-400" />
+                              Revoke
+                            </Button>
+                          </div>
                         )}
                       </td>
                     </tr>

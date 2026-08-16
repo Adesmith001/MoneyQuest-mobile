@@ -30,11 +30,12 @@ const PaymentPendingScreen: React.FC = () => {
   const [paymentStatus, setPaymentStatus] = useState<'pending' | 'success' | 'failed'>('pending');
   const [errorMessage, setErrorMessage] = useState('');
 
-  const { provider, reference, planType } = route.params || {};
+  const { provider, reference } = route.params || {};
+  const planType: PlanType = route.params?.planType ?? 'monthly';
 
   useEffect(() => {
     if (provider === 'korapay' && reference) {
-      verifyPayment();
+      verifyPayment(reference);
     } else if (provider) {
       setIsVerifying(false);
       setPaymentStatus('failed');
@@ -42,7 +43,7 @@ const PaymentPendingScreen: React.FC = () => {
     }
   }, [provider, reference]);
 
-  const verifyPayment = async () => {
+  const verifyPayment = async (paymentReference: string) => {
     try {
       setIsVerifying(true);
 
@@ -58,7 +59,7 @@ const PaymentPendingScreen: React.FC = () => {
           return;
         }
 
-        const status = await koraPayService.getPaymentStatus(reference);
+        const status = await koraPayService.getPaymentStatus(paymentReference);
 
         if (status.status === 'success') {
           // Activate subscription with amount verification
@@ -68,7 +69,7 @@ const PaymentPendingScreen: React.FC = () => {
             await subscriptionService.activateProviderSubscription(user.$id, {
               provider: 'korapay',
               planType,
-              transactionReference: reference,
+              transactionReference: paymentReference,
               paidAmount,
               customerReference: status.data?.customer?.email,
               autoRenew: false,

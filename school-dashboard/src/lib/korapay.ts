@@ -94,6 +94,7 @@ export interface InitializePaymentParams {
   seats: number;
   planType: string;
   codeName?: string;
+  rosterBatchId?: string;
   onSuccess: (data: KoraPaySuccessData) => void;
   onFailed: (data: KoraPayFailedData) => void;
   onClose: () => void;
@@ -121,6 +122,7 @@ export async function initializeKoraPayCheckout(params: InitializePaymentParams)
       seats: params.seats,
       planType: params.planType,
       codeName: params.codeName || 'Code',
+      rosterBatchId: params.rosterBatchId,
     },
     onClose: params.onClose,
     onSuccess: params.onSuccess,

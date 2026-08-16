@@ -5,8 +5,8 @@ import { Permission, Role } from 'appwrite';
 import { config } from '../config';
 
 const PLANS: Record<string, { price: number; billingCycle: 'month' | 'year' }> = {
-  monthly: { price: 3500, billingCycle: 'month' },
-  annual: { price: 42000, billingCycle: 'year' },
+  monthly: { price: 2000, billingCycle: 'month' },
+  annual: { price: 24000, billingCycle: 'year' },
 };
 
 function generateCode(): string {

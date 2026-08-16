@@ -76,7 +76,7 @@ export const INDIVIDUAL_PRICING = {
   monthly: {
     id: 'monthly' as const,
     name: 'Monthly',
-    price: 3500,
+    price: 2000,
     currency: 'NGN',
     duration: 'Month',
     billingCycle: 'month' as const,
@@ -84,7 +84,7 @@ export const INDIVIDUAL_PRICING = {
   annual: {
     id: 'annual' as const,
     name: 'Annual',
-    price: 42000,
+    price: 24000,
     currency: 'NGN',
     duration: 'Year',
     billingCycle: 'year' as const,

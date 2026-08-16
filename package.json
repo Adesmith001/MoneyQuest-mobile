@@ -6,9 +6,12 @@
     "start": "expo start",
     "android": "expo run:android",
     "ios": "expo run:ios",
-    "web": "expo start --web"
+    "web": "expo start --web",
+    "web:export": "expo export --platform web --output-dir dist",
+    "web:icons": "node scripts/generate-pwa-icons.cjs"
   },
   "dependencies": {
+    "@expo/metro-runtime": "~6.1.2",
     "@expo/vector-icons": "^15.0.3",
     "@react-native-async-storage/async-storage": "2.2.0",
     "@react-native-masked-view/masked-view": "0.3.2",
@@ -16,6 +19,7 @@
     "@react-navigation/native": "^7.1.17",
     "@react-navigation/stack": "^7.4.8",
     "@reduxjs/toolkit": "^2.9.0",
+    "appwrite": "^26.2.0",
     "axios": "^1.13.2",
     "expo": "~54.0.34",
     "expo-application": "~7.0.8",
@@ -37,6 +41,7 @@
     "expo-web-browser": "~15.0.11",
     "ionicons": "^8.0.13",
     "react": "19.1.0",
+    "react-dom": "19.1.0",
     "react-native": "0.81.5",
     "react-native-appwrite": "^0.13.0",
     "react-native-dotenv": "^3.4.11",
@@ -47,6 +52,7 @@
     "react-native-screens": "~4.16.0",
     "react-native-svg": "15.12.1",
     "react-native-url-polyfill": "^3.0.0",
+    "react-native-web": "^0.21.0",
     "react-navigation": "^5.0.0",
     "react-redux": "^9.2.0",
     "redux-persist": "^6.0.0"

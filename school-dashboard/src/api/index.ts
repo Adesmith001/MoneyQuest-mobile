@@ -1,4 +1,4 @@
-import { databases, account, ID, Query } from '../lib/appwrite';
+import { databases, account, functions, ID, Query } from '../lib/appwrite';
 import { config, SchoolPlanType } from '../config';
 import { SchoolCode, SchoolPayment, DashboardStats, SchoolStudent, School } from '../types';
 import { generateSchoolCode, calculatePrice } from '../lib/utils';
@@ -237,7 +237,8 @@ export const paymentsApi = {
     seats: number,
     planType: SchoolPlanType,
     transactionReference: string,
-    codeName?: string
+    codeName?: string,
+    batchId?: string
   ): Promise<SchoolPayment> {
     const pricing = calculatePrice(planType, seats);
 
@@ -249,6 +250,7 @@ export const paymentsApi = {
       seats,
       planType,
       codeName: codeName || 'Code',
+      batchId: batchId || '',
       status: 'pending',
       createdAt: new Date().toISOString(),
     };
@@ -342,5 +344,74 @@ export const statsApi = {
       activeStudents,
       totalSpent,
     };
+  },
+};
+
+export interface RosterRow {
+  email: string;
+  studentName?: string;
+  className?: string;
+}
+
+export interface SchoolInvite {
+  $id: string;
+  batchId: string;
+  email: string;
+  studentName?: string;
+  className?: string;
+  inviteCode?: string;
+  codeLast4?: string;
+  status: 'pending_payment' | 'unused' | 'claimed' | 'revoked' | 'expired';
+  expiresAt: string;
+  claimedByUserId?: string;
+  claimedAt?: string;
+}
+
+async function executeSchoolEntitlements(payload: Record<string, unknown>) {
+  const execution = await functions.createExecution(
+    'school-entitlements',
+    JSON.stringify(payload),
+    false,
+    '/',
+    'POST',
+    { 'content-type': 'application/json' },
+  );
+  return JSON.parse(execution.responseBody || '{}');
+}
+
+export const schoolInvitesApi = {
+  async prepareRoster(params: {
+    schoolId: string;
+    name: string;
+    planType: string;
+    expiresAt: string;
+    paymentReference: string;
+    rows: RosterRow[];
+  }): Promise<{ batchId: string; seats: number }> {
+    const response = await executeSchoolEntitlements({ action: 'prepare_roster', ...params });
+    if (!response.ok) throw new Error(response.message || 'Could not prepare roster');
+    return { batchId: response.batchId, seats: response.seats };
+  },
+
+  async list(schoolId: string, batchId: string): Promise<SchoolInvite[]> {
+    const response = await executeSchoolEntitlements({ action: 'list_invites', schoolId, batchId });
+    if (!response.ok) throw new Error(response.message || 'Could not load invites');
+    return response.invites || [];
+  },
+
+  async listStudents(schoolId: string): Promise<SchoolStudent[]> {
+    const response = await executeSchoolEntitlements({ action: 'list_students', schoolId });
+    if (!response.ok) throw new Error(response.message || 'Could not load students');
+    return response.students || [];
+  },
+
+  async revokeStudent(schoolId: string, studentId: string): Promise<void> {
+    const response = await executeSchoolEntitlements({ action: 'revoke_student', schoolId, studentId });
+    if (!response.ok) throw new Error(response.message || 'Could not revoke student');
+  },
+
+  async extendStudent(schoolId: string, studentId: string, expiresAt: string): Promise<void> {
+    const response = await executeSchoolEntitlements({ action: 'extend_student', schoolId, studentId, expiresAt });
+    if (!response.ok) throw new Error(response.message || 'Could not extend student');
   },
 };

@@ -8,6 +8,7 @@ import {
   Settings,
   LogOut,
   ShoppingCart,
+  FileSpreadsheet,
 } from 'lucide-react';
 import { cn } from '../../lib/utils';
 
@@ -17,6 +18,7 @@ const navigation = [
   { name: 'Students', href: '/students', icon: Users },
   { name: 'Payments', href: '/payments', icon: CreditCard },
   { name: 'Buy Seats', href: '/buy-seats', icon: ShoppingCart },
+  { name: 'Student Roster', href: '/roster', icon: FileSpreadsheet },
   { name: 'Settings', href: '/settings', icon: Settings },
 ];
 

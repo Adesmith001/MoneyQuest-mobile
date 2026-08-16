@@ -1,11 +1,11 @@
 import React, { useState, useEffect } from 'react';
-import { NavigationContainer } from '@react-navigation/native';
+import { NavigationContainer, LinkingOptions } from '@react-navigation/native';
 import { createStackNavigator } from '@react-navigation/stack';
 import { useSelector, useDispatch } from 'react-redux';
 import { RootState, AppDispatch } from '../store';
 import * as Linking from 'expo-linking';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
-import { Alert, ActivityIndicator, View, Text } from 'react-native';
+import { Alert, ActivityIndicator, View, Text, Platform } from 'react-native';
 import googleAuthService from '../services/googleAuth';
 import { checkAuthStatus, updateUser } from '../store/slices/authSlice';
 import revenueCatService from '../services/revenueCatService';
@@ -140,10 +140,20 @@ export type RootStackParamList = {
 
 const Stack = createStackNavigator<RootStackParamList>();
 
-const linking = {
-  prefixes: ['moneyquest://', 'https://moneyquest.app'],
+const linking: LinkingOptions<any> = {
+  // Include the current web origin so a browser refresh restores the active
+  // screen instead of dropping the user back to Home (feels like a new session).
+  prefixes: [
+    'moneyquest://',
+    'https://moneyquest.app',
+    Platform.OS === 'web' ? Linking.createURL('/') : '',
+  ].filter(Boolean),
   config: {
     screens: {
+      // Auth
+      Welcome: 'welcome',
+      Login: 'login',
+      Register: 'register',
       ForgotPassword: {
         path: 'reset-password/:userId?/:secret?',
         parse: {
@@ -151,7 +161,30 @@ const linking = {
           secret: (secret: string) => secret || '',
         },
       },
-      Login: 'oauth/:result',
+      ProfileSetup: 'profile-setup',
+      WelcomeSuccess: 'welcome-success',
+      // Main app tabs
+      MainApp: {
+        screens: {
+          Home: 'home',
+          Leaderboard: 'leaderboard',
+          Streak: 'streak',
+          ProfileStack: {
+            screens: {
+              ProfileMain: 'profile',
+              EditProfile: 'edit-profile',
+              ChangeAvatar: 'change-avatar',
+              TutorialHub: 'tutorial-hub',
+            },
+          },
+        },
+      },
+      MainTabs: 'main',
+      // Game + subscription
+      Question: 'question',
+      LevelCompletion: 'level-complete',
+      Premium: 'premium',
+      SchoolCodeEntry: 'school-code',
     },
   },
 };
