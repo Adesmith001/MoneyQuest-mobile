@@ -150,6 +150,9 @@ importers:
       '@types/react':
         specifier: ~19.1.0
         version: 19.1.13
+      '@types/react-native':
+        specifier: ^0.73.0
+        version: 0.73.0(@babel/core@7.28.4)(@types/react@19.1.13)(react@19.1.0)
       babel-plugin-module-resolver:
         specifier: ^5.0.2
         version: 5.0.2
@@ -1507,6 +1510,10 @@ packages:
 
   '@types/node@24.5.2':
     resolution: {integrity: sha512-FYxk1I7wPv3K2XBaoyH2cTnocQEu8AOZ60hPbsyukMPLv5/5qr7V1i8PLHdl6Zf87I+xZXFvPCXYjiTFq+YSDQ==}
+
+  '@types/react-native@0.73.0':
+    resolution: {integrity: sha512-6ZRPQrYM72qYKGWidEttRe6M5DZBEV5F+MHMHqd4TTYx0tfkcdrUFGdef6CCxY0jXU7wldvd/zA/b0A/kTeJmA==}
+    deprecated: This is a stub types definition. react-native provides its own type definitions, so you do not need this installed.
 
   '@types/react@19.1.13':
     resolution: {integrity: sha512-hHkbU/eoO3EG5/MZkuFSKmYqPbSVk5byPFa3e7y/8TybHiLMACgI8seVYlicwk7H5K/rI2px9xrQp/C+AUDTiQ==}
@@ -7237,6 +7244,19 @@ snapshots:
   '@types/node@24.5.2':
     dependencies:
       undici-types: 7.12.0
+
+  '@types/react-native@0.73.0(@babel/core@7.28.4)(@types/react@19.1.13)(react@19.1.0)':
+    dependencies:
+      react-native: 0.81.5(@babel/core@7.28.4)(@types/react@19.1.13)(react@19.1.0)
+    transitivePeerDependencies:
+      - '@babel/core'
+      - '@react-native-community/cli'
+      - '@react-native/metro-config'
+      - '@types/react'
+      - bufferutil
+      - react
+      - supports-color
+      - utf-8-validate
 
   '@types/react@19.1.13':
     dependencies:

@@ -1,11 +1,18 @@
 import React, { useEffect, useRef } from 'react';
-import { View, StyleSheet, Dimensions, Animated } from 'react-native';
+import { View, StyleSheet, Dimensions, Animated, Platform, useWindowDimensions } from 'react-native';
 import Svg, { Path } from 'react-native-svg';
 
-const { width: screenWidth } = Dimensions.get('window');
+// On web the app renders inside AppFrame's centered phone frame (max 480px
+// wide). Using the raw window width would size the skeleton path and nodes
+// wider than the visible frame and distort during the loading phase.
+function useLayoutWidth(): number {
+    const { width: windowWidth } = useWindowDimensions();
+    return Platform.OS === 'web' ? Math.min(windowWidth, 480) : windowWidth;
+}
 
 const SkeletonNode = ({ index, opacity }: { index: number; opacity: Animated.Value }) => {
     const isLeftSide = index % 2 === 0;
+    const layoutWidth = useLayoutWidth();
 
     return (
         <View style={styles.levelContainer}>
@@ -15,11 +22,11 @@ const SkeletonNode = ({ index, opacity }: { index: number; opacity: Animated.Val
                     <Path
                         d={
                             isLeftSide
-                                ? `M ${screenWidth * 0.25 + 10}, 45 C ${screenWidth * 0.25 + 80
-                                }, 100, ${screenWidth * 0.75 - 80}, 80, ${screenWidth * 0.75 - 10
+                                ? `M ${layoutWidth * 0.25 + 10}, 45 C ${layoutWidth * 0.25 + 80
+                                }, 100, ${layoutWidth * 0.75 - 80}, 80, ${layoutWidth * 0.75 - 10
                                 }, 145`
-                                : `M ${screenWidth * 0.75 - 10}, 45 C ${screenWidth * 0.75 - 80
-                                }, 100, ${screenWidth * 0.25 + 80}, 80, ${screenWidth * 0.25 + 10
+                                : `M ${layoutWidth * 0.75 - 10}, 45 C ${layoutWidth * 0.75 - 80
+                                }, 100, ${layoutWidth * 0.25 + 80}, 80, ${layoutWidth * 0.25 + 10
                                 }, 145`
                         }
                         stroke="#E0E0E0"
@@ -30,7 +37,7 @@ const SkeletonNode = ({ index, opacity }: { index: number; opacity: Animated.Val
             )}
 
             <View style={[styles.levelRow, !isLeftSide && styles.levelRowReverse]}>
-                <View style={styles.nodeWrapper}>
+                <View style={[styles.nodeWrapper, { width: layoutWidth / 2 }]}>
                     <Animated.View style={[styles.levelNode, { opacity }]} />
                 </View>
             </View>
@@ -136,7 +143,6 @@ const styles = StyleSheet.create({
         justifyContent: "flex-end",
     },
     nodeWrapper: {
-        width: screenWidth / 2,
         alignItems: "center",
     },
     levelNode: {

@@ -12,6 +12,7 @@ import {
   Alert,
   Animated,
   Platform,
+  useWindowDimensions,
 } from "react-native";
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import Svg, { Path } from "react-native-svg";
@@ -82,6 +83,13 @@ const HomeScreen: React.FC<Props> = ({ navigation }) => {
   const { user } = useSelector((state: RootState) => state.auth);
   const { hasSeenHomeTour } = useSelector((state: RootState) => state.tutorial);
   const dispatch = useDispatch();
+
+  const { width: windowWidth } = useWindowDimensions();
+  // On web the app renders inside AppFrame's centered phone frame (max 480px
+  // wide). All layout geometry must use the frame width — the raw window width
+  // would size pages, paths and decorations wider than the visible frame and
+  // distort on refresh or when the window is resized.
+  const layoutWidth = Platform.OS === 'web' ? Math.min(windowWidth, 480) : windowWidth;
 
   const [sections, setSections] = useState<Section[]>([]);
   const [isLoading, setIsLoading] = useState(true);
@@ -768,11 +776,11 @@ const HomeScreen: React.FC<Props> = ({ navigation }) => {
             <Path
               d={
                 isLeftSide
-                  ? `M ${screenWidth * 0.25 + 10}, 45 C ${screenWidth * 0.25 + 80
-                  }, 100, ${screenWidth * 0.75 - 80}, 80, ${screenWidth * 0.75 - 10
+                  ? `M ${layoutWidth * 0.25 + 10}, 45 C ${layoutWidth * 0.25 + 80
+                  }, 100, ${layoutWidth * 0.75 - 80}, 80, ${layoutWidth * 0.75 - 10
                   }, 145`
-                  : `M ${screenWidth * 0.75 - 10}, 45 C ${screenWidth * 0.75 - 80
-                  }, 100, ${screenWidth * 0.25 + 80}, 80, ${screenWidth * 0.25 + 10
+                  : `M ${layoutWidth * 0.75 - 10}, 45 C ${layoutWidth * 0.75 - 80
+                  }, 100, ${layoutWidth * 0.25 + 80}, 80, ${layoutWidth * 0.25 + 10
                   }, 145`
               }
               stroke="#FF5C02"
@@ -783,8 +791,7 @@ const HomeScreen: React.FC<Props> = ({ navigation }) => {
         )}
 
         <View style={[styles.levelRow, !isLeftSide && styles.levelRowReverse]}>
-          {/* Level node */}
-          <View style={styles.nodeWrapper}>
+          {/* Level node */}            <View style={[styles.nodeWrapper, { width: layoutWidth / 2 }]}>
             <Animated.View
               style={[
                 { transform: node.isCurrent && !node.isCompleted ? [{ scale: pulseAnim }] : [] }
@@ -830,6 +837,9 @@ const HomeScreen: React.FC<Props> = ({ navigation }) => {
             style={[
               styles.avatarContainer,
               isLeftSide ? styles.avatarLeft : styles.avatarRight,
+              isLeftSide
+                ? { left: layoutWidth * 0.25 - 70 }
+                : { right: layoutWidth * 0.25 - 70 },
             ]}
           >
             <View style={styles.avatar}>
@@ -851,7 +861,7 @@ const HomeScreen: React.FC<Props> = ({ navigation }) => {
         ? Math.max(pagerHeight - headerHeight, 160)
         : undefined;
 
-    const sectionDecorations = getDecorationsForSection(section.title, sectionIndex);
+    const sectionDecorations = getDecorationsForSection(section.title, sectionIndex, layoutWidth);
     
     // Get or create scroll value for this section
     if (!scrollYValues.current[section.id]) {
@@ -882,12 +892,12 @@ const HomeScreen: React.FC<Props> = ({ navigation }) => {
     });
 
     return (
-      <View key={section.id} style={styles.pageContainer}>
+      <View key={section.id} style={[styles.pageContainer, { width: layoutWidth }]}>
         {/* Cloud decorations with parallax */}
         <View style={styles.cloudsContainer}>
           <Animated.Text style={[styles.cloud, { top: 20, left: 30 }, cloudParallax(20)]}>☁️</Animated.Text>
           <Animated.Text style={[styles.cloud, { top: 60, right: 40 }, cloudParallax(60)]}>☁️</Animated.Text>
-          <Animated.Text style={[styles.cloud, { top: 100, left: screenWidth * 0.6 }, cloudParallax(100)]}>
+          <Animated.Text style={[styles.cloud, { top: 100, left: layoutWidth * 0.6 }, cloudParallax(100)]}>
             ☁️
           </Animated.Text>
           <Animated.Text style={[styles.cloud, { top: 200, right: 20, fontSize: 40 }, cloudParallax(200)]}>
@@ -1141,8 +1151,8 @@ const HomeScreen: React.FC<Props> = ({ navigation }) => {
         keyExtractor={(section) => section.id}
         renderItem={({ item, index }) => renderSection(item, index)}
         getItemLayout={(_, index) => ({
-          length: screenWidth,
-          offset: screenWidth * index,
+          length: layoutWidth,
+          offset: layoutWidth * index,
           index,
         })}
         initialScrollIndex={activeSectionIndex}
@@ -1168,7 +1178,7 @@ const HomeScreen: React.FC<Props> = ({ navigation }) => {
           hasUserDraggedSectionsRef.current = true;
         }}
         onMomentumScrollEnd={(event) => {
-          const nextIndex = Math.round(event.nativeEvent.contentOffset.x / screenWidth);
+          const nextIndex = Math.round(event.nativeEvent.contentOffset.x / layoutWidth);
           if (nextIndex >= 0 && nextIndex < sections.length) {
             if (hasUserDraggedSectionsRef.current && nextIndex !== activeSectionIndex && homeSwipeTutorialStage) {
               const nextStage = getNextHomeSwipeTutorialStage(
@@ -1325,7 +1335,6 @@ const styles = StyleSheet.create({
     flex: 1,
   },
   pageContainer: {
-    width: screenWidth,
     height: "100%",
   },
   sectionScrollView: {
@@ -1444,7 +1453,6 @@ const styles = StyleSheet.create({
     justifyContent: "flex-end",
   },
   nodeWrapper: {
-    width: screenWidth / 2,
     alignItems: "center",
   },
   levelTitle: {
@@ -1517,11 +1525,9 @@ const styles = StyleSheet.create({
   },
   avatarLeft: {
     top: 30,
-    left: screenWidth * 0.25 - 70,
   },
   avatarRight: {
     top: 30,
-    right: screenWidth * 0.25 - 70,
   },
   avatar: {
     width: 50,

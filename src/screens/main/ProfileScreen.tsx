@@ -14,6 +14,7 @@ import {
   ActivityIndicator,
   Modal,
   Platform,
+  useWindowDimensions,
 } from "react-native";
 import { useSelector, useDispatch } from "react-redux";
 import { useFocusEffect } from "@react-navigation/native";
@@ -45,6 +46,10 @@ interface Props {
 
 const ProfileScreen: React.FC<Props> = ({ navigation }) => {
   const dispatch = useDispatch();
+  const { width: windowWidth } = useWindowDimensions();
+  // On web the app renders inside AppFrame's centered phone frame (max 480px
+  // wide) — use the frame width so buttons/cards don't balloon on desktop.
+  const layoutWidth = Platform.OS === 'web' ? Math.min(windowWidth, 480) : windowWidth;
   const { user } = useSelector((state: RootState) => state.auth);
   const { currentStreak, totalStreak, daysThisMonth } = useSelector(
     (state: RootState) => state.streak
@@ -467,7 +472,7 @@ const ProfileScreen: React.FC<Props> = ({ navigation }) => {
           style={{
             marginHorizontal: 10,
             marginBottom: 12,
-            width: screenWidth - 40,
+            width: layoutWidth - 40,
           }}
         />
 
@@ -498,7 +503,10 @@ const ProfileScreen: React.FC<Props> = ({ navigation }) => {
           <Text style={styles.sectionTitle}>Badges & Achievement</Text>
           <View style={styles.achievementsGrid}>
             {Array.from({ length: 6 }).map((_, index) => (
-              <View key={index} style={styles.achievementCard} />
+              <View
+                key={index}
+                style={[styles.achievementCard, { width: (layoutWidth - 64) / 3 }]}
+              />
             ))}
           </View>
         </View>
@@ -775,7 +783,6 @@ const styles = StyleSheet.create({
     justifyContent: "space-between",
   },
   achievementCard: {
-    width: (screenWidth - 40 - 24) / 3, // (Screen width - padding - gaps) / 3
     aspectRatio: 1,
     backgroundColor: "#E9ECEF",
     borderRadius: 16,

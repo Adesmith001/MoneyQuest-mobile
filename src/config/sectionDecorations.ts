@@ -154,8 +154,13 @@ function selectThemeForSection(sectionTitle: string, sectionIndex: number): stri
  */
 export function getDecorationsForSection(
   sectionTitle: string,
-  sectionIndex: number
+  sectionIndex: number,
+  layoutWidth?: number
 ): SectionTheme {
+  // On web the app renders inside a centered phone frame (max 480px wide), so
+  // decoration positions must use the frame width, not the raw window width.
+  const effectiveWidth = layoutWidth ?? screenWidth;
+
   // Select appropriate theme
   const themeEmojis = selectThemeForSection(sectionTitle, sectionIndex);
   
@@ -165,7 +170,7 @@ export function getDecorationsForSection(
     const positions = [
       { top: 180, left: 40, rotation: -15 },
       { top: 320, right: 30, rotation: 20 },
-      { top: 460, left: screenWidth * 0.55, rotation: -10 },
+      { top: 460, left: effectiveWidth * 0.55, rotation: -10 },
       { top: 600, left: 50, rotation: 15 },
       { top: 740, right: 40, rotation: -20 },
     ];

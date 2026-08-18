@@ -131,7 +131,7 @@ export const SCHOOL_PRICING: Record<SchoolPlanType, SchoolPlanPricing> = {
   monthly: {
     id: 'monthly',
     name: 'Monthly',
-    pricePerSeat: 3000, // ₦3,000 per seat per month
+    pricePerSeat: 2000, // ₦3,000 per seat per month
     currency: 'NGN',
     duration: 'Month',
     billingCycle: 'month',
@@ -140,7 +140,7 @@ export const SCHOOL_PRICING: Record<SchoolPlanType, SchoolPlanPricing> = {
   annual: {
     id: 'annual',
     name: 'Annual',
-    pricePerSeat: 35000, // ₦35,000 per seat per year
+    pricePerSeat: 24000, // ₦35,000 per seat per year
     currency: 'NGN',
     duration: 'Year',
     billingCycle: 'year',

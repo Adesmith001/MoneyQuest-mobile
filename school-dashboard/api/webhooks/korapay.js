@@ -7,10 +7,10 @@ const SUBSCRIPTION_PLANS = {
 };
 
 const SCHOOL_SEAT_PRICES = {
-  monthly: 3500,
-  annual: 42000,
-  school_monthly_100: 3200,
-  school_annual_100: 38400,
+  monthly: 2000,
+  annual: 24000,
+  school_monthly_100: 2000,
+  school_annual_100: 24000,
 };
 
 export default async function handler(req, res) {
