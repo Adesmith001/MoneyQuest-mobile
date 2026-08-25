@@ -63,11 +63,13 @@ import {
   getLevelCompletionLives,
   getNextPlayableLevelTarget,
   isLevelEnterable,
+  mergeCompletedLevelIds,
   removeQuestionAtIndex,
 } from "../../utils/progressBehavior";
 import CoachMark from "../../components/tutorial/CoachMark";
 import { QUESTION_COACH_STEPS } from "../../config/coachMarkSteps";
 import { markQuestionGuideSeen } from "../../store/slices/tutorialSlice";
+import { getStreakMessage } from "../../utils/gamificationPresentation";
 
 interface Props {
   navigation: any;
@@ -1189,7 +1191,26 @@ const QuestionScreen: React.FC<Props> = ({ navigation, route }) => {
           }
         }
         if (result.passed && user?.$id) {
+          // Add to local cache AND ensure it's persisted for cross-platform sync
           await cacheService.addCompletedLevel(user.$id, levelId);
+          // Also trigger an immediate Appwrite read to sync completedLevels
+          // This prevents the web version from showing stale progress
+          try {
+            const syncDocs = await databases.listDocuments(
+              DB_ID,
+              COLLECTIONS.USER_PROGRESS,
+              [Query.equal('userId', user.$id), Query.equal('isCompleted', true)]
+            );
+            const syncLevelIds = syncDocs.documents.map((doc: any) => doc.level);
+            const mergedLevelIds = mergeCompletedLevelIds(
+              await cacheService.getCompletedLevels(user.$id),
+              syncLevelIds,
+              [levelId]
+            );
+            await cacheService.saveCompletedLevels(user.$id, mergedLevelIds);
+          } catch (_) {
+            // Non-fatal — local cache already updated
+          }
         }
 
         const cachedCompletedLevels = user?.$id
@@ -1332,6 +1353,18 @@ const QuestionScreen: React.FC<Props> = ({ navigation, route }) => {
         await AsyncStorage.removeItem(getQuizAttemptsStorageKey(user.$id, levelId));
 
         dispatch(nextLevel());
+
+        // Process gamification result from the submit-level response.
+        // The backend fires LESSON_COMPLETED internally and returns the full bundle.
+        if (result.gamification && user?.$id) {
+          try {
+            const { processEventResult } = await import("../../store/slices/gamificationSlice");
+            dispatch(processEventResult(result.gamification));
+          } catch (gamificationError) {
+            console.warn("Gamification dispatch failed (non-fatal):", gamificationError);
+          }
+        }
+
         navigation.replace("LevelCompletion", {
           xpGained: xpGained,
           accuracy,
@@ -1339,6 +1372,8 @@ const QuestionScreen: React.FC<Props> = ({ navigation, route }) => {
           nextLevelId: nextLevelToUnlock,
           sectionId,
           completedLevelsCount,
+          streakMessage: getStreakMessage(result.gamification?.streak),
+          currentStreak: result.gamification?.streak?.current_streak,
         });
       } catch (error) {
         console.error("Error submitting level:", error);

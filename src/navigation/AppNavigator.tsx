@@ -10,6 +10,7 @@ import googleAuthService from '../services/googleAuth';
 import { checkAuthStatus, updateUser } from '../store/slices/authSlice';
 import revenueCatService from '../services/revenueCatService';
 import analyticsService from '../services/analytics';
+import { bootstrapGamification } from '../store/slices/gamificationSlice';
 
 // ⚡ Import ALL screens directly - lazy loading causes white screen on iOS production
 import LoadingScreen from '../screens/common/LoadingScreen';
@@ -42,6 +43,10 @@ import PremiumScreen from '../screens/common/PremiumScreen';
 import SchoolCodeEntryScreen from '../screens/common/SchoolCodeEntryScreen';
 import QuestionScreen from '../screens/game/QuestionScreen';
 import LevelCompletionScreen from '../screens/game/LevelCompletionScreen';
+import DailyQuestScreen from '../screens/game/DailyQuestScreen';
+import AchievementUnlockScreen from '../screens/game/AchievementUnlockScreen';
+import BadgeCatalogueScreen from '../screens/game/BadgeCatalogueScreen';
+import CelebrationFlow from '../components/gamification/CelebrationFlow';
 import EditProfileScreen from '../screens/profile/EditProfileScreen';
 import ChangeAvatarScreen from '../screens/profile/ChangeAvatarScreen';
 
@@ -130,7 +135,22 @@ export type RootStackParamList = {
     sectionId?: string;
     passed?: boolean;
     nextLevelId?: string;
+    completedLevelsCount?: number;
   };
+  DailyQuest: {
+    questPointEarned?: number;
+    questTitle?: string;
+    quests?: any[];
+  };
+  AchievementUnlock: {
+    badgeCode: string;
+    badgeName: string;
+    subtitle?: string;
+    progressValue?: number;
+    targetValue?: number;
+    progressLabel?: string;
+  };
+  BadgeCatalogue: undefined;
 
   // Other Screens
   Settings: undefined;
@@ -233,6 +253,13 @@ const AppNavigator: React.FC = () => {
     }
     analyticsService.identifyUser(user?.$id || null);
   }, [user?.$id]);
+
+  // Bootstrap gamification state on auth (non-blocking, fails silently)
+  useEffect(() => {
+    if (user?.$id) {
+      dispatch(bootstrapGamification(user.$id)).catch(() => {});
+    }
+  }, [dispatch, user?.$id]);
 
   // Handle OAuth callbacks
   useEffect(() => {
@@ -429,7 +456,10 @@ const AppNavigator: React.FC = () => {
                     gestureEnabled: false, // Prevent swipe to go back during questions
                   }}
                 />
-                <Stack.Screen name="LevelCompletion" component={LevelCompletionScreen} />
+                <Stack.Screen name="LevelCompletion" component={CelebrationFlow} />
+                <Stack.Screen name="DailyQuest" component={DailyQuestScreen} />
+                <Stack.Screen name="AchievementUnlock" component={AchievementUnlockScreen} />
+                <Stack.Screen name="BadgeCatalogue" component={BadgeCatalogueScreen} />
                 <Stack.Screen
                   name="EditProfile"
                   component={EditProfileScreen}

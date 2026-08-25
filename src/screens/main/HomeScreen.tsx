@@ -47,6 +47,11 @@ import {
   getNextHomeSwipeTutorialStage,
   type HomeSwipeTutorialStage,
 } from "../../utils/tutorialBehavior";
+import {
+  getHorizontalDragDelta,
+  getHorizontalWheelDelta,
+  getVerticalDragDelta,
+} from "../../utils/webScrollNavigation";
 
 interface Props {
   navigation: any;
@@ -78,6 +83,10 @@ const LAST_KNOWN_SECTIONS_VERSION_KEY = '@moneyquest_last_known_sections_version
 const NEXT_ALLOWED_SECTIONS_VERSION_CHECK_KEY = '@moneyquest_next_allowed_sections_version_check_at';
 const SECTIONS_VERSION_CHECK_INTERVAL_MS = 60 * 60 * 1000;
 const SECTIONS_VERSION_CHECK_BACKOFF_MS = 6 * 60 * 60 * 1000;
+const WEB_DRAG_AXIS_THRESHOLD_PX = 6;
+
+const clampSectionIndex = (sectionIndex: number, sectionCount: number) =>
+  Math.max(0, Math.min(sectionCount - 1, sectionIndex));
 
 const HomeScreen: React.FC<Props> = ({ navigation }) => {
   const { user } = useSelector((state: RootState) => state.auth);
@@ -99,6 +108,7 @@ const HomeScreen: React.FC<Props> = ({ navigation }) => {
   const [hasNewSectionsAvailable, setHasNewSectionsAvailable] = useState(false);
   const [isSectionDropdownOpen, setIsSectionDropdownOpen] = useState(false);
   const [activeSectionIndex, setActiveSectionIndex] = useState(0);
+  const [isWebPagerMouseDown, setIsWebPagerMouseDown] = useState(false);
 
   // Coach marks
   const [coachStep, setCoachStep] = useState(0);
@@ -119,6 +129,22 @@ const HomeScreen: React.FC<Props> = ({ navigation }) => {
 
   // Ref for horizontal scroll to scroll to user's current section
   const horizontalScrollRef = useRef<FlatList<Section>>(null);
+  const horizontalScrollXRef = useRef(0);
+  const verticalScrollRefs = useRef<Record<string, ScrollView | null>>({});
+  const verticalScrollYRefs = useRef<Record<string, number>>({});
+  const verticalMouseDragRef = useRef<{
+    sectionId: string;
+    axis: 'pending' | 'vertical';
+    startClientX: number;
+    startClientY: number;
+    lastClientY: number;
+  } | null>(null);
+  const horizontalMouseDragRef = useRef<{
+    axis: 'pending' | 'horizontal' | 'vertical';
+    startClientX: number;
+    startClientY: number;
+    startScrollX: number;
+  } | null>(null);
 
   // RNW fails to resolve flex/percentage heights inside the horizontal pager
   // pages on web, which clips the levels and breaks wheel scrolling. The
@@ -390,12 +416,15 @@ const HomeScreen: React.FC<Props> = ({ navigation }) => {
                 [Query.equal('userId', user.$id), Query.equal('isCompleted', true)]
               );
               const appwriteCompletedLevels = progressDocs.documents.map(doc => doc.level);
-              // MERGE Appwrite data with cache data - don't replace!
-              // This ensures recently completed levels from cache aren't lost
-              appwriteCompletedLevels.forEach(levelId => {
-                latestCompletedLevels.add(levelId);
-              });
-              // 💾 Save merged data to cache for next time
+              // MERGE: always include both Appwrite and cached levels.
+              // Appwrite is the source of truth, but recent completions may
+              // not have synced yet, so we keep cache entries too.
+              const mergedSet = new Set<string>([
+                ...latestCompletedLevels,
+                ...appwriteCompletedLevels,
+              ]);
+              latestCompletedLevels = mergedSet;
+              // 💾 Persist the merged set so both platforms stay in sync
               await cacheService.saveCompletedLevels(user.$id, Array.from(latestCompletedLevels));
 
             } catch (error) {
@@ -607,6 +636,208 @@ const HomeScreen: React.FC<Props> = ({ navigation }) => {
     }
   }, [fetchLearningPath, isRefreshingContent, markSectionsVersionCheckAt, refreshStaleState, syncKnownSectionsVersion, user?.$id]);
 
+  const handleWebHorizontalWheel = React.useCallback((event: any) => {
+    if (Platform.OS !== 'web') {
+      return;
+    }
+
+    const wheelDelta = getHorizontalWheelDelta(event.nativeEvent ?? event);
+    if (wheelDelta === 0) {
+      return;
+    }
+
+    event.preventDefault?.();
+    horizontalScrollRef.current?.scrollToOffset({
+      offset: horizontalScrollXRef.current + wheelDelta,
+      animated: false,
+    });
+  }, []);
+
+  const goToSection = React.useCallback((sectionIndex: number, animated = true) => {
+    if (sections.length === 0) {
+      return;
+    }
+
+    const nextIndex = clampSectionIndex(sectionIndex, sections.length);
+    horizontalScrollXRef.current = nextIndex * layoutWidth;
+    horizontalScrollRef.current?.scrollToOffset({
+      offset: horizontalScrollXRef.current,
+      animated,
+    });
+    setActiveSectionIndex(nextIndex);
+    setIsSectionDropdownOpen(false);
+    hasUserDraggedSectionsRef.current = false;
+  }, [layoutWidth, sections.length]);
+
+  const completeWebHorizontalDrag = React.useCallback(() => {
+    horizontalMouseDragRef.current = null;
+    setIsWebPagerMouseDown(false);
+
+    if (sections.length === 0) {
+      return;
+    }
+
+    const nextIndex = Math.max(
+      0,
+      Math.min(sections.length - 1, Math.round(horizontalScrollXRef.current / layoutWidth))
+    );
+
+    if (hasUserDraggedSectionsRef.current && nextIndex !== activeSectionIndex && homeSwipeTutorialStage) {
+      const nextStage = getNextHomeSwipeTutorialStage(
+        homeSwipeTutorialStage,
+        activeSectionIndex,
+        nextIndex
+      );
+
+      if (homeSwipeTutorialStage === 'left' && nextStage === 'right') {
+        dispatch(markTutorialActionCompleted('home_swipe_left_performed'));
+        setHomeSwipeTutorialStage('right');
+        setIsHomeSwipePromptVisible(true);
+      } else if (homeSwipeTutorialStage === 'right' && nextStage === 'complete') {
+        dispatch(markTutorialActionCompleted('home_swipe_right_performed'));
+        dispatch(markHomeTourSeen());
+        setIsHomeSwipePromptVisible(false);
+        setHomeSwipeTutorialStage(null);
+        setCoachStep(0);
+      }
+    }
+
+    goToSection(nextIndex, true);
+  }, [activeSectionIndex, dispatch, goToSection, homeSwipeTutorialStage, layoutWidth, sections.length]);
+
+  const getWebVerticalDragProps = React.useCallback((sectionId: string) => {
+    if (Platform.OS !== 'web') {
+      return {};
+    }
+
+    return {
+      onMouseDown: (event: any) => {
+        const mouseEvent = event.nativeEvent ?? event;
+        if (mouseEvent.button !== 0) {
+          return;
+        }
+
+        verticalMouseDragRef.current = {
+          sectionId,
+          axis: 'pending',
+          startClientX: mouseEvent.clientX,
+          startClientY: mouseEvent.clientY,
+          lastClientY: mouseEvent.clientY,
+        };
+        event.preventDefault?.();
+      },
+      onMouseMove: (event: any) => {
+        const dragState = verticalMouseDragRef.current;
+        if (!dragState || dragState.sectionId !== sectionId) {
+          return;
+        }
+
+        const mouseEvent = event.nativeEvent ?? event;
+        if (typeof mouseEvent.buttons === 'number' && (mouseEvent.buttons & 1) !== 1) {
+          verticalMouseDragRef.current = null;
+          return;
+        }
+
+        if (dragState.axis === 'pending') {
+          const deltaX = Math.abs(mouseEvent.clientX - dragState.startClientX);
+          const deltaY = Math.abs(mouseEvent.clientY - dragState.startClientY);
+
+          if (Math.max(deltaX, deltaY) < WEB_DRAG_AXIS_THRESHOLD_PX) {
+            return;
+          }
+
+          if (deltaX > deltaY) {
+            verticalMouseDragRef.current = null;
+            return;
+          }
+
+          dragState.axis = 'vertical';
+        }
+
+        if (dragState.axis !== 'vertical') {
+          return;
+        }
+
+        const dragDelta = getVerticalDragDelta(dragState.lastClientY, mouseEvent.clientY);
+        if (dragDelta === 0) {
+          return;
+        }
+
+        const nextOffset = Math.max(0, (verticalScrollYRefs.current[sectionId] ?? 0) + dragDelta);
+        verticalScrollRefs.current[sectionId]?.scrollTo({ y: nextOffset, animated: false });
+        verticalScrollYRefs.current[sectionId] = nextOffset;
+        dragState.lastClientY = mouseEvent.clientY;
+        event.preventDefault?.();
+      },
+      onMouseUp: () => {
+        verticalMouseDragRef.current = null;
+      },
+      onMouseLeave: () => {
+        verticalMouseDragRef.current = null;
+      },
+    };
+  }, []);
+
+  const webPagerMouseProps =
+    Platform.OS === 'web'
+      ? ({
+          onMouseDown: (event: any) => {
+            const mouseEvent = event.nativeEvent ?? event;
+            if (mouseEvent.button === 0) {
+              setIsWebPagerMouseDown(true);
+              horizontalMouseDragRef.current = {
+                axis: 'pending',
+                startClientX: mouseEvent.clientX,
+                startClientY: mouseEvent.clientY,
+                startScrollX: horizontalScrollXRef.current,
+              };
+            }
+          },
+          onMouseMove: (event: any) => {
+            const dragState = horizontalMouseDragRef.current;
+            if (!dragState) {
+              return;
+            }
+
+            const mouseEvent = event.nativeEvent ?? event;
+            if (typeof mouseEvent.buttons === 'number' && (mouseEvent.buttons & 1) !== 1) {
+              completeWebHorizontalDrag();
+              return;
+            }
+
+            if (dragState.axis === 'pending') {
+              const deltaX = Math.abs(mouseEvent.clientX - dragState.startClientX);
+              const deltaY = Math.abs(mouseEvent.clientY - dragState.startClientY);
+
+              if (Math.max(deltaX, deltaY) < WEB_DRAG_AXIS_THRESHOLD_PX) {
+                return;
+              }
+
+              dragState.axis = deltaX >= deltaY ? 'horizontal' : 'vertical';
+            }
+
+            if (dragState.axis !== 'horizontal') {
+              return;
+            }
+
+            const dragDelta = getHorizontalDragDelta(dragState.startClientX, mouseEvent.clientX);
+            const nextOffset = Math.max(0, dragState.startScrollX + dragDelta);
+            hasUserDraggedSectionsRef.current = true;
+            horizontalScrollRef.current?.scrollToOffset({
+              offset: nextOffset,
+              animated: false,
+            });
+            event.preventDefault?.();
+          },
+          onMouseUp: () => {
+            completeWebHorizontalDrag();
+          },
+          onMouseLeave: () => {
+            completeWebHorizontalDrag();
+          },
+        } as any)
+      : {};
+
   // ── Trigger 1: runs on mount AND whenever user.$id / progress keys change.
   // This guarantees the fetch fires even if Redux Persist hydrates user AFTER
   // the screen has already gained focus (the classic first-load blank screen bug).
@@ -694,13 +925,8 @@ const HomeScreen: React.FC<Props> = ({ navigation }) => {
   );
 
   const scrollToSection = React.useCallback((sectionIndex: number) => {
-    horizontalScrollRef.current?.scrollToIndex({
-      index: sectionIndex,
-      animated: true,
-    });
-    setActiveSectionIndex(sectionIndex);
-    setIsSectionDropdownOpen(false);
-  }, []);
+    goToSection(sectionIndex, true);
+  }, [goToSection]);
 
   const sectionPickerItems = React.useMemo(
     () =>
@@ -974,11 +1200,41 @@ const HomeScreen: React.FC<Props> = ({ navigation }) => {
                 {section.levels.length} {section.levels.length === 1 ? 'Level' : 'Levels'}
               </Text>
             </View>
-            <View style={styles.bookIconBadge}>
-              <Image
-                source={require("../../../assets/bookIcon.png")}
-                style={styles.bookIconImage}
-              />
+            <View style={styles.sectionHeaderActions}>
+              {Platform.OS === 'web' && (
+                <>
+                  <TouchableOpacity
+                    style={[
+                      styles.sectionNavButton,
+                      sectionIndex === 0 && styles.sectionNavButtonDisabled,
+                    ]}
+                    activeOpacity={0.85}
+                    disabled={sectionIndex === 0}
+                    onPress={() => goToSection(sectionIndex - 1)}
+                    {...({ onClick: () => goToSection(sectionIndex - 1) } as any)}
+                  >
+                    <Ionicons name="chevron-back" size={18} color="#FFFFFF" />
+                  </TouchableOpacity>
+                  <TouchableOpacity
+                    style={[
+                      styles.sectionNavButton,
+                      sectionIndex === sections.length - 1 && styles.sectionNavButtonDisabled,
+                    ]}
+                    activeOpacity={0.85}
+                    disabled={sectionIndex === sections.length - 1}
+                    onPress={() => goToSection(sectionIndex + 1)}
+                    {...({ onClick: () => goToSection(sectionIndex + 1) } as any)}
+                  >
+                    <Ionicons name="chevron-forward" size={18} color="#FFFFFF" />
+                  </TouchableOpacity>
+                </>
+              )}
+              <View style={styles.bookIconBadge}>
+                <Image
+                  source={require("../../../assets/bookIcon.png")}
+                  style={styles.bookIconImage}
+                />
+              </View>
             </View>
           </View>
 
@@ -1017,6 +1273,7 @@ const HomeScreen: React.FC<Props> = ({ navigation }) => {
                     ]}
                     activeOpacity={0.85}
                     onPress={() => scrollToSection(item.sectionIndex)}
+                    {...({ onClick: () => scrollToSection(item.sectionIndex) } as any)}
                   >
                     <Text style={styles.sectionDropdownItemTitle} numberOfLines={1}>
                       {item.sectionTitle}
@@ -1058,6 +1315,9 @@ const HomeScreen: React.FC<Props> = ({ navigation }) => {
 
         {/* Scrollable Levels with scroll tracking */}
         <Animated.ScrollView
+          ref={(ref) => {
+            verticalScrollRefs.current[section.id] = ref as unknown as ScrollView | null;
+          }}
           style={[
             styles.sectionScrollView,
             webScrollHeight
@@ -1073,9 +1333,16 @@ const HomeScreen: React.FC<Props> = ({ navigation }) => {
           showsVerticalScrollIndicator={false}
           onScroll={Animated.event(
             [{ nativeEvent: { contentOffset: { y: scrollY } } }],
-            { useNativeDriver: true }
+            {
+              useNativeDriver: true,
+              listener: (event: any) => {
+                verticalScrollYRefs.current[section.id] =
+                  event.nativeEvent.contentOffset.y;
+              },
+            }
           )}
           scrollEventThrottle={16}
+          {...getWebVerticalDragProps(section.id)}
         >
           <View style={styles.levelsContainer}>
             {getTopFirstLevelRenderItems(section.levels)
@@ -1146,7 +1413,12 @@ const HomeScreen: React.FC<Props> = ({ navigation }) => {
           setPagerHeight(Math.round(event.nativeEvent.layout.height));
         }}
         showsHorizontalScrollIndicator={false}
-        style={styles.scrollView}
+        style={[
+          styles.scrollView,
+          Platform.OS === 'web'
+            ? ({ cursor: isWebPagerMouseDown ? 'grabbing' : 'grab' } as any)
+            : null,
+        ]}
         data={sections}
         keyExtractor={(section) => section.id}
         renderItem={({ item, index }) => renderSection(item, index)}
@@ -1165,7 +1437,14 @@ const HomeScreen: React.FC<Props> = ({ navigation }) => {
           activeSectionIndex,
           isSectionDropdownOpen,
           dropdownScrollMetrics,
+          isWebPagerMouseDown,
         }}
+        {...webPagerMouseProps}
+        {...(Platform.OS === 'web' ? ({ onWheel: handleWebHorizontalWheel } as any) : {})}
+        onScroll={(event) => {
+          horizontalScrollXRef.current = event.nativeEvent.contentOffset.x;
+        }}
+        scrollEventThrottle={16}
         onScrollToIndexFailed={(info) => {
           setTimeout(() => {
             horizontalScrollRef.current?.scrollToIndex({
@@ -1406,8 +1685,23 @@ const styles = StyleSheet.create({
     marginTop: 4,
     fontWeight: "600",
   },
+  sectionHeaderActions: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 8,
+  },
+  sectionNavButton: {
+    width: 34,
+    height: 34,
+    borderRadius: 12,
+    backgroundColor: "rgba(255,255,255,0.16)",
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  sectionNavButtonDisabled: {
+    opacity: 0.35,
+  },
   bookIconBadge: {
-    marginLeft: 12,
     width: 42,
     height: 42,
     borderRadius: 14,

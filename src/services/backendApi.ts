@@ -424,7 +424,8 @@ class BackendApiService {
     userId: string,
     levelId: string,
     score: number,
-    timeSpentMinutes: number
+    timeSpentMinutes: number,
+    idempotencyKey?: string
   ): Promise<BackendSubmitLevelResponse> {
     return await this.fetchApi<BackendSubmitLevelResponse>('/submit-level', {
       method: 'POST',
@@ -433,6 +434,7 @@ class BackendApiService {
         level_id: levelId,
         score: score,
         time_spent_minutes: timeSpentMinutes,
+        idempotency_key: idempotencyKey,
       }),
     });
   }

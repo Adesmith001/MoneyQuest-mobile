@@ -546,12 +546,14 @@ class QuestionService {
   ) {
     try {
       const score = Math.round((questionsCorrect / totalQuestions) * 100);
+      const idempotencyKey = `lesson-${userId}-${levelId}-${Date.now()}`;
 
       const backendResponse = await backendApi.submitLevelResults(
         userId,
         levelId,
         score,
-        timeSpentMinutes
+        timeSpentMinutes,
+        idempotencyKey
       );
       const userDoc = await databases.getDocument(DB_ID, COLLECTIONS.USERS, userId);
 

@@ -164,6 +164,20 @@ export const getSectionPlayableLevelId = (
   return null;
 };
 
+export const mergeCompletedLevelIds = (...sources: Array<Iterable<string>>): string[] => {
+  const merged = new Set<string>();
+
+  sources.forEach((source) => {
+    for (const levelId of source) {
+      if (typeof levelId === 'string' && levelId.length > 0) {
+        merged.add(levelId);
+      }
+    }
+  });
+
+  return Array.from(merged);
+};
+
 export const isLevelEnterable = ({
   targetLevelId,
   sectionLevelIds,

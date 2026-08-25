@@ -8,6 +8,7 @@ import leaderboardReducer from './slices/leaderboardSlice';
 import streakReducer from './slices/streakSlice';
 import learningReducer from './slices/learningSlice';
 import tutorialReducer, { normalizeTutorialState, TutorialState } from './slices/tutorialSlice';
+import gamificationReducer from './slices/gamificationSlice';
 import { AuthState } from '../types';
 import {
   getAuthenticatedActionUserId,
@@ -21,6 +22,7 @@ const appReducer = combineReducers({
   streak: streakReducer,
   learning: learningReducer,
   tutorial: tutorialReducer,
+  gamification: gamificationReducer,
 });
 
 type RootReducerState = ReturnType<typeof appReducer>;
@@ -29,6 +31,7 @@ const getInitialUserScopedState = () => ({
   game: gameReducer(undefined, { type: '@@moneyquest/INIT_USER_SCOPED_STATE' }),
   streak: streakReducer(undefined, { type: '@@moneyquest/INIT_USER_SCOPED_STATE' }),
   tutorial: tutorialReducer(undefined, { type: '@@moneyquest/INIT_USER_SCOPED_STATE' }),
+  gamification: gamificationReducer(undefined, { type: '@@moneyquest/INIT_USER_SCOPED_STATE' }),
 });
 
 const rootReducer = (
@@ -82,7 +85,7 @@ const persistConfig: PersistConfig<RootReducerState> = {
   key: 'root',
   storage: AsyncStorage,
   transforms: [authStateTransform, tutorialStateTransform],
-  whitelist: ['auth', 'game', 'streak', 'learning', 'tutorial'], // Persist auth, game, streak, learning, and tutorial state
+  whitelist: ['auth', 'game', 'streak', 'learning', 'tutorial', 'gamification'], // Persist auth, game, streak, learning, tutorial, and gamification state
 };
 
 const persistedReducer = persistReducer(persistConfig, rootReducer);

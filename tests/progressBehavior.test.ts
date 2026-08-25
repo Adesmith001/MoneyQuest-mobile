@@ -14,6 +14,7 @@ import {
   getSectionPlayableLevelId,
   isLevelEnterable,
   getNextPlayableLevelTarget,
+  mergeCompletedLevelIds,
 } from '../src/utils/progressBehavior';
 
 const assertEqual = <T>(actual: T, expected: T, message: string) => {
@@ -377,4 +378,10 @@ assertEqual(
   ignoresRecapTarget?.levelId ?? null,
   'level-3',
   'does not require recap content before advancing to the next regular section'
+);
+
+assertArrayEqual(
+  mergeCompletedLevelIds(['level-1', 'level-just-finished'], ['level-1']),
+  ['level-1', 'level-just-finished'],
+  'keeps a just-finished local level when syncing with a stale remote completed-level list'
 );

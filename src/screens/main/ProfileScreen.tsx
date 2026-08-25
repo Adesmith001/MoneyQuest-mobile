@@ -20,7 +20,7 @@ import { useSelector, useDispatch } from "react-redux";
 import { useFocusEffect } from "@react-navigation/native";
 import { Ionicons } from "@expo/vector-icons";
 import AsyncStorage from '@react-native-async-storage/async-storage';
-import { RootState } from "../../store";
+import { RootState, AppDispatch } from "../../store";
 import { formatXP, formatMonthlyXP, getDaysUntilMonthEnd } from "../../utils";
 import { getAvatarById } from "../../utils/avatarUtils";
 import InviteFriendsModal from "../../components/modals/InviteFriendsModal";
@@ -37,6 +37,7 @@ import { PROFILE_COACH_STEPS } from "../../config/coachMarkSteps";
 import { markProfileGuideSeen, markTutorialActionCompleted } from "../../store/slices/tutorialSlice";
 import { useRevenueCat } from "../../hooks/useRevenueCat";
 import { canAdvanceTutorialStep } from "../../utils/tutorialBehavior";
+import { fetchBadgeCatalogue } from "../../store/slices/gamificationSlice";
 
 const { width: screenWidth } = Dimensions.get("window");
 
@@ -499,17 +500,7 @@ const ProfileScreen: React.FC<Props> = ({ navigation }) => {
         </TouchableOpacity>
 
         {/* Badges & Achievement */}
-        <View style={styles.achievementsSection}>
-          <Text style={styles.sectionTitle}>Badges & Achievement</Text>
-          <View style={styles.achievementsGrid}>
-            {Array.from({ length: 6 }).map((_, index) => (
-              <View
-                key={index}
-                style={[styles.achievementCard, { width: (layoutWidth - 64) / 3 }]}
-              />
-            ))}
-          </View>
-        </View>
+        <BadgesAchievementsSection navigation={navigation} layoutWidth={layoutWidth} />
       </ScrollView>
 
       {/* Invite Modal */}
@@ -787,6 +778,67 @@ const styles = StyleSheet.create({
     backgroundColor: "#E9ECEF",
     borderRadius: 16,
     marginBottom: 12,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  achievementHexagon: {
+    width: "80%",
+    height: "65%",
+    backgroundColor: "#E8EDF5",
+    borderRadius: 12,
+    borderWidth: 2,
+    borderColor: "#C5CEE0",
+    alignItems: "center",
+    justifyContent: "center",
+    marginBottom: 4,
+  },
+  achievementHexagonLocked: {
+    backgroundColor: "#E0E0E0",
+    borderColor: "#BDBDBD",
+  },
+  achievementEmoji: {
+    fontSize: 32,
+  },
+  achievementAsset: {
+    width: "100%",
+    height: "100%",
+  },
+  lockedFill: {
+    width: "80%",
+    height: "80%",
+    backgroundColor: "#9E9E9E",
+    borderRadius: 8,
+    opacity: 0.3,
+  },
+  achievementName: {
+    fontSize: 11,
+    fontWeight: "600",
+    color: "#333",
+    textAlign: "center",
+  },
+  achievementNameLocked: {
+    color: "#999",
+  },
+  emptyBadgesContainer: {
+    alignItems: "center",
+    paddingVertical: 24,
+  },
+  emptyBadgesText: {
+    fontSize: 16,
+    fontWeight: "600",
+    color: "#333",
+    marginBottom: 16,
+  },
+  goToLessonsButton: {
+    backgroundColor: "#FF5722",
+    paddingVertical: 12,
+    paddingHorizontal: 32,
+    borderRadius: 24,
+  },
+  goToLessonsText: {
+    color: "#FFFFFF",
+    fontSize: 16,
+    fontWeight: "bold",
   },
   howToPlayButton: {
     flexDirection: 'row',
@@ -1016,5 +1068,90 @@ const styles = StyleSheet.create({
     textAlign: 'center',
   },
 });
+
+// ── Badges & Achievements Section ──────────────
+import { fetchBadgeCatalogue as fetchBadges } from "../../store/slices/gamificationSlice";
+import { BadgeCatalogueEntry } from "../../types/gamification";
+
+const BadgesAchievementsSection: React.FC<{
+  navigation: any;
+  layoutWidth: number;
+}> = ({ navigation, layoutWidth }) => {
+  const dispatch = useDispatch<AppDispatch>();
+  const { user } = useSelector((state: RootState) => state.auth);
+  const badgeCatalogue = useSelector(
+    (state: RootState) => state.gamification.badgeCatalogue
+  );
+  const earnedCount = useSelector(
+    (state: RootState) => state.gamification.earnedBadgeCount
+  );
+  const totalCount = useSelector(
+    (state: RootState) => state.gamification.totalBadgeCount
+  );
+
+  useFocusEffect(
+    React.useCallback(() => {
+      if (user?.$id) {
+        dispatch(fetchBadges(user.$id));
+      }
+    }, [dispatch, user?.$id])
+  );
+
+  const hasEarnedBadges = earnedCount > 0;
+
+  return (
+    <View style={styles.achievementsSection}>
+      <Text style={styles.sectionTitle}>Badges & Achievements</Text>
+
+      {!hasEarnedBadges ? (
+        <View style={styles.emptyBadgesContainer}>
+          <Text style={styles.emptyBadgesText}>No Badge/Achievement Yet</Text>
+          <TouchableOpacity
+            style={styles.goToLessonsButton}
+            onPress={() => navigation.navigate("MainApp", { screen: "Home" })}
+          >
+            <Text style={styles.goToLessonsText}>Go To Lessons</Text>
+          </TouchableOpacity>
+        </View>
+      ) : (
+        <View style={styles.achievementsGrid}>
+          {badgeCatalogue.slice(0, 6).map((badge: BadgeCatalogueEntry, index: number) => (
+            <TouchableOpacity
+              key={badge.badge_definition_id || index}
+              style={[styles.achievementCard, { width: (layoutWidth - 64) / 3 }]}
+              onPress={() => navigation.navigate("BadgeCatalogue")}
+              activeOpacity={0.7}
+            >
+              <View
+                style={[
+                  styles.achievementHexagon,
+                  !badge.is_earned && styles.achievementHexagonLocked,
+                ]}
+              >
+                {badge.asset_reference ? (
+                  <Image
+                    source={{ uri: badge.asset_reference }}
+                    style={styles.achievementAsset}
+                    resizeMode="contain"
+                  />
+                ) : badge.is_earned ? (
+                  <Text style={styles.achievementEmoji}>🏅</Text>
+                ) : (
+                  <View style={styles.lockedFill} />
+                )}
+              </View>
+              <Text
+                style={[styles.achievementName, !badge.is_earned && styles.achievementNameLocked]}
+                numberOfLines={1}
+              >
+                {badge.name}
+              </Text>
+            </TouchableOpacity>
+          ))}
+        </View>
+      )}
+    </View>
+  );
+};
 
 export default ProfileScreen;

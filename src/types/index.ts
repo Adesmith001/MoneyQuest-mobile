@@ -268,6 +268,8 @@ export interface BackendSubmitLevelResponse {
   next_level_unlocked: boolean;
   next_level_id: string | null;
   message: string;
+  /** Gamification result bundle from backend — contains streak, badges, quests, rewards, chests */
+  gamification?: import('./gamification').GamificationResultBundle;
 }
 
 export interface BackendTTSRequest {
