@@ -75,6 +75,7 @@ import CoachMark from "../../components/tutorial/CoachMark";
 import { QUESTION_COACH_STEPS } from "../../config/coachMarkSteps";
 import { markQuestionGuideSeen } from "../../store/slices/tutorialSlice";
 import { getStreakMessage } from "../../utils/gamificationPresentation";
+import { shouldRecoverLevelFromEmptyQuestions } from "../../services/questionFetchPolicy";
 
 interface Props {
   navigation: any;
@@ -593,6 +594,32 @@ const QuestionScreen: React.FC<Props> = ({ navigation, route }) => {
           
           // Mix and limit to exactly 5 questions with proper distribution
           const mixedQuestions = mixAndLimitQuestions(normalizedQuestions);
+
+          if (shouldRecoverLevelFromEmptyQuestions(mixedQuestions, __cacheRetryAttempted)) {
+            try {
+              const freshSections = await cachedBackendApi.forceRefreshLearningPath();
+              const remappedLevel = await findRemappedLevelByTitle(
+                freshSections,
+                sectionTitle,
+                levelTitle
+              );
+
+              if (remappedLevel) {
+                navigation.replace("Question", {
+                  levelId: remappedLevel.levelId,
+                  sectionId: remappedLevel.sectionId,
+                  levelTitle,
+                  sectionTitle,
+                  useMultilevel,
+                  __cacheRetryAttempted: true,
+                });
+                return;
+              }
+            } catch (recoveryError) {
+              console.warn("Question recovery for stale level ID failed:", recoveryError);
+            }
+          }
+
           setQuestions(mixedQuestions);
         }
 

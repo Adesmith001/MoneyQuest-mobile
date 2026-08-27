@@ -4,3 +4,10 @@ export const shouldRetryQuestionsWithMultilevel = (
 ): boolean => {
   return !useMultilevel && (!questions || questions.length === 0);
 };
+
+export const shouldRecoverLevelFromEmptyQuestions = (
+  questions: unknown[] | null | undefined,
+  recoveryAttempted: boolean,
+): boolean => {
+  return !recoveryAttempted && (!questions || questions.length === 0);
+};

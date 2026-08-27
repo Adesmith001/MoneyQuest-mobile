@@ -1,4 +1,7 @@
-import { shouldRetryQuestionsWithMultilevel } from '../src/services/questionFetchPolicy';
+import {
+  shouldRecoverLevelFromEmptyQuestions,
+  shouldRetryQuestionsWithMultilevel,
+} from '../src/services/questionFetchPolicy';
 
 const assertEqual = (actual: boolean, expected: boolean, message: string) => {
   if (actual !== expected) {
@@ -22,4 +25,22 @@ assertEqual(
   shouldRetryQuestionsWithMultilevel([], true),
   false,
   'does not retry when the request already used multilevel'
+);
+
+assertEqual(
+  shouldRecoverLevelFromEmptyQuestions([], false),
+  true,
+  'recovers a stale level when no questions are returned'
+);
+
+assertEqual(
+  shouldRecoverLevelFromEmptyQuestions([{ question_id: 1 }], false),
+  false,
+  'does not recover a level when questions were returned'
+);
+
+assertEqual(
+  shouldRecoverLevelFromEmptyQuestions([], true),
+  false,
+  'does not repeat stale-level recovery'
 );
