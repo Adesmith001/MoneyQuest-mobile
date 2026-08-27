@@ -21,6 +21,7 @@ import {
 } from '../../store/slices/tutorialSlice';
 import { FONT_FAMILY } from '../../constants';
 import cachedBackendApi from '../../services/cachedBackendApi';
+import { getCompletedLevelIds } from '../../services/completedLevelService';
 import { databases, DB_ID, COLLECTIONS, Query } from '../../services/appwrite';
 import { getSectionPlayableLevelId } from '../../utils/progressBehavior';
 import { getTutorialReplayActionKeys } from '../../utils/tutorialBehavior';
@@ -136,12 +137,7 @@ const TutorialHubScreen: React.FC<Props> = ({ navigation }) => {
       }
     }
 
-    const completedDocs = await databases.listDocuments(
-      DB_ID,
-      COLLECTIONS.USER_PROGRESS,
-      [Query.equal('userId', user.$id), Query.equal('isCompleted', true)]
-    );
-    const completedLevelIds = new Set(completedDocs.documents.map((doc: any) => doc.level as string));
+    const completedLevelIds = new Set(await getCompletedLevelIds(user.$id));
     const backendSections = await cachedBackendApi.getSections();
 
     for (const section of backendSections) {

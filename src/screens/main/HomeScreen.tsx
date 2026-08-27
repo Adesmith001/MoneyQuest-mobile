@@ -22,10 +22,11 @@ import { RootState } from "../../store";
 import { getAvatarById } from "../../utils/avatarUtils";
 import { ApiHttpError, backendApi } from "../../services/backendApi";
 import cachedBackendApi from "../../services/cachedBackendApi";
-import { databases, DB_ID, COLLECTIONS, Query } from "../../services/appwrite";
+import { databases, DB_ID, COLLECTIONS } from "../../services/appwrite";
 import { useFocusEffect } from "@react-navigation/native";
 import { updateUser } from "../../store/slices/authSlice";
 import cacheService from "../../services/cacheService";
+import { getCompletedLevelIds } from "../../services/completedLevelService";
 import { livesService } from "../../services/lives";
 import LearningPathSkeleton from "../../components/skeletons/LearningPathSkeleton";
 import { getDecorationsForSection } from "../../config/sectionDecorations";
@@ -410,12 +411,7 @@ const HomeScreen: React.FC<Props> = ({ navigation }) => {
             }
 
             try {
-              const progressDocs = await databases.listDocuments(
-                DB_ID,
-                COLLECTIONS.USER_PROGRESS,
-                [Query.equal('userId', user.$id), Query.equal('isCompleted', true)]
-              );
-              const appwriteCompletedLevels = progressDocs.documents.map(doc => doc.level);
+              const appwriteCompletedLevels = await getCompletedLevelIds(user.$id);
               // MERGE: always include both Appwrite and cached levels.
               // Appwrite is the source of truth, but recent completions may
               // not have synced yet, so we keep cache entries too.

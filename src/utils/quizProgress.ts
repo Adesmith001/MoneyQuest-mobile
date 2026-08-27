@@ -35,3 +35,11 @@ export const calculateQuizAccuracy = (questionsCorrect: number, totalAttempts: n
 
   return Math.min(100, Math.round((safeCorrect / safeAttempts) * 100));
 };
+
+export type QuizScrollTarget = {
+  scrollTo: (options: { y: number; animated: boolean }) => void;
+};
+
+export const resetQuizScrollPosition = (target: QuizScrollTarget | null): void => {
+  target?.scrollTo({ y: 0, animated: false });
+};

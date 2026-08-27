@@ -1,6 +1,7 @@
 import {
   calculateQuizAccuracy,
   normalizeSavedQuizProgress,
+  resetQuizScrollPosition,
 } from '../src/utils/quizProgress';
 import { getCurrentWeekActivity } from '../src/utils/progressBehavior';
 
@@ -57,6 +58,24 @@ assertEqual(
   calculateQuizAccuracy(5, 3),
   100,
   'never returns impossible accuracy above 100 percent'
+);
+
+const scrollCalls: Array<{ y: number; animated: boolean }> = [];
+resetQuizScrollPosition({
+  scrollTo: (options) => scrollCalls.push(options),
+});
+resetQuizScrollPosition(null);
+
+assertEqual(
+  scrollCalls.length,
+  1,
+  'resets quiz scrolling exactly once when a target exists'
+);
+assertEqual(scrollCalls[0].y, 0, 'resets each question to the top');
+assertEqual(
+  scrollCalls[0].animated,
+  false,
+  'avoids visible scroll animation between questions'
 );
 
 assertArrayEqual(

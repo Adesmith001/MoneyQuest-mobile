@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useRef } from "react";
 import {
   View,
   Text,
@@ -54,11 +54,16 @@ import ScenarioQuestionComponent from "../../components/questions/ScenarioQuesti
 import MatchingQuestionComponent from "../../components/questions/MatchingQuestion";
 import FillInGapQuestionComponent from "../../components/questions/FillInGapQuestion";
 import cacheService from "../../services/cacheService";
+import { getCompletedLevelIds } from "../../services/completedLevelService";
 import analyticsService from "../../services/analytics";
 import notificationService from "../../services/notifications";
 import { RenderContentWithTables } from "../../utils/tableParser";
 import { getCurrentMonthKey } from "../../utils";
-import { calculateQuizAccuracy, normalizeSavedQuizProgress } from "../../utils/quizProgress";
+import {
+  calculateQuizAccuracy,
+  normalizeSavedQuizProgress,
+  resetQuizScrollPosition,
+} from "../../utils/quizProgress";
 import {
   getLevelCompletionLives,
   getNextPlayableLevelTarget,
@@ -317,6 +322,13 @@ const QuestionScreen: React.FC<Props> = ({ navigation, route }) => {
   }>({});
 
   const [viewMode, setViewMode] = useState<"article" | "quiz">("article");
+  const quizScrollRef = useRef<ScrollView>(null);
+
+  useEffect(() => {
+    if (viewMode === "quiz") {
+      resetQuizScrollPosition(quizScrollRef.current);
+    }
+  }, [currentQuestionIndex, levelId, viewMode]);
 
   // Coach marks (must be after viewMode declaration)
   const [coachStep, setCoachStep] = useState(0);
@@ -414,17 +426,11 @@ const QuestionScreen: React.FC<Props> = ({ navigation, route }) => {
         if (!isRecapLevel && user?.$id) {
           const sectionLevels = await cachedBackendApi.getLevels(sectionId);
           const cachedCompletedLevels = await cacheService.getCompletedLevels(user.$id);
-          const completedDocs = await databases.listDocuments(
-            DB_ID,
-            COLLECTIONS.USER_PROGRESS,
-            [Query.equal("userId", user.$id), Query.equal("isCompleted", true)]
-          );
-          const completedLevelIds = new Set<string>(cachedCompletedLevels);
-          completedDocs.documents.forEach((doc: any) => {
-            if (typeof doc.level === "string" && doc.level.length > 0) {
-              completedLevelIds.add(doc.level);
-            }
-          });
+          const remoteCompletedLevelIds = await getCompletedLevelIds(user.$id);
+          const completedLevelIds = new Set<string>([
+            ...cachedCompletedLevels,
+            ...remoteCompletedLevelIds,
+          ]);
           await cacheService.saveCompletedLevels(user.$id, Array.from(completedLevelIds));
 
           const isUsersCurrentLevel =
@@ -1196,12 +1202,7 @@ const QuestionScreen: React.FC<Props> = ({ navigation, route }) => {
           // Also trigger an immediate Appwrite read to sync completedLevels
           // This prevents the web version from showing stale progress
           try {
-            const syncDocs = await databases.listDocuments(
-              DB_ID,
-              COLLECTIONS.USER_PROGRESS,
-              [Query.equal('userId', user.$id), Query.equal('isCompleted', true)]
-            );
-            const syncLevelIds = syncDocs.documents.map((doc: any) => doc.level);
+            const syncLevelIds = await getCompletedLevelIds(user.$id);
             const mergedLevelIds = mergeCompletedLevelIds(
               await cacheService.getCompletedLevels(user.$id),
               syncLevelIds,
@@ -1700,6 +1701,7 @@ const QuestionScreen: React.FC<Props> = ({ navigation, route }) => {
       </View>
 
       <ScrollView
+        ref={quizScrollRef}
         style={styles.quizScrollView}
         contentContainerStyle={[
           styles.content,

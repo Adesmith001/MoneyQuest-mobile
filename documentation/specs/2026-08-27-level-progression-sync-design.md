@@ -14,7 +14,7 @@ After a passed lesson, Continue returns to Home and Home immediately shows the n
 
 ### Shared completed-level reader
 
-Add one shared function that reads every completed `USER_PROGRESS` document for a user in deterministic Appwrite pages. Each page uses a fixed limit and an explicit document ordering; subsequent pages use the last document as the cursor. The function returns unique, valid level IDs.
+Add one shared function that reads every completed `USER_PROGRESS` document for a user using Appwrite cursor pages. Each page uses a fixed limit; subsequent pages use the last document ID with `cursorAfter`, matching Appwrite's documented cursor pattern. The function returns unique, valid level IDs.
 
 Replace every unbounded “all completed levels” read used for progression with this function:
 
