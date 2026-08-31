@@ -374,22 +374,24 @@ export interface ChestClaimResult {
   message: string | null;
 }
 
+export interface ChestStateItem {
+  chest_claim_id: string;
+  chest_definition_id: string;
+  chest_code: string;
+  chest_name: string;
+  description?: string | null;
+  status: ChestStatus;
+  is_claimable: boolean;
+  ready_at?: string | null;
+  claimed_at?: string | null;
+  reward?: QuestReward | null;
+  reward_payload: Record<string, any>;
+}
+
 export interface ChestListResponse {
   user_id: string;
   chests: ChestClaim[];
-  states?: Array<{
-    chest_claim_id: string;
-    chest_definition_id: string;
-    chest_code: string;
-    chest_name: string;
-    description?: string | null;
-    status: ChestStatus;
-    is_claimable: boolean;
-    ready_at?: string | null;
-    claimed_at?: string | null;
-    reward?: QuestReward | null;
-    reward_payload: Record<string, any>;
-  }>;
+  states?: ChestStateItem[];
   pagination: PaginationMeta;
 }
 

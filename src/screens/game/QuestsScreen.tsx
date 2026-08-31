@@ -1,10 +1,11 @@
-import React, { useCallback } from "react";
+import React, { useCallback, useState } from "react";
 import {
   View,
   Text,
   StyleSheet,
   SafeAreaView,
   ScrollView,
+  TouchableOpacity,
   Platform,
   useWindowDimensions,
 } from "react-native";
@@ -13,8 +14,8 @@ import { useFocusEffect } from "@react-navigation/native";
 import { Ionicons } from "@expo/vector-icons";
 import Svg, { Path } from "react-native-svg";
 import { RootState, AppDispatch } from "../../store";
-import { fetchQuestTab } from "../../store/slices/gamificationSlice";
-import { QuestTabEntry } from "../../types/gamification";
+import { claimChest, fetchChests, fetchQuestTab } from "../../store/slices/gamificationSlice";
+import { ChestStateItem, QuestTabEntry } from "../../types/gamification";
 import { COLORS, SPACING } from "../../constants";
 import CustomButton from "../../components/CustomButton";
 import { getQuestsScreenState } from "./questsScreenState";
@@ -25,15 +26,20 @@ interface Props {
 
 const QuestsScreen: React.FC<Props> = ({ navigation }) => {
   const dispatch = useDispatch<AppDispatch>();
+  const [claimingChestId, setClaimingChestId] = useState<string | null>(null);
   const { user } = useSelector((state: RootState) => state.auth);
   const activeQuests = useSelector(
     (state: RootState) => state.gamification.activeQuests
+  );
+  const chests = useSelector(
+    (state: RootState) => state.gamification.chests
   );
 
   useFocusEffect(
     useCallback(() => {
       if (user?.$id) {
         dispatch(fetchQuestTab(user.$id));
+        dispatch(fetchChests(user.$id));
       }
     }, [dispatch, user?.$id])
   );
@@ -43,6 +49,21 @@ const QuestsScreen: React.FC<Props> = ({ navigation }) => {
 
   const { activeChallenges, hallOfFame, emptyMode } =
     getQuestsScreenState(activeQuests);
+  const readyChests = chests.filter((chest) => chest.status === "READY");
+  const claimedChests = chests.filter((chest) => chest.status === "CLAIMED");
+
+  const handleClaimChest = async (chest: ChestStateItem) => {
+    if (!user?.$id || claimingChestId) return;
+
+    setClaimingChestId(chest.chest_claim_id);
+    try {
+      await dispatch(claimChest({ claimId: chest.chest_claim_id, userId: user.$id })).unwrap();
+      dispatch(fetchQuestTab(user.$id));
+      dispatch(fetchChests(user.$id));
+    } finally {
+      setClaimingChestId(null);
+    }
+  };
 
   const renderQuestCard = (quest: QuestTabEntry, index: number) => {
     const progress = quest.target_value > 0 ? quest.current_value / quest.target_value : 0;
@@ -86,6 +107,42 @@ const QuestsScreen: React.FC<Props> = ({ navigation }) => {
     );
   };
 
+  const renderChestCard = (chest: ChestStateItem) => {
+    const isReady = chest.status === "READY";
+    const isClaiming = claimingChestId === chest.chest_claim_id;
+    const rewardAmount = chest.reward?.amount ?? chest.reward_payload?.amount;
+
+    return (
+      <View key={chest.chest_claim_id} style={[styles.chestCard, isReady && styles.chestCardReady]}>
+        <View style={styles.chestIconWrapper}>
+          <Ionicons name={isReady ? "cube" : "checkmark-circle"} size={24} color={isReady ? COLORS.primary : "#2ECC71"} />
+        </View>
+        <View style={styles.chestInfo}>
+          <Text style={styles.chestName}>{chest.chest_name || "Reward Chest"}</Text>
+          {chest.description ? (
+            <Text style={styles.chestDescription}>{chest.description}</Text>
+          ) : null}
+          {rewardAmount ? (
+            <Text style={styles.chestReward}>+{rewardAmount} XP</Text>
+          ) : null}
+        </View>
+        {isReady ? (
+          <TouchableOpacity
+            style={[styles.claimButton, isClaiming && styles.claimButtonDisabled]}
+            onPress={() => handleClaimChest(chest)}
+            disabled={isClaiming}
+          >
+            <Text style={styles.claimButtonText}>{isClaiming ? "Claiming" : "Claim"}</Text>
+          </TouchableOpacity>
+        ) : (
+          <View style={styles.claimedPill}>
+            <Text style={styles.claimedPillText}>Claimed</Text>
+          </View>
+        )}
+      </View>
+    );
+  };
+
   return (
     <SafeAreaView style={styles.container}>
       <ScrollView
@@ -125,6 +182,17 @@ const QuestsScreen: React.FC<Props> = ({ navigation }) => {
             <Text style={styles.emptyDescription}>
               You have finished every available quest. Here are all the quests you completed.
             </Text>
+          </View>
+        )}
+
+        {(readyChests.length > 0 || claimedChests.length > 0) && (
+          <View style={styles.section}>
+            <View style={styles.sectionTitleRow}>
+              <Text style={styles.sectionEmoji}>🎁</Text>
+              <Text style={styles.sectionTitle}>Chests</Text>
+            </View>
+            {readyChests.map(renderChestCard)}
+            {claimedChests.map(renderChestCard)}
           </View>
         )}
 
@@ -312,6 +380,84 @@ const styles = StyleSheet.create({
   progressBarFill: {
     height: "100%",
     borderRadius: 4,
+  },
+
+  // ── Chest Card ──────────────────────────
+  chestCard: {
+    flexDirection: "row",
+    alignItems: "center",
+    backgroundColor: "#FFFFFF",
+    borderRadius: 14,
+    borderWidth: 1.5,
+    borderColor: "#EEEEEE",
+    padding: 14,
+    marginBottom: 12,
+    elevation: 2,
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.06,
+    shadowRadius: 4,
+  },
+  chestCardReady: {
+    borderColor: "#FFD08A",
+    backgroundColor: "#FFF9F0",
+  },
+  chestIconWrapper: {
+    width: 44,
+    height: 44,
+    borderRadius: 12,
+    backgroundColor: "#FFF0E0",
+    alignItems: "center",
+    justifyContent: "center",
+    marginRight: 12,
+  },
+  chestInfo: {
+    flex: 1,
+    marginRight: 10,
+  },
+  chestName: {
+    fontSize: 16,
+    fontWeight: "bold",
+    color: "#1A1A2E",
+    marginBottom: 2,
+  },
+  chestDescription: {
+    fontSize: 13,
+    color: "#777777",
+    marginBottom: 2,
+  },
+  chestReward: {
+    fontSize: 13,
+    fontWeight: "bold",
+    color: COLORS.primary,
+  },
+  claimButton: {
+    minWidth: 78,
+    height: 38,
+    borderRadius: 10,
+    backgroundColor: COLORS.primary,
+    alignItems: "center",
+    justifyContent: "center",
+    paddingHorizontal: 12,
+  },
+  claimButtonDisabled: {
+    opacity: 0.6,
+  },
+  claimButtonText: {
+    color: "#FFFFFF",
+    fontSize: 13,
+    fontWeight: "bold",
+  },
+  claimedPill: {
+    borderRadius: 999,
+    backgroundColor: "#E8F8EF",
+    paddingHorizontal: 10,
+    paddingVertical: 6,
+  },
+  claimedPillText: {
+    color: "#2ECC71",
+    fontSize: 12,
+    fontWeight: "bold",
   },
 
   // ── Button ──────────────────────────────

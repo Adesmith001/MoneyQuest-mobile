@@ -6,7 +6,7 @@ import {
   NextBadgeProgress,
   BadgeCatalogueEntry,
   QuestTabEntry,
-  ChestClaim,
+  ChestStateItem,
   RewardLedgerEntry,
   GamificationResultBundle,
   CelebrationPayload,
@@ -35,7 +35,7 @@ export interface GamificationState {
   rewardBalance: number;
 
   // Chests
-  chests: ChestClaim[];
+  chests: ChestStateItem[];
 
   // Celebration (from last event)
   lastResultBundle: GamificationResultBundle | null;
@@ -146,6 +146,18 @@ export const claimChest = createAsyncThunk(
   },
 );
 
+export const fetchChests = createAsyncThunk(
+  'gamification/fetchChests',
+  async (userId: string, { rejectWithValue }) => {
+    try {
+      const response = await gamificationApi.getChests(userId);
+      return response;
+    } catch (error: any) {
+      return rejectWithValue(error.message || 'Failed to load chests');
+    }
+  },
+);
+
 /**
  * Load rewards history.
  */
@@ -196,6 +208,7 @@ const gamificationSlice = createSlice({
       // Update summary in-place from bundle
       if (bundle.summary) {
         state.summary = bundle.summary;
+        state.readyChestsCount = bundle.summary.ready_chests_count;
       }
 
       // Update streak from bundle
@@ -264,7 +277,7 @@ const gamificationSlice = createSlice({
           state.readyChestsCount = 0;
         }
 
-        state.chests = chests.chests;
+        state.chests = chests.states ?? [];
         state.rewardBalance = rewards.balance;
 
         state.isBootstrapped = true;
@@ -280,6 +293,11 @@ const gamificationSlice = createSlice({
       .addCase(fetchQuestTab.fulfilled, (state, action) => {
         state.activeQuests = action.payload.quests;
         state.readyChestsCount = action.payload.ready_chests_count;
+      });
+
+    builder
+      .addCase(fetchChests.fulfilled, (state, action) => {
+        state.chests = action.payload.states ?? [];
       });
 
     // ── Badge Catalogue ───────────────────────
@@ -304,6 +322,12 @@ const gamificationSlice = createSlice({
         );
         if (chestIndex >= 0) {
           state.chests[chestIndex].status = result.status;
+          state.chests[chestIndex].is_claimable = false;
+          state.chests[chestIndex].claimed_at = new Date().toISOString();
+        }
+        if (result.summary) {
+          state.summary = result.summary;
+          state.readyChestsCount = result.summary.ready_chests_count;
         }
       });
 
