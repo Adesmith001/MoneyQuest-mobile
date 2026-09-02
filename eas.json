@@ -12,6 +12,9 @@
       "distribution": "internal",
       "android": {
         "buildType": "apk"
+      },
+       "env": {
+        "MONEYQUEST_API_BASE_URL": "https://moneyquestproject-demo-development.up.railway.app"
       }
     },
     "production": {
