@@ -1,5 +1,7 @@
 import {
   buildCelebrationsFromBundle,
+  getBadgeUnlockProgressLabel,
+  getQuestRewardNotice,
   getStreakMessage,
   getQuestHeroTitle,
 } from '../src/utils/gamificationPresentation';
@@ -86,7 +88,11 @@ const bundle: GamificationResultBundle = {
       target_value: 10,
       status: 'COMPLETED',
       was_completed_now: true,
-      reward: null,
+      reward: {
+        reward_type: 'XP',
+        amount: 10,
+        metadata: {},
+      },
       attached_badge: null,
       message: null,
     },
@@ -105,6 +111,13 @@ const celebrations = buildCelebrationsFromBundle(bundle);
 assertEqual(celebrations.length, 2, 'builds celebrations for awarded badges and completed quests');
 assertEqual(celebrations[0].hero_element, 'badge', 'badge celebration uses badge hero');
 assertEqual(celebrations[1].completed_quests[0], 'RAPID_FIRE', 'quest celebration keeps backend quest code');
+assertEqual(celebrations[1].xp_earned, 10, 'quest completion celebration carries the quest XP reward');
+
+assertEqual(
+  getQuestRewardNotice(bundle.quests[1]),
+  'Quest complete: Rapid Fire +10 XP',
+  'builds an in-app quest reward notice from completed quest reward data'
+);
 
 assertEqual(
   getStreakMessage(makeStreak('CONTINUED')),
@@ -134,6 +147,23 @@ assertEqual(
   getQuestHeroTitle(bundle.quests[1], 1),
   'Quest Complete!',
   'uses completion title when the quest completed now'
+);
+
+assertEqual(
+  getBadgeUnlockProgressLabel({
+    badge_definition_id: 'badge-2',
+    code: 'INVESTMENT_TERMS',
+    name: 'Investment Terms Starter',
+    description: 'Complete 4 Investment Terms lessons.',
+    category: 'SECTION',
+    asset_reference: null,
+    is_earned: false,
+    progress_value: 2,
+    target_value: 4,
+    awarded_at: null,
+  }),
+  '2/4 complete',
+  'summarizes locked badge progress without dumping plain description text'
 );
 
 assert(

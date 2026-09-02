@@ -35,6 +35,8 @@ interface Props {
       questPointEarned?: number;
       /** Title shown in the notification header */
       questTitle?: string;
+      /** Reward line shown under the notification header */
+      questRewardLabel?: string;
       /** Pre-built quest display items */
       quests?: QuestDisplayItem[];
     };
@@ -45,6 +47,7 @@ const DailyQuestScreen: React.FC<Props> = ({ navigation, route }) => {
   const {
     questPointEarned = 1,
     questTitle = "Daily Quest",
+    questRewardLabel,
     quests: passedQuests,
   } = route.params;
 
@@ -101,7 +104,7 @@ const DailyQuestScreen: React.FC<Props> = ({ navigation, route }) => {
         <View style={styles.header}>
           <Text style={styles.headerTitle}>{questTitle}</Text>
           <Text style={styles.questPointText}>
-            +{questPointEarned} Quest Point{questPointEarned !== 1 ? "s" : ""}!
+            {questRewardLabel || `+${questPointEarned} Quest Point${questPointEarned !== 1 ? "s" : ""}!`}
           </Text>
           <Text style={styles.headerSubtitle}>
             Keep completing to unlock your chest

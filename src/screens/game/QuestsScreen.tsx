@@ -49,11 +49,12 @@ const QuestsScreen: React.FC<Props> = ({ navigation }) => {
 
   const { activeChallenges, hallOfFame, emptyMode } =
     getQuestsScreenState(activeQuests);
-  const readyChests = chests.filter((chest) => chest.status === "READY");
-  const claimedChests = chests.filter((chest) => chest.status === "CLAIMED");
+  const visibleChests = chests.filter((chest) =>
+    ["LOCKED", "IN_PROGRESS", "READY", "CLAIMED"].includes(chest.status)
+  );
 
   const handleClaimChest = async (chest: ChestStateItem) => {
-    if (!user?.$id || claimingChestId) return;
+    if (!user?.$id || !chest.chest_claim_id || claimingChestId) return;
 
     setClaimingChestId(chest.chest_claim_id);
     try {
@@ -109,13 +110,24 @@ const QuestsScreen: React.FC<Props> = ({ navigation }) => {
 
   const renderChestCard = (chest: ChestStateItem) => {
     const isReady = chest.status === "READY";
+    const isClaimed = chest.status === "CLAIMED";
+    const isLocked = chest.status === "LOCKED" || chest.status === "IN_PROGRESS";
     const isClaiming = claimingChestId === chest.chest_claim_id;
     const rewardAmount = chest.reward?.amount ?? chest.reward_payload?.amount;
+    const iconName = isReady ? "cube" : isClaimed ? "checkmark-circle" : "lock-closed";
+    const iconColor = isReady ? COLORS.primary : isClaimed ? "#2ECC71" : "#687085";
 
     return (
-      <View key={chest.chest_claim_id} style={[styles.chestCard, isReady && styles.chestCardReady]}>
-        <View style={styles.chestIconWrapper}>
-          <Ionicons name={isReady ? "cube" : "checkmark-circle"} size={24} color={isReady ? COLORS.primary : "#2ECC71"} />
+      <View
+        key={chest.chest_claim_id || chest.chest_definition_id}
+        style={[
+          styles.chestCard,
+          isReady && styles.chestCardReady,
+          isLocked && styles.chestCardLocked,
+        ]}
+      >
+        <View style={[styles.chestIconWrapper, isLocked && styles.chestIconWrapperLocked]}>
+          <Ionicons name={iconName} size={24} color={iconColor} />
         </View>
         <View style={styles.chestInfo}>
           <Text style={styles.chestName}>{chest.chest_name || "Reward Chest"}</Text>
@@ -134,9 +146,13 @@ const QuestsScreen: React.FC<Props> = ({ navigation }) => {
           >
             <Text style={styles.claimButtonText}>{isClaiming ? "Claiming" : "Claim"}</Text>
           </TouchableOpacity>
-        ) : (
+        ) : isClaimed ? (
           <View style={styles.claimedPill}>
             <Text style={styles.claimedPillText}>Claimed</Text>
+          </View>
+        ) : (
+          <View style={styles.lockedPill}>
+            <Text style={styles.lockedPillText}>Locked</Text>
           </View>
         )}
       </View>
@@ -185,14 +201,13 @@ const QuestsScreen: React.FC<Props> = ({ navigation }) => {
           </View>
         )}
 
-        {(readyChests.length > 0 || claimedChests.length > 0) && (
+        {visibleChests.length > 0 && (
           <View style={styles.section}>
             <View style={styles.sectionTitleRow}>
               <Text style={styles.sectionEmoji}>🎁</Text>
               <Text style={styles.sectionTitle}>Chests</Text>
             </View>
-            {readyChests.map(renderChestCard)}
-            {claimedChests.map(renderChestCard)}
+            {visibleChests.map(renderChestCard)}
           </View>
         )}
 
@@ -402,6 +417,10 @@ const styles = StyleSheet.create({
     borderColor: "#FFD08A",
     backgroundColor: "#FFF9F0",
   },
+  chestCardLocked: {
+    backgroundColor: "#F6F8FC",
+    borderColor: "#DDE5F2",
+  },
   chestIconWrapper: {
     width: 44,
     height: 44,
@@ -410,6 +429,9 @@ const styles = StyleSheet.create({
     alignItems: "center",
     justifyContent: "center",
     marginRight: 12,
+  },
+  chestIconWrapperLocked: {
+    backgroundColor: "#E8EDF5",
   },
   chestInfo: {
     flex: 1,
@@ -456,6 +478,17 @@ const styles = StyleSheet.create({
   },
   claimedPillText: {
     color: "#2ECC71",
+    fontSize: 12,
+    fontWeight: "bold",
+  },
+  lockedPill: {
+    borderRadius: 999,
+    backgroundColor: "#E8EDF5",
+    paddingHorizontal: 10,
+    paddingVertical: 6,
+  },
+  lockedPillText: {
+    color: "#687085",
     fontSize: 12,
     fontWeight: "bold",
   },

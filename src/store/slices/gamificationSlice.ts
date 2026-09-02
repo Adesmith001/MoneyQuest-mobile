@@ -11,7 +11,7 @@ import {
   GamificationResultBundle,
   CelebrationPayload,
 } from '../../types/gamification';
-import { buildCelebrationsFromBundle } from '../../utils/gamificationPresentation';
+import { applyGamificationEventResult } from '../../utils/gamificationState';
 
 // ── State ──────────────────────────────────────
 
@@ -202,31 +202,7 @@ const gamificationSlice = createSlice({
       state,
       action: PayloadAction<GamificationResultBundle>,
     ) => {
-      const bundle = action.payload;
-      state.lastResultBundle = bundle;
-
-      // Update summary in-place from bundle
-      if (bundle.summary) {
-        state.summary = bundle.summary;
-        state.readyChestsCount = bundle.summary.ready_chests_count;
-      }
-
-      // Update streak from bundle
-      if (bundle.streak) {
-        state.streak = {
-          user_id: bundle.user_id,
-          current_streak: bundle.streak.current_streak,
-          longest_streak: bundle.streak.longest_streak,
-          last_qualified_date: bundle.streak.business_date,
-          last_source_event_id: bundle.streak.source_event_id,
-          timezone: 'Africa/Lagos',
-          total_qualified_days: 0,
-          created_at: null,
-          updated_at: null,
-        };
-      }
-
-      state.pendingCelebrations = buildCelebrationsFromBundle(bundle);
+      Object.assign(state, applyGamificationEventResult(state, action.payload));
     },
 
     /**

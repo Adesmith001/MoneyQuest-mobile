@@ -1,4 +1,5 @@
 import {
+  BadgeCatalogueEntry,
   CelebrationPayload,
   ChestClaimResult,
   GamificationResultBundle,
@@ -34,7 +35,7 @@ export function buildCelebrationsFromBundle(
     celebrations.push({
       celebration_type: 'QUEST_COMPLETED',
       hero_element: 'quest',
-      xp_earned: 0,
+      xp_earned: quest.reward?.reward_type === 'XP' ? quest.reward.amount : 0,
       streak_status: null,
       next_badge_progress: bundle.summary?.next_badge_progress ?? null,
       unlocked_badges: [],
@@ -88,9 +89,35 @@ export function getQuestHeroTitle(
   return 'Quest Update';
 }
 
+export function getQuestRewardNotice(
+  quest: Pick<QuestProgressResult, 'quest_name' | 'was_completed_now' | 'reward'> | null | undefined
+): string | null {
+  if (!quest?.was_completed_now || quest.reward?.reward_type !== 'XP' || quest.reward.amount <= 0) {
+    return null;
+  }
+  return `Quest complete: ${quest.quest_name} +${quest.reward.amount} XP`;
+}
+
 export function getChestHeroTitle(chest: ChestClaimResult | null | undefined): string {
   if (chest?.already_claimed) {
     return 'Chest Already Claimed';
   }
   return 'Chest Unlocked!';
+}
+
+export function getBadgeUnlockProgressLabel(badge: BadgeCatalogueEntry): string {
+  if (badge.is_earned) {
+    return 'Unlocked';
+  }
+  if (badge.target_value > 0) {
+    return `${Math.min(badge.progress_value, badge.target_value)}/${badge.target_value} complete`;
+  }
+  return 'Locked';
+}
+
+export function getBadgeUnlockHint(badge: BadgeCatalogueEntry): string {
+  if (badge.is_earned) {
+    return 'Unlocked';
+  }
+  return badge.description || getBadgeUnlockProgressLabel(badge);
 }

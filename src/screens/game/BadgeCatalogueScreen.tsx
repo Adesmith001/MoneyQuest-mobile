@@ -18,6 +18,10 @@ import { RootState, AppDispatch } from "../../store";
 import { fetchBadgeCatalogue } from "../../store/slices/gamificationSlice";
 import { BadgeCatalogueEntry } from "../../types/gamification";
 import { COLORS, SPACING } from "../../constants";
+import {
+  getBadgeUnlockHint,
+  getBadgeUnlockProgressLabel,
+} from "../../utils/gamificationPresentation";
 
 interface Props {
   navigation: any;
@@ -83,37 +87,64 @@ const BadgeCatalogueScreen: React.FC<Props> = ({ navigation }) => {
 
         {/* ── Badge Grid ── */}
         <View style={styles.badgeGrid}>
-          {badgeCatalogue.map((badge, index) => (
-            <View key={badge.badge_definition_id || index} style={[styles.badgeItem, { width: badgeSize }]}>
-              <View
-                style={[
-                  styles.hexagonContainer,
-                  { width: badgeSize - 10, height: badgeSize - 10 },
-                  !badge.is_earned && styles.hexagonLocked,
-                ]}
-              >
-                <View style={styles.hexagonInner}>
-                  {badge.asset_reference ? (
-                    <Image
-                      source={{ uri: badge.asset_reference }}
-                      style={styles.badgeImage}
-                      resizeMode="contain"
-                    />
-                  ) : badge.is_earned ? (
-                    <Text style={styles.badgeEmoji}>🏅</Text>
-                  ) : (
-                    <View style={styles.lockedBadgeFill} />
-                  )}
+          {badgeCatalogue.map((badge, index) => {
+            const progressLabel = getBadgeUnlockProgressLabel(badge);
+            const unlockHint = getBadgeUnlockHint(badge);
+            const progress =
+              badge.target_value > 0
+                ? Math.min(badge.progress_value / badge.target_value, 1)
+                : 0;
+
+            return (
+              <View key={badge.badge_definition_id || index} style={[styles.badgeItem, { width: badgeSize }]}>
+                <View
+                  style={[
+                    styles.hexagonContainer,
+                    { width: badgeSize - 10, height: badgeSize - 10 },
+                    !badge.is_earned && styles.hexagonLocked,
+                  ]}
+                >
+                  <View style={styles.hexagonInner}>
+                    {badge.asset_reference ? (
+                      <Image
+                        source={{ uri: badge.asset_reference }}
+                        style={[styles.badgeImage, !badge.is_earned && styles.badgeImageLocked]}
+                        resizeMode="contain"
+                      />
+                    ) : badge.is_earned ? (
+                      <Text style={styles.badgeEmoji}>🏅</Text>
+                    ) : (
+                      <View style={styles.lockedBadgeFill}>
+                        <Ionicons name="lock-closed" size={24} color="#687085" />
+                      </View>
+                    )}
+                  </View>
                 </View>
+                <Text
+                  style={[styles.badgeName, !badge.is_earned && styles.badgeNameLocked]}
+                  numberOfLines={1}
+                >
+                  {badge.name}
+                </Text>
+                {!badge.is_earned && (
+                  <View style={styles.unlockPanel}>
+                    <View style={styles.unlockProgressTrack}>
+                      <View style={[styles.unlockProgressFill, { width: `${progress * 100}%` }]} />
+                    </View>
+                    <View style={styles.unlockChip}>
+                      <Ionicons name="sparkles" size={10} color="#3B5998" />
+                      <Text style={styles.unlockChipText} numberOfLines={1}>
+                        {progressLabel}
+                      </Text>
+                    </View>
+                    <Text style={styles.unlockHint} numberOfLines={2}>
+                      {unlockHint}
+                    </Text>
+                  </View>
+                )}
               </View>
-              <Text
-                style={[styles.badgeName, !badge.is_earned && styles.badgeNameLocked]}
-                numberOfLines={1}
-              >
-                {badge.name}
-              </Text>
-            </View>
-          ))}
+            );
+          })}
 
           {/* Fill empty slots if fewer than 9 badges */}
           {badgeCatalogue.length < 9 &&
@@ -276,12 +307,16 @@ const styles = StyleSheet.create({
     width: "100%",
     height: "100%",
   },
+  badgeImageLocked: {
+    opacity: 0.35,
+  },
   lockedBadgeFill: {
     width: "100%",
     height: "100%",
-    backgroundColor: "#9E9E9E",
+    backgroundColor: "#D8DDE8",
     borderRadius: 8,
-    opacity: 0.3,
+    alignItems: "center",
+    justifyContent: "center",
   },
   badgeName: {
     fontSize: 12,
@@ -290,7 +325,50 @@ const styles = StyleSheet.create({
     textAlign: "center",
   },
   badgeNameLocked: {
-    color: "#999999",
+    color: "#687085",
+  },
+  unlockPanel: {
+    width: "100%",
+    minHeight: 58,
+    borderRadius: 10,
+    backgroundColor: "#F3F6FB",
+    borderWidth: 1,
+    borderColor: "#DDE5F2",
+    padding: 6,
+    marginTop: 4,
+  },
+  unlockProgressTrack: {
+    height: 4,
+    borderRadius: 999,
+    backgroundColor: "#DDE5F2",
+    overflow: "hidden",
+    marginBottom: 5,
+  },
+  unlockProgressFill: {
+    height: "100%",
+    borderRadius: 999,
+    backgroundColor: "#3B5998",
+  },
+  unlockChip: {
+    alignSelf: "flex-start",
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 3,
+    borderRadius: 999,
+    backgroundColor: "#E3EDF7",
+    paddingHorizontal: 6,
+    paddingVertical: 2,
+    marginBottom: 4,
+  },
+  unlockChipText: {
+    fontSize: 9,
+    fontWeight: "700",
+    color: "#3B5998",
+  },
+  unlockHint: {
+    fontSize: 9,
+    lineHeight: 12,
+    color: "#596173",
   },
 
   // ── Summary Cards ───────────────────────

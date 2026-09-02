@@ -376,7 +376,7 @@ export interface ChestClaimResult {
 }
 
 export interface ChestStateItem {
-  chest_claim_id: string;
+  chest_claim_id: string | null;
   chest_definition_id: string;
   chest_code: string;
   chest_name: string;

@@ -6,7 +6,7 @@ import {
   clearCelebrations,
 } from "../../store/slices/gamificationSlice";
 import { CelebrationPayload } from "../../types/gamification";
-import { getChestHeroTitle, getQuestHeroTitle } from "../../utils/gamificationPresentation";
+import { getChestHeroTitle, getQuestHeroTitle, getQuestRewardNotice } from "../../utils/gamificationPresentation";
 
 import LessonCompleteScreen from "../../screens/game/LevelCompletionScreen";
 import DailyQuestScreen from "../../screens/game/DailyQuestScreen";
@@ -149,18 +149,26 @@ const CelebrationFlow: React.FC<Props> = ({ navigation, route }) => {
       currentCelebration.hero_element === "quest" ||
       currentCelebration.hero_element === "chest"
     ) {
+      const completedQuestCode = currentCelebration.completed_quests[0];
+      const completedQuest = lastResultBundle?.quests.find(
+        (quest) => quest.quest_code === completedQuestCode && quest.was_completed_now
+      );
+      const rewardNotice = getQuestRewardNotice(completedQuest);
       return (
         <DailyQuestScreen
           navigation={commonNav}
           route={{
             params: {
-              questPointEarned: 1,
-              questTitle: getQuestHeroTitle(
-                currentCelebration.celebration_type === "QUEST_COMPLETED"
-                  ? { was_completed_now: true }
-                  : { was_completed_now: false },
-                currentCelebration.xp_earned
-              ),
+              questPointEarned: currentCelebration.xp_earned || 1,
+              questRewardLabel: currentCelebration.xp_earned > 0
+                ? `+${currentCelebration.xp_earned} XP`
+                : undefined,
+              questTitle: rewardNotice || getQuestHeroTitle(
+                  currentCelebration.celebration_type === "QUEST_COMPLETED"
+                    ? { was_completed_now: true }
+                    : { was_completed_now: false },
+                  currentCelebration.xp_earned
+                ),
               quests: [], // Will be populated from Redux on mount
             },
           }}
