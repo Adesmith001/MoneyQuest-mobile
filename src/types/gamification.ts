@@ -127,6 +127,7 @@ export interface BadgeAwardResult {
   badge_definition_id: string;
   badge_code: string;
   badge_name: string;
+  asset_reference?: string | null;
   was_awarded: boolean;
   already_owned: boolean;
   award_cycle: string;

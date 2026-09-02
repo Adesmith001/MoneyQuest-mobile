@@ -22,6 +22,7 @@ interface Props {
       passed?: boolean;
       nextLevelId?: string;
       completedLevelsCount?: number;
+      streakMessage?: string | null;
     };
   };
 }
@@ -45,6 +46,9 @@ const CelebrationFlow: React.FC<Props> = ({ navigation, route }) => {
   );
   const streak = useSelector(
     (state: RootState) => state.gamification.streak
+  );
+  const lastResultBundle = useSelector(
+    (state: RootState) => state.gamification.lastResultBundle
   );
 
   const [step, setStep] = useState<"lesson_complete" | "celebration" | "done">(
@@ -117,17 +121,21 @@ const CelebrationFlow: React.FC<Props> = ({ navigation, route }) => {
     ) {
       const badgeCode =
         currentCelebration.unlocked_badges[0] || "UNKNOWN";
+      const badgeResult = lastResultBundle?.badges.find(
+        (badge) => badge.badge_code === badgeCode && badge.was_awarded
+      );
       return (
         <AchievementUnlockScreen
           navigation={commonNav}
           route={{
             params: {
               badgeCode,
-              badgeName: formatBadgeCode(badgeCode),
+              badgeName: badgeResult?.badge_name || formatBadgeCode(badgeCode),
+              badgeAssetReference: badgeResult?.asset_reference || null,
               subtitle: "You took the first step by completing your first lesson",
-              progressValue: 0,
-              targetValue: 0,
-              progressLabel: "",
+              progressValue: badgeResult?.progress_value ?? 1,
+              targetValue: badgeResult?.target_value ?? 1,
+              progressLabel: "lessons to go",
             },
           }}
         />

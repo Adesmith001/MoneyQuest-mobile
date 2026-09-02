@@ -20,6 +20,8 @@ interface Props {
       badgeCode: string;
       /** Display name (e.g., "1st Step") */
       badgeName: string;
+      /** Uploaded badge artwork */
+      badgeAssetReference?: string | null;
       /** Subtitle / congratulations text */
       subtitle?: string;
       /** Progress toward next badge */
@@ -34,6 +36,7 @@ const AchievementUnlockScreen: React.FC<Props> = ({ navigation, route }) => {
   const {
     badgeCode,
     badgeName,
+    badgeAssetReference,
     subtitle = "You completed your first lesson!",
     progressValue = 0,
     targetValue = 1,
@@ -94,6 +97,7 @@ const AchievementUnlockScreen: React.FC<Props> = ({ navigation, route }) => {
   const { height: windowHeight } = useWindowDimensions();
   const progress = targetValue > 0 ? progressValue / targetValue : 0;
   const remaining = Math.max(targetValue - progressValue, 0);
+  const progressText = targetValue > 0 && remaining === 0 ? "Unlocked" : `${remaining} ${progressLabel}`;
 
   return (
     <SafeAreaView style={styles.container}>
@@ -116,7 +120,11 @@ const AchievementUnlockScreen: React.FC<Props> = ({ navigation, route }) => {
         >
           <View style={styles.hexagonOuter}>
             <View style={styles.hexagonInner}>
-              <Text style={styles.badgeEmoji}>🏅</Text>
+              {badgeAssetReference ? (
+                <Image source={{ uri: badgeAssetReference }} style={styles.badgeImage} resizeMode="contain" />
+              ) : (
+                <Text style={styles.badgeEmoji}>🏅</Text>
+              )}
             </View>
           </View>
           {/* Badge name ribbon */}
@@ -149,12 +157,16 @@ const AchievementUnlockScreen: React.FC<Props> = ({ navigation, route }) => {
       >
         <View style={styles.progressLeft}>
           <View style={styles.progressBadgeIcon}>
-            <Text style={styles.progressBadgeEmoji}>🏅</Text>
+            {badgeAssetReference ? (
+              <Image source={{ uri: badgeAssetReference }} style={styles.progressBadgeImage} resizeMode="contain" />
+            ) : (
+              <Text style={styles.progressBadgeEmoji}>🏅</Text>
+            )}
           </View>
           <View>
             <Text style={styles.progressBadgeName}>{badgeName}</Text>
             <Text style={styles.progressLabel}>
-              {remaining} {progressLabel}
+              {progressText}
             </Text>
           </View>
         </View>
@@ -226,6 +238,10 @@ const styles = StyleSheet.create({
   badgeEmoji: {
     fontSize: 70,
   },
+  badgeImage: {
+    width: 140,
+    height: 140,
+  },
   ribbon: {
     backgroundColor: "#E8EDF5",
     paddingHorizontal: 20,
@@ -294,6 +310,10 @@ const styles = StyleSheet.create({
   },
   progressBadgeEmoji: {
     fontSize: 26,
+  },
+  progressBadgeImage: {
+    width: 40,
+    height: 40,
   },
   progressBadgeName: {
     fontSize: 16,
