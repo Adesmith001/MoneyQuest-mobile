@@ -1013,7 +1013,8 @@ const HomeScreen: React.FC<Props> = ({ navigation }) => {
         )}
 
         <View style={[styles.levelRow, !isLeftSide && styles.levelRowReverse]}>
-          {/* Level node */}            <View style={[styles.nodeWrapper, { width: layoutWidth / 2 }]}>
+          {/* Level node */}
+          <View style={[styles.nodeWrapper, { width: layoutWidth / 2 }]}>
             <Animated.View
               style={[
                 { transform: node.isCurrent && !node.isCompleted ? [{ scale: pulseAnim }] : [] }
