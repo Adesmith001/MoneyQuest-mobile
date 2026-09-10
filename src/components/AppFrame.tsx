@@ -6,7 +6,9 @@ import { View, Platform, StyleSheet } from 'react-native';
  * doesn't stretch across a desktop viewport. No-op on native — screens keep
  * their normal full-screen behavior.
  */
-const AppFrame: React.FC<{ children: React.ReactNode }> = ({ children }) => {
+const AppFrame: React.FC<{
+  children: React.ReactElement | React.ReactElement[];
+}> = ({ children }) => {
   if (Platform.OS !== 'web') {
     return <>{children}</>;
   }

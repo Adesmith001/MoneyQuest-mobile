@@ -10,7 +10,7 @@ import {
 import { isTablet, getResponsivePadding } from '../utils';
 
 interface Props {
-  children: React.ReactNode;
+  children: React.ReactElement | React.ReactElement[];
   scrollable?: boolean;
   keyboardAware?: boolean;
   contentContainerStyle?: ViewStyle;

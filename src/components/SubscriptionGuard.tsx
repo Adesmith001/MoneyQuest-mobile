@@ -15,7 +15,7 @@ import notificationService from '../services/notifications';
 import { Ionicons } from '@expo/vector-icons';
 
 interface SubscriptionGuardProps {
-  children: React.ReactNode;
+  children: React.ReactElement | React.ReactElement[];
   showTrialInfo?: boolean;
 }
 
