@@ -102,7 +102,7 @@ const FillInGapQuestion: React.FC<Props> = ({
               );
             })}
             {showCorrect &&
-              userAnswers[blank.id] &&
+              Boolean(userAnswers[blank.id]) &&
               userAnswers[blank.id]?.toLowerCase().trim() !== blank.correct_answer.toLowerCase().trim() && (
                 <Text style={styles.correctAnswerHint}>
                   Correct: {blank.correct_answer}
@@ -184,7 +184,7 @@ const FillInGapQuestion: React.FC<Props> = ({
                 autoCorrect={false}
               />
             )}
-            {showCorrect && isIncorrect && (
+            {showCorrect && Boolean(isIncorrect) && (
               <Text style={styles.correctAnswerHint}>
                 Correct: {blank.correct_answer}
               </Text>

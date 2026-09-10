@@ -12,92 +12,33 @@ import {
 } from 'react-native';
 import { useDispatch } from 'react-redux';
 import { AppDispatch } from '../../store';
-import { completeAppTour } from '../../store/slices/tutorialSlice';
+import {
+  completeAppTour,
+  completeFeatureTour,
+} from '../../store/slices/tutorialSlice';
 import { FONT_FAMILY } from '../../constants';
+import { getAppTourSlides } from '../../config/appTourSlides';
+import type { AppTourMode } from '../../utils/tutorialBehavior';
 
 const { width: screenWidth, height: screenHeight } = Dimensions.get('window');
 const isSmallDevice = screenHeight < 700;
 const isTablet = screenWidth >= 768;
 
-interface TourSlide {
-  icon: string;
-  title: string;
-  description: string;
-  mascotMessage: string;
-  backgroundColor: string;
-  accentColor: string;
-}
-
-const TOUR_SLIDES: TourSlide[] = [
-  {
-    icon: '\u{1F5FA}\uFE0F',
-    title: 'Your Learning Path',
-    description:
-      'Each section covers a financial topic. You can only move one level at a time, so finish the current glowing star before the next level unlocks. Swipe left and right to see more sections, and use refresh when new content is available.',
-    mascotMessage: 'Let me show you around! This is where all the learning happens.',
-    backgroundColor: '#D4E8F5',
-    accentColor: '#FF5722',
-  },
-  {
-    icon: '\u2B50',
-    title: 'Earn XP & Climb',
-    description:
-      "Answer questions correctly to earn XP points. The leaderboard ranks learners by monthly XP and shows each learner's current streak.",
-    mascotMessage: 'Points make it fun! Try to get as many right as you can.',
-    backgroundColor: '#FFF8E1',
-    accentColor: '#FF9800',
-  },
-  {
-    icon: '\u2764\uFE0F',
-    title: 'Lives System',
-    description:
-      'You start with 5 lives. Each wrong answer costs 1 life. Complete levels to earn lives back, up to 5 max.',
-    mascotMessage: "Don't worry if you make mistakes - we all learn from them!",
-    backgroundColor: '#FCE4EC',
-    accentColor: '#F44336',
-  },
-  {
-    icon: '\u{1F4AC}',
-    title: 'Feedback & Flags',
-    description:
-      'After each answer, the app shows whether you were correct or incorrect with an explanation. If a question looks wrong or confusing, use the flag button.',
-    mascotMessage: 'Good feedback helps you learn faster.',
-    backgroundColor: '#FFF3E0',
-    accentColor: '#FF6B35',
-  },
-  {
-    icon: '\u{1F525}',
-    title: 'Daily Streaks',
-    description:
-      'Complete a lesson each day to build your streak. The streak tab shows your current streak and the days you were active this week.',
-    mascotMessage: 'Can you keep your streak going? I believe in you!',
-    backgroundColor: '#FFF3E0',
-    accentColor: '#FF6B35',
-  },
-  {
-    icon: '\u{1F3AF}',
-    title: "You're All Set!",
-    description:
-      'Start your first lesson now! Tap the glowing star on your learning path to begin.\n\nYou can always replay this guide from Profile > How to Play.',
-    mascotMessage: "Go ahead and tap that first level - you've got this! \u{1F98A}",
-    backgroundColor: '#E8F5E9',
-    accentColor: '#4CAF50',
-  },
-];
-
 interface Props {
   onComplete: () => void;
+  mode?: AppTourMode;
 }
 
-const AppTourScreen: React.FC<Props> = ({ onComplete }) => {
+const AppTourScreen: React.FC<Props> = ({ onComplete, mode = 'first-run' }) => {
   const dispatch = useDispatch<AppDispatch>();
   const [currentSlide, setCurrentSlide] = useState(0);
   const fadeAnim = useRef(new Animated.Value(1)).current;
   const slideAnim = useRef(new Animated.Value(0)).current;
   const iconBounce = useRef(new Animated.Value(0)).current;
 
-  const slide = TOUR_SLIDES[currentSlide];
-  const isLast = currentSlide === TOUR_SLIDES.length - 1;
+  const slides = getAppTourSlides(mode);
+  const slide = slides[currentSlide];
+  const isLast = currentSlide === slides.length - 1;
 
   useEffect(() => {
     const bounce = Animated.loop(
@@ -150,7 +91,7 @@ const AppTourScreen: React.FC<Props> = ({ onComplete }) => {
 
   const handleNext = () => {
     if (isLast) {
-      dispatch(completeAppTour());
+      dispatch(mode === 'update' ? completeFeatureTour() : completeAppTour());
       onComplete();
       return;
     }
@@ -159,7 +100,7 @@ const AppTourScreen: React.FC<Props> = ({ onComplete }) => {
   };
 
   const handleSkip = () => {
-    dispatch(completeAppTour());
+    dispatch(mode === 'update' ? completeFeatureTour() : completeAppTour());
     onComplete();
   };
 
@@ -205,7 +146,7 @@ const AppTourScreen: React.FC<Props> = ({ onComplete }) => {
 
       <View style={styles.bottomControls}>
         <View style={styles.dotsRow}>
-          {TOUR_SLIDES.map((_, idx) => (
+          {slides.map((_, idx) => (
             <View
               key={idx}
               style={[

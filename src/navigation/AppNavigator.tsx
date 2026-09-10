@@ -11,6 +11,7 @@ import { checkAuthStatus, updateUser } from '../store/slices/authSlice';
 import revenueCatService from '../services/revenueCatService';
 import analyticsService from '../services/analytics';
 import { bootstrapGamification } from '../store/slices/gamificationSlice';
+import { getAppTourMode } from '../utils/tutorialBehavior';
 
 // ⚡ Import ALL screens directly - lazy loading causes white screen on iOS production
 import LoadingScreen from '../screens/common/LoadingScreen';
@@ -224,7 +225,9 @@ function getActiveRouteName(state: any): string | null {
 
 const AppNavigator: React.FC = () => {
   const { isAuthenticated, isLoading, showWelcomeScreen, user } = useSelector((state: RootState) => state.auth);
-  const { hasCompletedAppTour } = useSelector((state: RootState) => state.tutorial);
+  const { hasCompletedAppTour, latestFeatureTourVersionSeen } = useSelector(
+    (state: RootState) => state.tutorial
+  );
   const dispatch = useDispatch<AppDispatch>();
   // Skip onboarding screens - users go directly to login/home
   const [showOnboarding, setShowOnboarding] = useState<boolean>(false);
@@ -345,12 +348,18 @@ const AppNavigator: React.FC = () => {
     );
   }
 
-  // Show app tour for first-time users right after welcome screen
-  // or when triggered from tutorial hub
-  if ((isAuthenticated && !hasCompletedAppTour) || showAppTour) {
+  const appTourMode = getAppTourMode({
+    isAuthenticated,
+    hasCompletedAppTour,
+    latestFeatureTourVersionSeen,
+  });
+
+  // Show the full tour to new users and a concise feature tour once after updates.
+  if (appTourMode || showAppTour) {
     return (
       <SafeAreaProvider>
         <AppTourScreen
+          mode={appTourMode ?? 'first-run'}
           onComplete={() => {
             setShowAppTour(false);
           }}

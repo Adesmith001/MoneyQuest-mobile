@@ -76,14 +76,14 @@ const IncorrectAnswerModal: React.FC<IncorrectAnswerModalProps> = ({
               </View>
             )}
 
-            {explanation && (
+            {explanation ? (
               <View style={styles.explanationContainer}>
                 <RenderContentWithTables
                   content={explanation}
                   textStyle={styles.explanationText}
                 />
               </View>
-            )}
+            ) : null}
           </ScrollView>
           
           <CustomButton title="Continue" onPress={onContinue} />

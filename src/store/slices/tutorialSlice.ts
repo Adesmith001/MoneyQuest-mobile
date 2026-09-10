@@ -1,5 +1,7 @@
 import { createSlice, PayloadAction } from '@reduxjs/toolkit';
 
+export const CURRENT_FEATURE_TOUR_VERSION = 1;
+
 export type TutorialActionKey =
   | 'home_swipe_left_performed'
   | 'home_swipe_right_performed'
@@ -20,6 +22,8 @@ export interface TutorialState {
   hasSeenProfileGuide: boolean;
   // Post-onboarding guided tour
   hasCompletedAppTour: boolean;
+  // Latest one-time feature announcement completed on this install
+  latestFeatureTourVersionSeen: number;
   // Whether the tour is actively showing
   isTourActive: boolean;
   currentTourStep: number;
@@ -34,6 +38,7 @@ const initialState: TutorialState = {
   hasSeenStreakGuide: false,
   hasSeenProfileGuide: false,
   hasCompletedAppTour: false,
+  latestFeatureTourVersionSeen: 0,
   isTourActive: false,
   currentTourStep: 0,
   completedActions: {},
@@ -63,8 +68,12 @@ const tutorialSlice = createSlice({
     },
     completeAppTour: (state) => {
       state.hasCompletedAppTour = true;
+      state.latestFeatureTourVersionSeen = CURRENT_FEATURE_TOUR_VERSION;
       state.isTourActive = false;
       state.currentTourStep = 0;
+    },
+    completeFeatureTour: (state) => {
+      state.latestFeatureTourVersionSeen = CURRENT_FEATURE_TOUR_VERSION;
     },
     startAppTour: (state) => {
       state.isTourActive = true;
@@ -120,6 +129,7 @@ export const {
   markStreakGuideSeen,
   markProfileGuideSeen,
   completeAppTour,
+  completeFeatureTour,
   startAppTour,
   nextTourStep,
   skipTour,

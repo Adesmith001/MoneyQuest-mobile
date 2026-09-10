@@ -1,7 +1,34 @@
-import { TutorialActionKey, TutorialReplayKey } from '../store/slices/tutorialSlice';
+import {
+  CURRENT_FEATURE_TOUR_VERSION,
+  TutorialActionKey,
+  TutorialReplayKey,
+} from '../store/slices/tutorialSlice';
 
 type TutorialActionsState = Partial<Record<TutorialActionKey, boolean>>;
 export type HomeSwipeTutorialStage = 'left' | 'right' | 'complete';
+export type AppTourMode = 'first-run' | 'update';
+
+export const getAppTourMode = ({
+  isAuthenticated,
+  hasCompletedAppTour,
+  latestFeatureTourVersionSeen,
+}: {
+  isAuthenticated: boolean;
+  hasCompletedAppTour: boolean;
+  latestFeatureTourVersionSeen: number;
+}): AppTourMode | null => {
+  if (!isAuthenticated) {
+    return null;
+  }
+
+  if (!hasCompletedAppTour) {
+    return 'first-run';
+  }
+
+  return latestFeatureTourVersionSeen < CURRENT_FEATURE_TOUR_VERSION
+    ? 'update'
+    : null;
+};
 
 export const canAdvanceTutorialStep = ({
   requiredActionKey,

@@ -146,7 +146,7 @@ const AnimatedTextInput: React.FC<AnimatedTextInputProps> = ({
         </Animated.View>
       </View>
       
-      {error && (
+      {Boolean(error) && (
         <Text style={[styles.errorText, errorStyle]}>
           {error}
         </Text>

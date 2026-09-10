@@ -163,7 +163,7 @@ const CoachMark: React.FC<CoachMarkProps> = ({
                   style={styles.foxImage}
                   resizeMode="contain"
                 />
-                {step.mascotMessage && (
+                {Boolean(step.mascotMessage) && (
                   <View style={styles.speechBubble}>
                     <Text style={styles.speechText}>{step.mascotMessage}</Text>
                     <View style={styles.speechTail} />
@@ -173,7 +173,7 @@ const CoachMark: React.FC<CoachMarkProps> = ({
             )}
 
             {/* Icon */}
-            {step.icon && (
+            {Boolean(step.icon) && (
               <Ionicons name={step.icon as any} size={40} color="#FF5722" style={styles.stepIcon} />
             )}
 

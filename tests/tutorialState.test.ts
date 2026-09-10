@@ -1,6 +1,10 @@
 import tutorialReducer, {
+  completeAppTour,
+  completeFeatureTour,
   markTutorialActionCompleted,
+  normalizeTutorialState,
   resetTutorialActions,
+  CURRENT_FEATURE_TOUR_VERSION,
 } from '../src/store/slices/tutorialSlice';
 
 const assert = (condition: boolean, message: string) => {
@@ -39,4 +43,32 @@ assert(
     resetActionState.completedActions !== null &&
     Object.keys(resetActionState.completedActions).length === 0,
   'self-heals legacy tutorial state before replay actions attempt to clear tutorial tokens'
+);
+
+assert(
+  normalizeTutorialState(legacyState as any).latestFeatureTourVersionSeen === 0,
+  'legacy installs are eligible for the current feature update tour'
+);
+
+const completedFirstRunState = tutorialReducer(
+  undefined,
+  completeAppTour()
+);
+
+assert(
+  completedFirstRunState.latestFeatureTourVersionSeen === CURRENT_FEATURE_TOUR_VERSION,
+  'new users do not see the update tour immediately after the full first-run tour'
+);
+
+const completedUpdateState = tutorialReducer(
+  {
+    ...completedFirstRunState,
+    latestFeatureTourVersionSeen: 0,
+  },
+  completeFeatureTour()
+);
+
+assert(
+  completedUpdateState.latestFeatureTourVersionSeen === CURRENT_FEATURE_TOUR_VERSION,
+  'existing users only see the current feature update tour once'
 );

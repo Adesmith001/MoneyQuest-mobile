@@ -44,7 +44,7 @@ const TUTORIAL_TOPICS: TutorialTopic[] = [
     id: 'app-tour',
     icon: '🗺️',
     title: 'App Tour',
-    description: 'Full walkthrough of all app features — learning path, XP, lives, streaks, and tutorials.',
+    description: 'Full walkthrough of learning, XP, Quests, Chests, Badges, lives, streaks, and tutorials.',
     resetKey: 'hasCompletedAppTour',
     color: '#FF5722',
   },

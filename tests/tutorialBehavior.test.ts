@@ -1,5 +1,6 @@
 import {
   canAdvanceTutorialStep,
+  getAppTourMode,
   getHomeSwipeTutorialAnchorIndex,
   getNextHomeSwipeTutorialStage,
   getTutorialReplayActionKeys,
@@ -57,4 +58,40 @@ assert(
 assert(
   getNextHomeSwipeTutorialStage('right', 1, 0) === 'complete',
   'finishes the swipe tutorial after the user swipes back in the opposite direction'
+);
+
+assert(
+  getAppTourMode({
+    isAuthenticated: true,
+    hasCompletedAppTour: false,
+    latestFeatureTourVersionSeen: 0,
+  }) === 'first-run',
+  'new authenticated users receive the full first-run tour'
+);
+
+assert(
+  getAppTourMode({
+    isAuthenticated: true,
+    hasCompletedAppTour: true,
+    latestFeatureTourVersionSeen: 0,
+  }) === 'update',
+  'existing users receive the feature update tour after upgrading'
+);
+
+assert(
+  getAppTourMode({
+    isAuthenticated: true,
+    hasCompletedAppTour: true,
+    latestFeatureTourVersionSeen: 1,
+  }) === null,
+  'the feature update tour is not repeated once seen'
+);
+
+assert(
+  getAppTourMode({
+    isAuthenticated: false,
+    hasCompletedAppTour: true,
+    latestFeatureTourVersionSeen: 0,
+  }) === null,
+  'signed-out users are not interrupted by an account feature tour'
 );

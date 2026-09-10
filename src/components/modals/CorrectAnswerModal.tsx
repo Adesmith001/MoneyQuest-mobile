@@ -45,14 +45,14 @@ const CorrectAnswerModal: React.FC<CorrectAnswerModalProps> = ({
             </ScrollView>
           )}
           
-          {explanation && (
+          {explanation ? (
             <View style={styles.explanationContainer}>
-              <RenderContentWithTables 
-                content={explanation} 
+              <RenderContentWithTables
+                content={explanation}
                 textStyle={styles.explanationText}
               />
             </View>
-          )}
+          ) : null}
           <CustomButton title="Continue" onPress={onContinue} />
         </View>
       </View>

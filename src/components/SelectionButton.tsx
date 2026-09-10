@@ -39,7 +39,7 @@ const SelectionButton: React.FC<SelectionButtonProps> = ({
       <Text style={[styles.label, isSelected && styles.selectedLabel, textStyle]}>
         {label}
       </Text>
-      {subtitle && (
+      {Boolean(subtitle) && (
         <Text style={[styles.subtitle, isSelected && styles.selectedSubtitle, subtitleStyle]}>
           {subtitle}
         </Text>

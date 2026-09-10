@@ -2,7 +2,7 @@
   "expo": {
     "name": "MoneyQuest",
     "slug": "moneyquest",
-    "version": "1.1.1",
+    "version": "1.1.2",
     "orientation": "portrait",
     "icon": "./assets/logo-white.png",
     "scheme": "moneyquest",
@@ -15,7 +15,7 @@
     "ios": {
       "supportsTablet": true,
       "bundleIdentifier": "com.expo.moneyquest",
-      "buildNumber": "1.1.1",
+      "buildNumber": "1.1.2",
       "jsEngine": "hermes",
       "newArchEnabled": false,
       "entitlements": {
