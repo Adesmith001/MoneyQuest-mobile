@@ -30,13 +30,14 @@
 - Verified the live authenticated profile and catalogue inside the 480px app frame; all five classifications render and the catalogue text is not clamped.
 
 ### Final Verification
-- **Status:** in progress
+- **Status:** complete
 - Focused Jest result: 4 suites, 8 tests passed.
 - Pure gamification and category tests compiled and exited 0.
 - Changed app files reported no TypeScript diagnostics when filtering the repository-wide check.
 - Android Expo export bundled 1,534 modules and exited 0; the refreshed web preview also bundled successfully.
 - Backend selection on Python 3.12: 17 passed, 1 unrelated existing ChestService failure.
 - The root unconfigured `jest` discovery is not a valid all-project runner: it reports script-style TypeScript checks as empty suites and tries to execute dashboard Vitest files in Jest. The scoped Jest tests and direct TypeScript test programs are green.
+- Reviewed and committed the complete inline patch on `main` as `d29cbd5`.
 
 
 ## Session: 2026-09-10
