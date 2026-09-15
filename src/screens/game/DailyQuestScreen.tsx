@@ -9,10 +9,10 @@ import {
   Platform,
   Animated,
   Dimensions,
-  useWindowDimensions,
+  TouchableOpacity,
 } from "react-native";
 import CustomButton from "../../components/CustomButton";
-import { COLORS, SPACING } from "../../constants";
+import { COLORS } from "../../constants";
 import { useSelector } from "react-redux";
 import { RootState } from "../../store";
 import { QuestTabEntry } from "../../types/gamification";
@@ -29,6 +29,8 @@ interface QuestDisplayItem {
 
 interface Props {
   navigation: any;
+  onContinue?: () => void;
+  onBackToHome?: () => void;
   route: {
     params: {
       /** Number of quest points earned (typically 1) */
@@ -43,7 +45,12 @@ interface Props {
   };
 }
 
-const DailyQuestScreen: React.FC<Props> = ({ navigation, route }) => {
+const DailyQuestScreen: React.FC<Props> = ({
+  navigation,
+  route,
+  onContinue,
+  onBackToHome,
+}) => {
   const {
     questPointEarned = 1,
     questTitle = "Daily Quest",
@@ -75,9 +82,11 @@ const DailyQuestScreen: React.FC<Props> = ({ navigation, route }) => {
     ]).start();
   }, []);
 
-  const handleContinue = () => {
-    navigation.popToTop();
-  };
+  const handleContinue = () => (onContinue ? onContinue() : navigation.popToTop());
+  const handleBackToHome = () =>
+    onBackToHome
+      ? onBackToHome()
+      : navigation.navigate("MainApp", { screen: "Home" });
 
   // Build display items from props or Redux
   const displayQuests: QuestDisplayItem[] =
@@ -91,12 +100,12 @@ const DailyQuestScreen: React.FC<Props> = ({ navigation, route }) => {
           status: q.status,
         }));
 
-  const { height: windowHeight } = useWindowDimensions();
   const layoutWidth = Platform.OS === "web" ? Math.min(windowWidth, 480) : undefined;
 
   return (
     <SafeAreaView style={styles.container}>
       <ScrollView
+        style={styles.contentScroll}
         contentContainerStyle={styles.scrollContent}
         showsVerticalScrollIndicator={false}
       >
@@ -193,11 +202,15 @@ const DailyQuestScreen: React.FC<Props> = ({ navigation, route }) => {
           )}
         </Animated.View>
 
-        {/* ── Continue Button ── */}
-        <View style={styles.buttonContainer}>
-          <CustomButton title="Continue" onPress={handleContinue} />
-        </View>
       </ScrollView>
+
+      <View style={styles.actionFooter}>
+        <Text style={styles.nextPrompt}>Keep going—your next lesson is ready.</Text>
+        <CustomButton title="Continue" onPress={handleContinue} />
+        <TouchableOpacity style={styles.homeAction} onPress={handleBackToHome}>
+          <Text style={styles.homeActionText}>Back to Home</Text>
+        </TouchableOpacity>
+      </View>
     </SafeAreaView>
   );
 };
@@ -209,6 +222,9 @@ const styles = StyleSheet.create({
     flex: 1,
     backgroundColor: COLORS.background,
   },
+  contentScroll: {
+    flex: 1,
+  },
   scrollContent: {
     flexGrow: 1,
   },
@@ -216,7 +232,7 @@ const styles = StyleSheet.create({
   // ── Header ──────────────────────────────
   header: {
     backgroundColor: COLORS.primary,
-    paddingTop: Platform.OS === "web" ? 30 : 50,
+    paddingTop: Platform.OS === "web" ? 28 : 36,
     paddingBottom: 40,
     paddingHorizontal: 24,
     position: "relative",
@@ -328,11 +344,28 @@ const styles = StyleSheet.create({
     color: "#AAAAAA",
   },
 
-  // ── Button ──────────────────────────────
-  buttonContainer: {
+  actionFooter: {
+    borderTopWidth: 1,
+    borderTopColor: "#F1F1F1",
+    backgroundColor: "#FFFFFF",
     paddingHorizontal: 24,
-    paddingBottom: 30,
-    marginTop: 16,
+    paddingTop: 10,
+    paddingBottom: Platform.OS === "web" ? 18 : 10,
+  },
+  nextPrompt: {
+    color: "#666666",
+    fontSize: 13,
+    textAlign: "center",
+    marginBottom: 8,
+  },
+  homeAction: {
+    alignItems: "center",
+    paddingVertical: 9,
+  },
+  homeActionText: {
+    color: COLORS.primary,
+    fontSize: 15,
+    fontWeight: "700",
   },
 });
 

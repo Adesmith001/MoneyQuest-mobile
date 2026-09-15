@@ -113,6 +113,45 @@ assertEqual(celebrations[0].hero_element, 'badge', 'badge celebration uses badge
 assertEqual(celebrations[1].completed_quests[0], 'RAPID_FIRE', 'quest celebration keeps backend quest code');
 assertEqual(celebrations[1].xp_earned, 10, 'quest completion celebration carries the quest XP reward');
 
+const combinedCelebrations = buildCelebrationsFromBundle({
+  ...bundle,
+  primary_celebration: {
+    celebration_type: 'BADGE_UNLOCK',
+    hero_element: 'badge',
+    xp_earned: 10,
+    streak_status: null,
+    next_badge_progress: null,
+    unlocked_badges: ['FIRST_STEP'],
+    completed_quests: ['RAPID_FIRE'],
+    section_completion: null,
+  },
+});
+
+assertEqual(
+  combinedCelebrations.length,
+  2,
+  'combined primary payload does not duplicate explicit badge and quest results'
+);
+assertEqual(combinedCelebrations[0].unlocked_badges[0], 'FIRST_STEP', 'badge celebration stays first');
+assertEqual(combinedCelebrations[1].completed_quests[0], 'RAPID_FIRE', 'quest celebration stays second');
+
+const uniquePrimaryCelebrations = buildCelebrationsFromBundle({
+  ...bundle,
+  primary_celebration: {
+    celebration_type: 'SECTION_COMPLETE',
+    hero_element: 'badge',
+    xp_earned: 300,
+    streak_status: null,
+    next_badge_progress: null,
+    unlocked_badges: ['BUDGETING_PRO'],
+    completed_quests: [],
+    section_completion: { section_id: 'budgeting' },
+  },
+});
+
+assertEqual(uniquePrimaryCelebrations.length, 3, 'keeps a distinct primary celebration');
+assertEqual(uniquePrimaryCelebrations[0].celebration_type, 'SECTION_COMPLETE', 'distinct primary celebration stays first');
+
 assertEqual(
   getQuestRewardNotice(bundle.quests[1]),
   'Quest complete: Rapid Fire +10 XP',

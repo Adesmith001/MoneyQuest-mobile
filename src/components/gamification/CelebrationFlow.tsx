@@ -1,5 +1,4 @@
-import React, { useEffect, useState, useCallback } from "react";
-import { View, StyleSheet, Platform } from "react-native";
+import React, { useState, useCallback } from "react";
 import { useSelector, useDispatch } from "react-redux";
 import { RootState, AppDispatch } from "../../store";
 import {
@@ -56,7 +55,10 @@ const CelebrationFlow: React.FC<Props> = ({ navigation, route }) => {
   );
   const [celebrationIndex, setCelebrationIndex] = useState(0);
 
-  const { xpGained, accuracy, sectionId, completedLevelsCount } = route.params;
+  const handleBackToHome = useCallback(() => {
+    dispatch(clearCelebrations());
+    navigation.navigate("MainApp", { screen: "Home" });
+  }, [dispatch, navigation]);
 
   // When lesson complete is dismissed, move to celebrations if any exist
   const handleLessonCompleteContinue = useCallback(() => {
@@ -64,9 +66,9 @@ const CelebrationFlow: React.FC<Props> = ({ navigation, route }) => {
       setStep("celebration");
       setCelebrationIndex(0);
     } else {
-      navigation.popToTop();
+      handleBackToHome();
     }
-  }, [pendingCelebrations, navigation]);
+  }, [pendingCelebrations, handleBackToHome]);
 
   // When a celebration screen is dismissed, advance or finish
   const handleCelebrationContinue = useCallback(() => {
@@ -75,7 +77,7 @@ const CelebrationFlow: React.FC<Props> = ({ navigation, route }) => {
       setCelebrationIndex(nextIndex);
     } else {
       dispatch(clearCelebrations());
-      navigation.popToTop();
+      navigation.navigate("MainApp", { screen: "Home" });
     }
   }, [celebrationIndex, pendingCelebrations.length, dispatch, navigation]);
 
@@ -90,8 +92,15 @@ const CelebrationFlow: React.FC<Props> = ({ navigation, route }) => {
   // Step 1: Lesson Complete
   if (step === "lesson_complete") {
     return (
-      <LessonCompleteScreen
-        navigation={{
+          <LessonCompleteScreen
+            onContinue={handleLessonCompleteContinue}
+            onBackToHome={handleBackToHome}
+            nextPrompt={
+              pendingCelebrations.length > 0
+                ? "Next: see what you unlocked."
+                : "Your next lesson is ready on Home."
+            }
+            navigation={{
           ...navigation,
           popToTop: handleLessonCompleteContinue,
         }}
@@ -125,16 +134,19 @@ const CelebrationFlow: React.FC<Props> = ({ navigation, route }) => {
         (badge) => badge.badge_code === badgeCode && badge.was_awarded
       );
       return (
-        <AchievementUnlockScreen
-          navigation={commonNav}
+          <AchievementUnlockScreen
+            onContinue={handleCelebrationContinue}
+            onBackToHome={handleBackToHome}
+            navigation={commonNav}
           route={{
             params: {
               badgeCode,
               badgeName: badgeResult?.badge_name || formatBadgeCode(badgeCode),
               badgeAssetReference: badgeResult?.asset_reference || null,
               subtitle: "You took the first step by completing your first lesson",
-              progressValue: badgeResult?.progress_value ?? 1,
-              targetValue: badgeResult?.target_value ?? 1,
+                  nextBadgeName: currentCelebration.next_badge_progress?.badge_name ?? undefined,
+                  progressValue: currentCelebration.next_badge_progress?.progress_value ?? 0,
+                  targetValue: currentCelebration.next_badge_progress?.target_value ?? 0,
               progressLabel: "lessons to go",
             },
           }}
@@ -155,8 +167,10 @@ const CelebrationFlow: React.FC<Props> = ({ navigation, route }) => {
       );
       const rewardNotice = getQuestRewardNotice(completedQuest);
       return (
-        <DailyQuestScreen
-          navigation={commonNav}
+          <DailyQuestScreen
+            onContinue={handleCelebrationContinue}
+            onBackToHome={handleBackToHome}
+            navigation={commonNav}
           route={{
             params: {
               questPointEarned: currentCelebration.xp_earned || 1,
@@ -179,8 +193,10 @@ const CelebrationFlow: React.FC<Props> = ({ navigation, route }) => {
     // Streak milestone
     if (currentCelebration.hero_element === "streak") {
       return (
-        <DailyQuestScreen
-          navigation={commonNav}
+          <DailyQuestScreen
+            onContinue={handleCelebrationContinue}
+            onBackToHome={handleBackToHome}
+            navigation={commonNav}
           route={{
             params: {
               questPointEarned: 0,
@@ -196,6 +212,7 @@ const CelebrationFlow: React.FC<Props> = ({ navigation, route }) => {
   // Fallback — shouldn't reach here
   return (
     <LessonCompleteScreen
+      onBackToHome={handleBackToHome}
       navigation={navigation}
       route={route}
     />
@@ -209,12 +226,5 @@ function formatBadgeCode(code: string): string {
     .toLowerCase()
     .replace(/\b\w/g, (c) => c.toUpperCase());
 }
-
-const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-    backgroundColor: "#FFFFFF",
-  },
-});
 
 export default CelebrationFlow;

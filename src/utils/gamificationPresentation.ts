@@ -12,10 +12,6 @@ export function buildCelebrationsFromBundle(
 ): CelebrationPayload[] {
   const celebrations: CelebrationPayload[] = [];
 
-  if (bundle.primary_celebration) {
-    celebrations.push(bundle.primary_celebration);
-  }
-
   for (const badge of bundle.badges) {
     if (!badge.was_awarded) continue;
     celebrations.push({
@@ -56,6 +52,21 @@ export function buildCelebrationsFromBundle(
       completed_quests: [],
       section_completion: null,
     });
+  }
+
+  if (bundle.primary_celebration) {
+    const primary = bundle.primary_celebration;
+    const duplicatesExplicitCelebration = celebrations.some((celebration) => {
+      if (celebration.celebration_type !== primary.celebration_type) return false;
+      if (primary.celebration_type === 'BADGE_UNLOCK') {
+        return primary.unlocked_badges.some((code) => celebration.unlocked_badges.includes(code));
+      }
+      if (primary.celebration_type === 'QUEST_COMPLETED') {
+        return primary.completed_quests.some((code) => celebration.completed_quests.includes(code));
+      }
+      return true;
+    });
+    if (!duplicatesExplicitCelebration) celebrations.unshift(primary);
   }
 
   return celebrations;

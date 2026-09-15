@@ -7,13 +7,16 @@ import {
   Image,
   Platform,
   Animated,
-  useWindowDimensions,
+  ScrollView,
+  TouchableOpacity,
 } from "react-native";
 import CustomButton from "../../components/CustomButton";
-import { COLORS, SPACING } from "../../constants";
+import { COLORS } from "../../constants";
 
 interface Props {
   navigation: any;
+  onContinue?: () => void;
+  onBackToHome?: () => void;
   route: {
     params: {
       /** Badge code (e.g., "1ST_STEP") */
@@ -28,11 +31,17 @@ interface Props {
       progressValue?: number;
       targetValue?: number;
       progressLabel?: string;
+      nextBadgeName?: string;
     };
   };
 }
 
-const AchievementUnlockScreen: React.FC<Props> = ({ navigation, route }) => {
+const AchievementUnlockScreen: React.FC<Props> = ({
+  navigation,
+  route,
+  onContinue,
+  onBackToHome,
+}) => {
   const {
     badgeCode,
     badgeName,
@@ -41,6 +50,7 @@ const AchievementUnlockScreen: React.FC<Props> = ({ navigation, route }) => {
     progressValue = 0,
     targetValue = 1,
     progressLabel = "Lessons to go",
+    nextBadgeName,
   } = route.params;
 
   // ── Animations ────────────────────────────
@@ -90,19 +100,25 @@ const AchievementUnlockScreen: React.FC<Props> = ({ navigation, route }) => {
     ]).start();
   }, []);
 
-  const handleContinue = () => {
-    navigation.popToTop();
-  };
+  const handleContinue = () => (onContinue ? onContinue() : navigation.popToTop());
+  const handleBackToHome = () =>
+    onBackToHome
+      ? onBackToHome()
+      : navigation.navigate("MainApp", { screen: "Home" });
 
-  const { height: windowHeight } = useWindowDimensions();
   const progress = targetValue > 0 ? progressValue / targetValue : 0;
   const remaining = Math.max(targetValue - progressValue, 0);
   const progressText = targetValue > 0 && remaining === 0 ? "Unlocked" : `${remaining} ${progressLabel}`;
 
   return (
     <SafeAreaView style={styles.container}>
-      {/* ── Hero Badge Area ── */}
-      <View style={styles.heroArea}>
+      <ScrollView
+        style={styles.contentScroll}
+        contentContainerStyle={styles.scrollContent}
+        showsVerticalScrollIndicator={false}
+      >
+        {/* ── Hero Badge Area ── */}
+        <View style={styles.heroArea}>
         {/* Decorative dots */}
         <View style={[styles.dot, styles.dotTopLeft]} />
         <View style={[styles.dot, styles.dotTopRight]} />
@@ -132,7 +148,7 @@ const AchievementUnlockScreen: React.FC<Props> = ({ navigation, route }) => {
             <Text style={styles.ribbonText}>{badgeName}</Text>
           </View>
         </Animated.View>
-      </View>
+        </View>
 
       {/* ── Text Content ── */}
       <Animated.View
@@ -164,7 +180,7 @@ const AchievementUnlockScreen: React.FC<Props> = ({ navigation, route }) => {
             )}
           </View>
           <View>
-            <Text style={styles.progressBadgeName}>{badgeName}</Text>
+            <Text style={styles.progressBadgeName}>{nextBadgeName || badgeName}</Text>
             <Text style={styles.progressLabel}>
               {progressText}
             </Text>
@@ -180,9 +196,14 @@ const AchievementUnlockScreen: React.FC<Props> = ({ navigation, route }) => {
         </View>
       </Animated.View>
 
-      {/* ── Continue Button ── */}
-      <View style={styles.buttonContainer}>
+      </ScrollView>
+
+      <View style={styles.actionFooter}>
+        <Text style={styles.nextPrompt}>Continue to see your next reward.</Text>
         <CustomButton title="Continue" onPress={handleContinue} />
+        <TouchableOpacity style={styles.homeAction} onPress={handleBackToHome}>
+          <Text style={styles.homeActionText}>Back to Home</Text>
+        </TouchableOpacity>
       </View>
     </SafeAreaView>
   );
@@ -193,12 +214,18 @@ const styles = StyleSheet.create({
     flex: 1,
     backgroundColor: COLORS.background,
   },
+  contentScroll: {
+    flex: 1,
+  },
+  scrollContent: {
+    paddingBottom: 16,
+  },
 
   // ── Hero Area ────────────────────────────
   heroArea: {
     alignItems: "center",
-    paddingTop: Platform.OS === "web" ? 30 : 50,
-    paddingBottom: 20,
+    paddingTop: Platform.OS === "web" ? 20 : 28,
+    paddingBottom: 12,
     position: "relative",
   },
   dot: {
@@ -218,14 +245,14 @@ const styles = StyleSheet.create({
     alignItems: "center",
   },
   hexagonOuter: {
-    width: 200,
-    height: 220,
+    width: 170,
+    height: 184,
     alignItems: "center",
     justifyContent: "center",
   },
   hexagonInner: {
-    width: 180,
-    height: 200,
+    width: 154,
+    height: 166,
     backgroundColor: "#E8EDF5",
     borderRadius: 20,
     transform: [{ rotate: "0deg" }],
@@ -239,8 +266,8 @@ const styles = StyleSheet.create({
     fontSize: 70,
   },
   badgeImage: {
-    width: 140,
-    height: 140,
+    width: 132,
+    height: 132,
   },
   ribbon: {
     backgroundColor: "#E8EDF5",
@@ -262,10 +289,10 @@ const styles = StyleSheet.create({
   textContent: {
     paddingHorizontal: 30,
     alignItems: "center",
-    marginBottom: 30,
+    marginBottom: 20,
   },
   congratsText: {
-    fontSize: 28,
+    fontSize: 26,
     fontWeight: "bold",
     color: COLORS.primary,
     marginBottom: 12,
@@ -337,11 +364,28 @@ const styles = StyleSheet.create({
     borderRadius: 4,
   },
 
-  // ── Button ──────────────────────────────
-  buttonContainer: {
+  actionFooter: {
+    borderTopWidth: 1,
+    borderTopColor: "#F1F1F1",
+    backgroundColor: "#FFFFFF",
     paddingHorizontal: 24,
-    paddingBottom: 30,
-    marginTop: "auto",
+    paddingTop: 10,
+    paddingBottom: Platform.OS === "web" ? 18 : 10,
+  },
+  nextPrompt: {
+    color: "#666666",
+    fontSize: 13,
+    textAlign: "center",
+    marginBottom: 8,
+  },
+  homeAction: {
+    alignItems: "center",
+    paddingVertical: 9,
+  },
+  homeActionText: {
+    color: COLORS.primary,
+    fontSize: 15,
+    fontWeight: "700",
   },
 });
 

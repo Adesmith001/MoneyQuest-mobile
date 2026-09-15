@@ -16,8 +16,27 @@
 - Focused Jest result: 2 suites, 2 tests passed.
 
 ### Celebration Flow and Screens
+- **Status:** complete
+- Added regression coverage for combined backend celebration payloads and preserved distinct primary celebrations.
+- De-duplicated badge/quest events so each earned item is shown once.
+- Added fixed Continue and Back to Home actions to lesson, badge, and quest celebrations.
+- Added clear next-step prompts and reduced hero sizing so the content remains usable on standard-height phones.
+
+### Categorized Badges
+- **Status:** complete
+- Added a pure category-grouping helper in PRD order.
+- Replaced the flat profile badge strip with five category summary cards, earned counts, previews, and locked/empty states.
+- Rebuilt the badge catalogue with category headers, descriptions, progress, earned/locked art, and complete badge copy.
+- Verified the live authenticated profile and catalogue inside the 480px app frame; all five classifications render and the catalogue text is not clamped.
+
+### Final Verification
 - **Status:** in progress
-- Next action: reproduce duplicate combined celebration payloads.
+- Focused Jest result: 4 suites, 8 tests passed.
+- Pure gamification and category tests compiled and exited 0.
+- Changed app files reported no TypeScript diagnostics when filtering the repository-wide check.
+- Android Expo export bundled 1,534 modules and exited 0; the refreshed web preview also bundled successfully.
+- Backend selection on Python 3.12: 17 passed, 1 unrelated existing ChestService failure.
+- The root unconfigured `jest` discovery is not a valid all-project runner: it reports script-style TypeScript checks as empty suites and tries to execute dashboard Vitest files in Jest. The scoped Jest tests and direct TypeScript test programs are green.
 
 
 ## Session: 2026-09-10
@@ -69,6 +88,9 @@
 |-----------|-------|---------|------------|
 | 2026-09-10 | Combined patch failed on encoded Tutorial Hub context | 1 | Split patch and use stable text context |
 | — | None | 1 | — |
+| 2026-09-15 | Python 3.8 lacks `datetime.UTC` | 1 | Re-ran with installed Python 3.12 |
+| 2026-09-15 | Existing ChestService test calls missing `_reward_from_payload` | 1 | Logged as out of scope; no backend files were changed |
+| 2026-09-15 | Root Jest discovers non-Jest scripts and dashboard Vitest tests | 1 | Ran scoped Jest suites and direct script runners using their established patterns |
 
 ## 5-Question Reboot Check
 

@@ -38,6 +38,8 @@ import { markProfileGuideSeen, markTutorialActionCompleted } from "../../store/s
 import { useRevenueCat } from "../../hooks/useRevenueCat";
 import { canAdvanceTutorialStep } from "../../utils/tutorialBehavior";
 import { fetchBadgeCatalogue } from "../../store/slices/gamificationSlice";
+import { BadgeCategory } from "../../types/gamification";
+import { groupBadgesByCategory } from "../../utils/badgeCategories";
 
 const { width: screenWidth } = Dimensions.get("window");
 
@@ -500,7 +502,7 @@ const ProfileScreen: React.FC<Props> = ({ navigation }) => {
         </TouchableOpacity>
 
         {/* Badges & Achievement */}
-        <BadgesAchievementsSection navigation={navigation} layoutWidth={layoutWidth} />
+        <BadgesAchievementsSection navigation={navigation} />
       </ScrollView>
 
       {/* Invite Modal */}
@@ -769,28 +771,26 @@ const styles = StyleSheet.create({
     marginBottom: 16,
   },
   achievementsGrid: {
-    flexDirection: "row",
-    flexWrap: "wrap",
-    justifyContent: "space-between",
+    gap: 12,
   },
   achievementCard: {
-    aspectRatio: 1,
-    backgroundColor: "#E9ECEF",
+    minHeight: 108,
     borderRadius: 16,
-    marginBottom: 12,
+    borderWidth: 1,
+    padding: 14,
+    flexDirection: "row",
     alignItems: "center",
-    justifyContent: "center",
   },
   achievementHexagon: {
-    width: "80%",
-    height: "65%",
+    width: 64,
+    height: 64,
     backgroundColor: "#E8EDF5",
     borderRadius: 12,
     borderWidth: 2,
     borderColor: "#C5CEE0",
     alignItems: "center",
     justifyContent: "center",
-    marginBottom: 4,
+    marginRight: 12,
   },
   achievementHexagonLocked: {
     backgroundColor: "#E0E0E0",
@@ -811,13 +811,51 @@ const styles = StyleSheet.create({
     opacity: 0.3,
   },
   achievementName: {
-    fontSize: 11,
-    fontWeight: "600",
+    fontSize: 16,
+    fontWeight: "800",
     color: "#333",
-    textAlign: "center",
   },
   achievementNameLocked: {
     color: "#999",
+  },
+  achievementCategoryCopy: {
+    flex: 1,
+    paddingRight: 8,
+  },
+  achievementCategoryDescription: {
+    color: "#687085",
+    fontSize: 12,
+    lineHeight: 17,
+    marginTop: 3,
+  },
+  achievementCategoryCount: {
+    color: "#3B5998",
+    fontSize: 12,
+    fontWeight: "800",
+    marginTop: 6,
+  },
+  achievementPreviewRow: {
+    flexDirection: "row",
+    marginRight: 4,
+  },
+  achievementPreview: {
+    width: 26,
+    height: 26,
+    borderRadius: 7,
+    borderWidth: 1,
+    borderColor: "#FFFFFF",
+    backgroundColor: "#D8DDE8",
+    marginLeft: -7,
+    overflow: "hidden",
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  achievementPreviewImage: {
+    width: "100%",
+    height: "100%",
+  },
+  achievementPreviewLocked: {
+    opacity: 0.4,
   },
   emptyBadgesContainer: {
     alignItems: "center",
@@ -1070,42 +1108,75 @@ const styles = StyleSheet.create({
 });
 
 // ── Badges & Achievements Section ──────────────
-import { fetchBadgeCatalogue as fetchBadges } from "../../store/slices/gamificationSlice";
-import { BadgeCatalogueEntry } from "../../types/gamification";
+const BADGE_CATEGORY_DETAILS: Record<BadgeCategory, {
+  title: string;
+  description: string;
+  icon: keyof typeof Ionicons.glyphMap;
+  foreground: string;
+  background: string;
+}> = {
+  JOURNEY: {
+    title: "Journey",
+    description: "Track your learning and growth",
+    icon: "map-outline",
+    foreground: "#527A2B",
+    background: "#F3F8ED",
+  },
+  SECTION: {
+    title: "Sections",
+    description: "Master every money topic",
+    icon: "book-outline",
+    foreground: "#3478B9",
+    background: "#EEF5FC",
+  },
+  CONSISTENCY: {
+    title: "Consistency",
+    description: "Build strong learning habits",
+    icon: "flame-outline",
+    foreground: "#D78612",
+    background: "#FFF7EA",
+  },
+  ACHIEVEMENT: {
+    title: "Achievements",
+    description: "Milestones that show your progress",
+    icon: "trophy-outline",
+    foreground: "#245AA6",
+    background: "#EDF3FA",
+  },
+  QUEST: {
+    title: "Quests",
+    description: "Complete tasks and earn rewards",
+    icon: "ribbon-outline",
+    foreground: "#8C4DB1",
+    background: "#F7F0FC",
+  },
+};
 
 const BadgesAchievementsSection: React.FC<{
   navigation: any;
-  layoutWidth: number;
-}> = ({ navigation, layoutWidth }) => {
+}> = ({ navigation }) => {
   const dispatch = useDispatch<AppDispatch>();
   const { user } = useSelector((state: RootState) => state.auth);
   const badgeCatalogue = useSelector(
     (state: RootState) => state.gamification.badgeCatalogue
   );
-  const earnedCount = useSelector(
-    (state: RootState) => state.gamification.earnedBadgeCount
-  );
-  const totalCount = useSelector(
-    (state: RootState) => state.gamification.totalBadgeCount
-  );
-
   useFocusEffect(
     React.useCallback(() => {
       if (user?.$id) {
-        dispatch(fetchBadges(user.$id));
+        dispatch(fetchBadgeCatalogue(user.$id));
       }
     }, [dispatch, user?.$id])
   );
 
-  const hasEarnedBadges = earnedCount > 0;
+  const categoryGroups = groupBadgesByCategory(badgeCatalogue);
 
   return (
     <View style={styles.achievementsSection}>
       <Text style={styles.sectionTitle}>Badges & Achievements</Text>
 
-      {!hasEarnedBadges ? (
+      {categoryGroups.length === 0 ? (
         <View style={styles.emptyBadgesContainer}>
-          <Text style={styles.emptyBadgesText}>No Badge/Achievement Yet</Text>
+          <Text style={styles.emptyBadgesText}>Badges are loading</Text>
           <TouchableOpacity
             style={styles.goToLessonsButton}
             onPress={() => navigation.navigate("MainApp", { screen: "Home" })}
@@ -1115,39 +1186,45 @@ const BadgesAchievementsSection: React.FC<{
         </View>
       ) : (
         <View style={styles.achievementsGrid}>
-          {badgeCatalogue.slice(0, 6).map((badge: BadgeCatalogueEntry, index: number) => (
+          {categoryGroups.map((group) => {
+            const details = BADGE_CATEGORY_DETAILS[group.category];
+            return (
             <TouchableOpacity
-              key={badge.badge_definition_id || index}
-              style={[styles.achievementCard, { width: (layoutWidth - 64) / 3 }]}
-              onPress={() => navigation.navigate("BadgeCatalogue")}
+              key={group.category}
+              style={[styles.achievementCard, { backgroundColor: details.background, borderColor: `${details.foreground}22` }]}
+              onPress={() => navigation.navigate("BadgeCatalogue", { category: group.category })}
               activeOpacity={0.7}
             >
               <View
-                style={[
-                  styles.achievementHexagon,
-                  !badge.is_earned && styles.achievementHexagonLocked,
-                ]}
+                style={[styles.achievementHexagon, { backgroundColor: `${details.foreground}18`, borderColor: `${details.foreground}44` }]}
               >
-                {badge.asset_reference ? (
-                  <Image
-                    source={{ uri: badge.asset_reference }}
-                    style={styles.achievementAsset}
-                    resizeMode="contain"
-                  />
-                ) : badge.is_earned ? (
-                  <Text style={styles.achievementEmoji}>🏅</Text>
-                ) : (
-                  <View style={styles.lockedFill} />
-                )}
+                <Ionicons name={details.icon} size={30} color={details.foreground} />
               </View>
-              <Text
-                style={[styles.achievementName, !badge.is_earned && styles.achievementNameLocked]}
-                numberOfLines={1}
-              >
-                {badge.name}
-              </Text>
+              <View style={styles.achievementCategoryCopy}>
+                <Text style={styles.achievementName}>{details.title}</Text>
+                <Text style={styles.achievementCategoryDescription}>{details.description}</Text>
+                <Text style={[styles.achievementCategoryCount, { color: details.foreground }]}>
+                  {group.earnedCount} of {group.totalCount} earned
+                </Text>
+              </View>
+              <View style={styles.achievementPreviewRow}>
+                {group.items.slice(0, 3).map((badge) => (
+                  <View
+                    key={badge.badge_definition_id}
+                    style={[styles.achievementPreview, !badge.is_earned && styles.achievementPreviewLocked]}
+                  >
+                    {badge.asset_reference ? (
+                      <Image source={{ uri: badge.asset_reference }} style={styles.achievementPreviewImage} resizeMode="contain" />
+                    ) : (
+                      <Ionicons name={badge.is_earned ? "medal" : "lock-closed"} size={14} color={badge.is_earned ? details.foreground : "#687085"} />
+                    )}
+                  </View>
+                ))}
+              </View>
+              <Ionicons name="chevron-forward" size={18} color="#8A91A1" />
             </TouchableOpacity>
-          ))}
+            );
+          })}
         </View>
       )}
     </View>

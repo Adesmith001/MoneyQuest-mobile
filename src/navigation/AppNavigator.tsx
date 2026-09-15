@@ -47,6 +47,7 @@ import LevelCompletionScreen from '../screens/game/LevelCompletionScreen';
 import DailyQuestScreen from '../screens/game/DailyQuestScreen';
 import AchievementUnlockScreen from '../screens/game/AchievementUnlockScreen';
 import BadgeCatalogueScreen from '../screens/game/BadgeCatalogueScreen';
+import { BadgeCategory } from '../types/gamification';
 import CelebrationFlow from '../components/gamification/CelebrationFlow';
 import EditProfileScreen from '../screens/profile/EditProfileScreen';
 import ChangeAvatarScreen from '../screens/profile/ChangeAvatarScreen';
@@ -151,7 +152,7 @@ export type RootStackParamList = {
     targetValue?: number;
     progressLabel?: string;
   };
-  BadgeCatalogue: undefined;
+  BadgeCatalogue: { category?: BadgeCategory } | undefined;
 
   // Other Screens
   Settings: undefined;

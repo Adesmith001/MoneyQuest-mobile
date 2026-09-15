@@ -12,6 +12,7 @@ import {
   StyleProp,
   ViewStyle,
   Animated,
+  TouchableOpacity,
 } from "react-native";
 import CustomButton from "../../components/CustomButton";
 import { COLORS } from "../../constants";
@@ -23,11 +24,11 @@ import Svg, { Path } from "react-native-svg";
 
 const REVIEW_MILESTONE_KEY = "review_last_prompted_milestone";
 const { width: SCREEN_WIDTH } = Dimensions.get("window");
-const DEFAULT_STREAK_TITLE = "Streak extended!";
-const DEFAULT_STREAK_SUBTITLE = "You crushed it. Keep the\nstreak going!";
-
 interface Props {
   navigation: any;
+  onContinue?: () => void;
+  onBackToHome?: () => void;
+  nextPrompt?: string;
   route: {
     params: {
       xpGained: number;
@@ -42,12 +43,20 @@ interface Props {
   };
 }
 
-const LessonCompleteScreen: React.FC<Props> = ({ navigation, route }) => {
+const LessonCompleteScreen: React.FC<Props> = ({
+  navigation,
+  route,
+  onContinue,
+  onBackToHome,
+  nextPrompt = "Your next lesson is ready on Home.",
+}) => {
   const {
     xpGained,
     accuracy,
     sectionId,
     completedLevelsCount = 0,
+    streakMessage,
+    currentStreak,
   } = route.params;
 
   // ── Entrance animations ──────────────────────
@@ -120,7 +129,11 @@ const LessonCompleteScreen: React.FC<Props> = ({ navigation, route }) => {
     maybeRequestReview();
   }, [completedLevelsCount, sectionId]);
 
-  const handleContinue = () => navigation.popToTop();
+  const handleContinue = () => (onContinue ? onContinue() : navigation.popToTop());
+  const handleBackToHome = () =>
+    onBackToHome
+      ? onBackToHome()
+      : navigation.navigate("MainApp", { screen: "Home" });
 
   const { height: windowHeight } = useWindowDimensions();
   const layoutWidth = Platform.OS === "web" ? Math.min(windowWidth, 480) : SCREEN_WIDTH;
@@ -134,7 +147,11 @@ const LessonCompleteScreen: React.FC<Props> = ({ navigation, route }) => {
 
   return (
     <SafeAreaView style={screenContainerStyle}>
-      <ScrollView contentContainerStyle={styles.scrollContent} showsVerticalScrollIndicator={false}>
+      <ScrollView
+        style={styles.contentScroll}
+        contentContainerStyle={styles.scrollContent}
+        showsVerticalScrollIndicator={false}
+      >
         {/* ── Orange Header with Medal ── */}
         <Animated.View
           style={[styles.header, { opacity: fadeAnim, transform: [{ translateY: slideAnim }] }]}
@@ -200,33 +217,41 @@ const LessonCompleteScreen: React.FC<Props> = ({ navigation, route }) => {
             />
           </Animated.View>
 
-          <Animated.View
-            style={[styles.streakCard, { transform: [{ translateX: streakSlide }] }]}
-          >
-            <Image
-              source={require("../../../assets/streakIcon.png")}
-              style={styles.streakIcon}
-              resizeMode="contain"
-            />
-            <View style={styles.streakTextWrapper}>
-              <Text style={styles.streakTitle}>{DEFAULT_STREAK_TITLE}</Text>
-              <Text style={styles.streakSubtitle}>{DEFAULT_STREAK_SUBTITLE}</Text>
-            </View>
-          </Animated.View>
-        </View>
-
-        {/* ── Continue Button ── */}
-        <View style={styles.buttonContainer}>
-          <View style={styles.buttonShadow} />
-          <CustomButton
-            title="Continue"
-            onPress={handleContinue}
-            fullWidth
-            style={styles.button}
-            textStyle={styles.buttonText}
-          />
+          {streakMessage ? (
+            <Animated.View
+              style={[styles.streakCard, { transform: [{ translateX: streakSlide }] }]}
+            >
+              <Image
+                source={require("../../../assets/streakIcon.png")}
+                style={styles.streakIcon}
+                resizeMode="contain"
+              />
+              <View style={styles.streakTextWrapper}>
+                <Text style={styles.streakTitle}>{streakMessage}</Text>
+                <Text style={styles.streakSubtitle}>
+                  {currentStreak
+                    ? `${currentStreak}-day streak — keep it going!`
+                    : "Keep learning to grow your streak."}
+                </Text>
+              </View>
+            </Animated.View>
+          ) : null}
         </View>
       </ScrollView>
+
+      <View style={styles.actionFooter}>
+        <Text style={styles.nextPrompt}>{nextPrompt}</Text>
+        <CustomButton
+          title="Continue"
+          onPress={handleContinue}
+          fullWidth
+          style={styles.button}
+          textStyle={styles.buttonText}
+        />
+        <TouchableOpacity style={styles.homeAction} onPress={handleBackToHome}>
+          <Text style={styles.homeActionText}>Back to Home</Text>
+        </TouchableOpacity>
+      </View>
     </SafeAreaView>
   );
 };
@@ -238,24 +263,27 @@ const styles = StyleSheet.create({
     flex: 1,
     backgroundColor: COLORS.background,
   },
+  contentScroll: {
+    flex: 1,
+  },
   scrollContent: {
-    flexGrow: 1,
+    paddingBottom: 12,
   },
 
   // ── Header ──────────────────────────────
   header: {
     backgroundColor: COLORS.primary,
-    paddingTop: Platform.OS === "web" ? 38 : 58,
-    paddingBottom: 76,
+    paddingTop: Platform.OS === "web" ? 24 : 32,
+    paddingBottom: 54,
     alignItems: "center",
     position: "relative",
   },
   medalContainer: {
-    marginBottom: 24,
+    marginBottom: 12,
   },
   medalOuterRing: {
-    width: 100,
-    height: 100,
+    width: 78,
+    height: 78,
     borderRadius: 85,
     borderWidth: 7,
     borderStyle: "dashed",
@@ -264,22 +292,22 @@ const styles = StyleSheet.create({
     justifyContent: "center",
   },
   medalInnerCircle: {
-    width: 100,
-    height: 100,
-    borderRadius: 50,
+    width: 78,
+    height: 78,
+    borderRadius: 39,
     backgroundColor: "rgba(255, 255, 255, 0.16)",
     alignItems: "center",
     justifyContent: "center",
   },
   medalImage: {
-    width: 50,
-    height: 50,
+    width: 42,
+    height: 42,
   },
   title: {
-    fontSize: 38,
+    fontSize: 32,
     fontWeight: "bold",
     color: "#FFFFFF",
-    lineHeight: 52,
+    lineHeight: 40,
   },
   curveContainer: {
     position: "absolute",
@@ -293,17 +321,17 @@ const styles = StyleSheet.create({
     justifyContent: "center",
     gap: 18,
     paddingHorizontal: 16,
-    marginTop: 26,
-    marginBottom: 32,
+    marginTop: 18,
+    marginBottom: 18,
   },
   statCard: {
     flex: 1,
     maxWidth: 150,
-    minHeight: 110,
+    minHeight: 94,
     borderRadius: 22,
     borderWidth: 2,
     backgroundColor: "#FFFFFF",
-    paddingVertical: 24,
+    paddingVertical: 16,
     paddingHorizontal: 18,
     alignItems: "center",
     justifyContent: "center",
@@ -318,7 +346,7 @@ const styles = StyleSheet.create({
   statLabelText: {
     fontSize: 17,
     fontWeight: "700",
-    marginBottom: 14,
+    marginBottom: 8,
   },
   xpLabelText: {
     color: "#F04D23",
@@ -351,38 +379,37 @@ const styles = StyleSheet.create({
   // ── Fox + Streak ────────────────────────
   foxStreakSection: {
     position: "relative",
-    marginBottom: 48,
-    minHeight: 350,
+    minHeight: 228,
     overflow: "visible",
   },
   foxWrapper: {
-    width: 405,
-    height: 340,
-    marginLeft: -58,
-    marginTop: 28,
+    width: 300,
+    height: 225,
+    marginLeft: -42,
+    marginTop: 4,
   },
   foxImage: {
-    width: 380,
-    height: 300,
+    width: 290,
+    height: 220,
   },
   streakCard: {
     position: "absolute",
-    right: 20,
-    top: 50,
-    width: 260,
+    right: 14,
+    top: 38,
+    width: 230,
     backgroundColor: "#FFFEFC",
     borderRadius: 22,
     borderWidth: 2,
     borderColor: "#F3CA77",
-    paddingVertical: 18,
-    paddingHorizontal: 18,
+    paddingVertical: 14,
+    paddingHorizontal: 14,
     flexDirection: "row",
     alignItems: "flex-start",
   },
   streakIcon: {
-    width: 48,
-    height: 48,
-    marginRight: 14,
+    width: 38,
+    height: 38,
+    marginRight: 10,
     marginTop: 2,
   },
   streakTextWrapper: {
@@ -401,29 +428,36 @@ const styles = StyleSheet.create({
     lineHeight: 20,
   },
 
-  // ── Button ──────────────────────────────
-  buttonContainer: {
+  actionFooter: {
+    borderTopWidth: 1,
+    borderTopColor: "#F1F1F1",
+    backgroundColor: "#FFFFFF",
     paddingHorizontal: 24,
-    paddingBottom: 30,
-    marginTop: "auto",
-    position: "relative",
+    paddingTop: 10,
+    paddingBottom: Platform.OS === "web" ? 18 : 10,
   },
-  buttonShadow: {
-    position: "absolute",
-    left: 24,
-    right: 24,
-    bottom: 21,
-    height: 68,
-    borderRadius: 22,
-    backgroundColor: "#B74109",
+  nextPrompt: {
+    color: "#666666",
+    fontSize: 13,
+    textAlign: "center",
+    marginBottom: 8,
   },
   button: {
-    borderRadius: 22,
-    paddingVertical: 22,
+    borderRadius: 18,
+    paddingVertical: 15,
     backgroundColor: "#F64F1E",
   },
   buttonText: {
-    fontSize: 22,
+    fontSize: 18,
+    fontWeight: "700",
+  },
+  homeAction: {
+    alignItems: "center",
+    paddingVertical: 9,
+  },
+  homeActionText: {
+    color: COLORS.primary,
+    fontSize: 15,
     fontWeight: "700",
   },
 });

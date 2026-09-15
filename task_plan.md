@@ -4,10 +4,10 @@
 Fix the phone-size matching, post-lesson celebration, navigation, and categorized badge issues reported by QA using the supplied Money Quest designs.
 
 ## Next Step
-Write and run the failing combined-celebration regression test.
+Run final verification, review the committed diff, and deliver the handoff.
 
 ## Current Phase
-Phase 7
+Phase 9
 
 ## Phases
 
@@ -45,23 +45,23 @@ Phase 7
 - **Status:** complete
 
 ### Phase 7: Celebration Flow and Screens
-- [ ] Add failing queue and navigation-action tests
-- [ ] De-duplicate celebration payloads
-- [ ] Make actions permanently visible and match supplied layouts
-- **Status:** in_progress
+- [x] Add failing queue and navigation-action tests
+- [x] De-duplicate celebration payloads
+- [x] Make actions permanently visible and match supplied layouts
+- **Status:** complete
 
 ### Phase 8: Categorized Badges
-- [ ] Add failing category grouping tests
-- [ ] Replace flat profile badges with category cards
-- [ ] Group catalogue badges by PRD category
-- **Status:** pending
+- [x] Add failing category grouping tests
+- [x] Replace flat profile badges with category cards
+- [x] Group catalogue badges by PRD category
+- **Status:** complete
 
 ### Phase 9: Verification and Delivery
-- [ ] Run focused and full tests
-- [ ] Run TypeScript and backend gamification checks
-- [ ] Inspect at a standard-phone viewport
+- [x] Run focused tests
+- [x] Run TypeScript and backend gamification checks
+- [x] Inspect at a standard-phone viewport
 - [ ] Review diff and deliver
-- **Status:** pending
+- **Status:** in_progress
 
 ## Decisions Made
 
@@ -73,6 +73,7 @@ Phase 7
 | Execute inline on `main` | User explicitly requested inline execution after the worktree workflow was offered |
 | Grow matching rows with content | User explicitly rejected card-level scrolling; the page may scroll when needed |
 | Reuse existing navigation and backend state | Smallest safe fix; the existing flow already carries awards and quest results |
+| Keep all five category summaries visible | Users can discover the PRD classifications even when the backend has not seeded badge definitions for a category |
 
 ## Errors Encountered
 
@@ -81,3 +82,8 @@ Phase 7
 | Combined multi-file patch could not match encoded Tutorial Hub text | 1 | Split patch and match stable ASCII context |
 | None | 1 | — |
 | Matching layout test expected a standalone style prop while implementation correctly used a style array | 1 | Match the presence of `styles.matchItemWrapper` inside the style array |
+| Root TypeScript check reports dashboard-project errors outside this scope | 1 | Filtered diagnostics to changed app files; none were reported, then verified with Expo bundles |
+| Python 3.8 cannot import `datetime.UTC` | 1 | Re-ran backend checks with installed Python 3.12 |
+| Existing chest service test fails because `_reward_from_payload` is missing | 1 | Logged as an unrelated pre-existing backend defect; 17 other selected gamification tests passed |
+| First visual refresh used a stale CI web bundle | 1 | Restarted Metro and reloaded the authenticated profile preview |
+| Root Jest discovery treats script-style TypeScript checks as empty Jest suites and pulls Vitest dashboard tests into Jest | 1 | Used the repository's intended per-file runners; all scoped checks pass |
