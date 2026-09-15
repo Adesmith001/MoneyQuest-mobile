@@ -1,5 +1,25 @@
 # Progress Log
 
+## Session: 2026-09-15
+
+### Discovery and Design
+- **Status:** complete
+- Inspected QA screenshots, all ZIP reference screens, matching layout, completion flow, gamification queue, profile badges, and catalogue data.
+- User approved the written design and requested content-growing matching cards.
+- Design spec committed as `dcccb07`; implementation plan committed as `c240467`.
+- User explicitly selected inline execution on the current branch.
+
+### Mobile Matching Layout
+- **Status:** complete
+- Added `tests/matchingQuestionResponsiveLayout.test.js` and observed the intended RED failure from the two-line clamp.
+- Removed both clamps, made animated wrappers and cards stretch, and reduced excess spacing so content-sized rows remain usable on phones.
+- Focused Jest result: 2 suites, 2 tests passed.
+
+### Celebration Flow and Screens
+- **Status:** in progress
+- Next action: reproduce duplicate combined celebration payloads.
+
+
 ## Session: 2026-09-10
 
 ### Phase 1: Requirements & Discovery

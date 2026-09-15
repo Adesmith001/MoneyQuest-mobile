@@ -198,13 +198,16 @@ const MatchingQuestion: React.FC<Props> = ({
 
     return (
       <Animated.View
-        style={{
-          opacity: animValues.opacity,
-          transform: [
-            { translateX: animValues.shake },
-            { scale: animValues.scale },
-          ],
-        }}
+        style={[
+          styles.matchItemWrapper,
+          {
+            opacity: animValues.opacity,
+            transform: [
+              { translateX: animValues.shake },
+              { scale: animValues.scale },
+            ],
+          },
+        ]}
       >
         <TouchableOpacity
           style={[
@@ -222,7 +225,6 @@ const MatchingQuestion: React.FC<Props> = ({
               (tone === 'selected' || tone === 'matched' || tone === 'correct') &&
                 styles.selectedMatchText,
             ]}
-            numberOfLines={2}
           >
             {item.text}
           </Text>
@@ -269,10 +271,13 @@ const MatchingQuestion: React.FC<Props> = ({
 
     return (
       <Animated.View
-        style={{
-          opacity: animValues.opacity,
-          transform: [{ translateX: animValues.shake }],
-        }}
+        style={[
+          styles.matchItemWrapper,
+          {
+            opacity: animValues.opacity,
+            transform: [{ translateX: animValues.shake }],
+          },
+        ]}
       >
         <TouchableOpacity
           style={[
@@ -289,7 +294,6 @@ const MatchingQuestion: React.FC<Props> = ({
               tone !== 'default' && styles.matchTextStrong,
               (tone === 'matched' || tone === 'correct') && styles.selectedMatchText,
             ]}
-            numberOfLines={2}
           >
             {item.text}
           </Text>
@@ -332,13 +336,12 @@ const MatchingQuestion: React.FC<Props> = ({
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    justifyContent: 'center',
   },
   questionWithAudioContainer: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
-    marginBottom: 72,
+    marginBottom: 28,
     gap: SPACING.sm,
   },
   questionText: {
@@ -353,19 +356,24 @@ const styles = StyleSheet.create({
     padding: SPACING.xs,
   },
   matchingContainer: {
-    gap: 24,
+    gap: 14,
   },
   matchRow: {
     flexDirection: 'row',
-    gap: 20,
+    alignItems: 'stretch',
+    gap: 12,
   },
   column: {
     flex: 1,
   },
+  matchItemWrapper: {
+    flex: 1,
+  },
   matchItem: {
-    minHeight: 64,
+    flex: 1,
+    minHeight: 72,
     borderRadius: 14,
-    paddingHorizontal: 16,
+    paddingHorizontal: 12,
     paddingVertical: 14,
     backgroundColor: '#FFFFFF',
     borderWidth: 1,

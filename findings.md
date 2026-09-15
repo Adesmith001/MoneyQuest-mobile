@@ -35,3 +35,10 @@
 - `src/navigation/AppNavigator.tsx`
 - `src/screens/tutorial/AppTourScreen.tsx`
 - `tests/tutorialState.test.ts`
+# 2026-09-15 Mobile QA Findings
+
+- `MatchingQuestion.tsx` clamps both columns with `numberOfLines={2}`; this directly causes the ellipsized definitions in QA image 1.
+- The lesson completion screen puts a 350px mascot block plus margins inside its ScrollView before the Continue button. On the QA phone the action is below the fold, so the user never advances into the badge and quest screens.
+- `CelebrationFlow` already sequences post-lesson screens, but `buildCelebrationsFromBundle` can prepend a combined `primary_celebration` and then add the same explicit badge/quest results again.
+- Badge data already contains `category`, progress, earned state, description, and artwork. The current profile and catalogue flatten that data instead of presenting the PRD categories.
+- Visual direction from the ZIP: orange celebration hero, white field, navy/orange data colors, rounded bordered cards, strong medal/badge/fox art, and an always-visible bottom action.
