@@ -321,7 +321,11 @@ const ProfileScreen: React.FC<Props> = ({ navigation }) => {
 
   return (
     <SafeAreaView style={styles.container}>
-      <ScrollView style={styles.content} showsVerticalScrollIndicator={false}>
+      <ScrollView
+        style={styles.content}
+        contentContainerStyle={styles.profileScrollContent}
+        showsVerticalScrollIndicator={false}
+      >
         {/* Header */}
         <View style={styles.profileHeader}>
           <View style={styles.avatarContainer}>
@@ -641,7 +645,10 @@ const styles = StyleSheet.create({
     backgroundColor: "#F8F9FA",
   },
   content: {
-    flexGrow: 1,
+    flex: 1,
+  },
+  profileScrollContent: {
+    paddingBottom: 120,
   },
   profileHeader: {
     flexDirection: "row",

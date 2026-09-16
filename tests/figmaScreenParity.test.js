@@ -12,17 +12,17 @@ test('the chest tab opens the full quests screen', () => {
   expect(source).toContain('require("../../assets/chestIcon.png")');
 });
 
-test('the full quests screen follows the supplied section hierarchy', () => {
+test('the quests screen only renders dashboard-backed quest content', () => {
   const source = read('src', 'screens', 'game', 'QuestsScreen.tsx');
   const active = source.indexOf('Active Challenges');
   const hall = source.indexOf('Hall of Fame');
-  const locked = source.indexOf('Locked Adventures');
 
   expect(active).toBeGreaterThan(-1);
   expect(hall).toBeGreaterThan(active);
-  expect(locked).toBeGreaterThan(hall);
-  expect(source).toContain('UNLOCK REQUIREMENTS');
-  expect(source).toContain('COMPLETE PATH 1 FIRST');
+  expect(source).not.toContain('Locked Adventures');
+  expect(source).not.toContain('Level 5 Ascension');
+  expect(source).not.toContain('Intro to Assets');
+  expect(source).not.toContain('Prosperity Chest');
   expect(source).toContain('Complete More quest');
   expect(source).not.toContain('>Chests<');
 });
@@ -47,6 +47,8 @@ test('profile supports the supplied empty badge state and Figma category order',
   expect(source).toContain('Go To Lessons');
   expect(source).toContain('PROFILE_BADGE_CATEGORY_ORDER');
   expect(source).toContain('BadgeHexagon');
+  expect(source).toContain('contentContainerStyle={styles.profileScrollContent}');
+  expect(source).toContain('profileScrollContent:');
 });
 
 test('badge catalogue uses the shared hexagon artwork treatment', () => {

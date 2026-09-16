@@ -28,11 +28,6 @@ interface Props {
   navigation: any;
 }
 
-const LOCKED_ADVENTURES = [
-  { name: "Level 5 Ascension", requirement: "UNLOCK REQUIREMENTS", icon: "trending-up" as const },
-  { name: "Intro to Assets", requirement: "COMPLETE PATH 1 FIRST", icon: "game-controller-outline" as const },
-];
-
 const QuestsScreen: React.FC<Props> = ({ navigation }) => {
   const dispatch = useDispatch<AppDispatch>();
   const [claimingChestId, setClaimingChestId] = useState<string | null>(null);
@@ -81,7 +76,7 @@ const QuestsScreen: React.FC<Props> = ({ navigation }) => {
           <View style={styles.questCopy}>
             <Text style={styles.questName}>{quest.name}</Text>
             <Text style={[styles.questDescription, completed && styles.completedCopy]}>
-              {completed ? `${quest.current_value}/${quest.target_value} Correct • Claimed` : quest.description}
+              {quest.description}
             </Text>
           </View>
           {completed ? (
@@ -106,7 +101,7 @@ const QuestsScreen: React.FC<Props> = ({ navigation }) => {
       <ScrollView contentContainerStyle={styles.scrollContent} showsVerticalScrollIndicator={false}>
         <View style={styles.header}>
           <Text style={styles.headerTitle}>QUESTS</Text>
-          <Text style={styles.headerSubtitle}>Unlock the Mythic Chest of Prosperity</Text>
+          <Text style={styles.headerSubtitle}>Complete challenges and earn rewards</Text>
         </View>
 
         {emptyMode !== "none" && hallOfFame.length === 0 ? (
@@ -139,14 +134,14 @@ const QuestsScreen: React.FC<Props> = ({ navigation }) => {
                 onPress={() => claimReward(rewardChest)}
                 disabled={Boolean(claimingChestId)}
                 accessibilityRole="button"
-                accessibilityLabel={`Claim ${rewardChest.chest_name || "reward chest"}`}
+                accessibilityLabel={`Claim ${rewardChest.chest_name}`}
               >
                 <View style={styles.questTopRow}>
                   <View style={styles.completedIcon}>
                     <Image source={require("../../../assets/chestIcon.png")} style={styles.chestImage} />
                   </View>
                   <View style={styles.questCopy}>
-                    <Text style={styles.questName}>{rewardChest.chest_name || "Prosperity Chest"}</Text>
+                    <Text style={styles.questName}>{rewardChest.chest_name}</Text>
                     <Text style={styles.completedCopy}>Ready to claim</Text>
                   </View>
                   {claimingChestId ? <ActivityIndicator color="#087D2C" /> : (
@@ -158,23 +153,6 @@ const QuestsScreen: React.FC<Props> = ({ navigation }) => {
             )}
           </View>
         )}
-
-        <View style={styles.section}>
-          <View style={styles.sectionTitleRow}>
-            <Ionicons name="lock-closed" size={23} color="#60727A" />
-            <Text style={styles.sectionTitle}>Locked Adventures</Text>
-          </View>
-          {LOCKED_ADVENTURES.map((adventure) => (
-            <View key={adventure.name} style={styles.lockedCard}>
-              <View style={styles.lockedIcon}><Ionicons name={adventure.icon} size={24} color="#78909C" /></View>
-              <View style={styles.lockedCopy}>
-                <Text style={styles.lockedName}>{adventure.name}</Text>
-                <Text style={styles.lockedRequirement}>{adventure.requirement}</Text>
-              </View>
-              <Ionicons name="lock-closed-outline" size={22} color="#9AA9AE" />
-            </View>
-          ))}
-        </View>
 
         <View style={styles.buttonContainer}>
           <CustomButton title="Complete More quest" onPress={() => navigation.navigate("Home")} fullWidth />
@@ -229,13 +207,13 @@ const styles = StyleSheet.create({
     borderColor: "#F8DDC7", backgroundColor: "#FFF9F3", alignItems: "center", justifyContent: "center",
   },
   completedIcon: {
-    width: 54, height: 54, marginRight: 16, borderRadius: 15,
+    width: 50, height: 50, marginRight: 16, borderRadius: 15,
     backgroundColor: "#FFD000", alignItems: "center", justifyContent: "center",
   },
-  chestImage: { width: 38, height: 38, resizeMode: "contain" },
+  chestImage: { width: 34, height: 34, resizeMode: "contain" },
   questCopy: { flex: 1, paddingRight: 8 },
-  questName: { fontFamily: FONT_FAMILY, fontSize: 19, lineHeight: 24, color: "#111111" },
-  questDescription: { marginTop: 2, fontSize: 15, lineHeight: 20, color: "#604B42" },
+  questName: { fontFamily: FONT_FAMILY, fontSize: 16, lineHeight: 24, color: "#111111" },
+  questDescription: { marginTop: 2, fontSize: 13, lineHeight: 20, color: "#604B42" },
   completedCopy: { color: "#087D2C", fontWeight: "700" },
   questCount: { fontFamily: FONT_FAMILY, fontSize: 20, color: "#A94200" },
   questCountCurrent: { color: "#A94200" },
@@ -247,20 +225,6 @@ const styles = StyleSheet.create({
   progressTrack: { height: 12, borderRadius: 8, overflow: "hidden", backgroundColor: "#EEEEEE" },
   progressFill: { height: "100%", borderRadius: 8 },
   fullProgress: { width: "100%", backgroundColor: "#087D2C" },
-  lockedCard: {
-    minHeight: 92, marginBottom: 16, paddingHorizontal: 20, flexDirection: "row", alignItems: "center",
-    borderWidth: 2, borderStyle: "dashed", borderColor: "#E7C9BD", borderRadius: 24, backgroundColor: "#FFFFFF",
-  },
-  lockedIcon: {
-    width: 52, height: 52, marginRight: 16, borderRadius: 15,
-    backgroundColor: "#F1F1F1", alignItems: "center", justifyContent: "center",
-  },
-  lockedCopy: { flex: 1 },
-  lockedName: { fontFamily: FONT_FAMILY, fontSize: 18, color: "#A3A3A3" },
-  lockedRequirement: {
-    marginTop: 5, fontSize: 12, fontWeight: "800", letterSpacing: 0.7,
-    color: "#B05C30", textDecorationLine: "underline",
-  },
   emptyState: { alignItems: "center", paddingHorizontal: 24, paddingVertical: 24 },
   emptyTitle: { fontFamily: FONT_FAMILY, fontSize: 21, color: "#151515" },
   emptyDescription: { marginTop: 8, color: "#777777", textAlign: "center" },
