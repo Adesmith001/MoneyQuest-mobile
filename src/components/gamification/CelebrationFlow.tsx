@@ -94,12 +94,6 @@ const CelebrationFlow: React.FC<Props> = ({ navigation, route }) => {
     return (
           <LessonCompleteScreen
             onContinue={handleLessonCompleteContinue}
-            onBackToHome={handleBackToHome}
-            nextPrompt={
-              pendingCelebrations.length > 0
-                ? "Next: see what you unlocked."
-                : "Your next lesson is ready on Home."
-            }
             navigation={{
           ...navigation,
           popToTop: handleLessonCompleteContinue,
@@ -134,10 +128,9 @@ const CelebrationFlow: React.FC<Props> = ({ navigation, route }) => {
         (badge) => badge.badge_code === badgeCode && badge.was_awarded
       );
       return (
-          <AchievementUnlockScreen
-            onContinue={handleCelebrationContinue}
-            onBackToHome={handleBackToHome}
-            navigation={commonNav}
+            <AchievementUnlockScreen
+              onContinue={handleCelebrationContinue}
+              navigation={commonNav}
           route={{
             params: {
               badgeCode,
@@ -169,7 +162,6 @@ const CelebrationFlow: React.FC<Props> = ({ navigation, route }) => {
       return (
           <DailyQuestScreen
             onContinue={handleCelebrationContinue}
-            onBackToHome={handleBackToHome}
             navigation={commonNav}
           route={{
             params: {
@@ -195,7 +187,6 @@ const CelebrationFlow: React.FC<Props> = ({ navigation, route }) => {
       return (
           <DailyQuestScreen
             onContinue={handleCelebrationContinue}
-            onBackToHome={handleBackToHome}
             navigation={commonNav}
           route={{
             params: {
@@ -212,7 +203,6 @@ const CelebrationFlow: React.FC<Props> = ({ navigation, route }) => {
   // Fallback — shouldn't reach here
   return (
     <LessonCompleteScreen
-      onBackToHome={handleBackToHome}
       navigation={navigation}
       route={route}
     />

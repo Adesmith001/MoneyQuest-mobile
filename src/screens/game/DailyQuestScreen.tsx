@@ -9,7 +9,6 @@ import {
   Platform,
   Animated,
   Dimensions,
-  TouchableOpacity,
 } from "react-native";
 import CustomButton from "../../components/CustomButton";
 import { COLORS } from "../../constants";
@@ -30,7 +29,6 @@ interface QuestDisplayItem {
 interface Props {
   navigation: any;
   onContinue?: () => void;
-  onBackToHome?: () => void;
   route: {
     params: {
       /** Number of quest points earned (typically 1) */
@@ -49,7 +47,6 @@ const DailyQuestScreen: React.FC<Props> = ({
   navigation,
   route,
   onContinue,
-  onBackToHome,
 }) => {
   const {
     questPointEarned = 1,
@@ -83,10 +80,6 @@ const DailyQuestScreen: React.FC<Props> = ({
   }, []);
 
   const handleContinue = () => (onContinue ? onContinue() : navigation.popToTop());
-  const handleBackToHome = () =>
-    onBackToHome
-      ? onBackToHome()
-      : navigation.navigate("MainApp", { screen: "Home" });
 
   // Build display items from props or Redux
   const displayQuests: QuestDisplayItem[] =
@@ -205,11 +198,7 @@ const DailyQuestScreen: React.FC<Props> = ({
       </ScrollView>
 
       <View style={styles.actionFooter}>
-        <Text style={styles.nextPrompt}>Keep going—your next lesson is ready.</Text>
         <CustomButton title="Continue" onPress={handleContinue} />
-        <TouchableOpacity style={styles.homeAction} onPress={handleBackToHome}>
-          <Text style={styles.homeActionText}>Back to Home</Text>
-        </TouchableOpacity>
       </View>
     </SafeAreaView>
   );
@@ -345,27 +334,10 @@ const styles = StyleSheet.create({
   },
 
   actionFooter: {
-    borderTopWidth: 1,
-    borderTopColor: "#F1F1F1",
     backgroundColor: "#FFFFFF",
     paddingHorizontal: 24,
-    paddingTop: 10,
-    paddingBottom: Platform.OS === "web" ? 18 : 10,
-  },
-  nextPrompt: {
-    color: "#666666",
-    fontSize: 13,
-    textAlign: "center",
-    marginBottom: 8,
-  },
-  homeAction: {
-    alignItems: "center",
-    paddingVertical: 9,
-  },
-  homeActionText: {
-    color: COLORS.primary,
-    fontSize: 15,
-    fontWeight: "700",
+    paddingTop: 14,
+    paddingBottom: Platform.OS === "web" ? 22 : 16,
   },
 });
 

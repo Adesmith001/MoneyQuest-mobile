@@ -117,7 +117,7 @@ const FillInGapQuestion: React.FC<Props> = ({
   // Split question text by blank markers and render with inputs
   const renderQuestionWithBlanks = () => {
     let questionText = question.question;
-    const parts: (string | JSX.Element)[] = [];
+    const parts: (string | React.ReactElement)[] = [];
     let lastIndex = 0;
     let keyCounter = 0;
 

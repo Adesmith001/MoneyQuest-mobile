@@ -40,6 +40,7 @@ import { canAdvanceTutorialStep } from "../../utils/tutorialBehavior";
 import { fetchBadgeCatalogue } from "../../store/slices/gamificationSlice";
 import { BadgeCategory } from "../../types/gamification";
 import { groupBadgesByCategory } from "../../utils/badgeCategories";
+import BadgeHexagon from "../../components/gamification/BadgeHexagon";
 
 const { width: screenWidth } = Dimensions.get("window");
 
@@ -775,21 +776,13 @@ const styles = StyleSheet.create({
   },
   achievementCard: {
     minHeight: 108,
-    borderRadius: 16,
-    borderWidth: 1,
-    padding: 14,
+    borderRadius: 24,
+    paddingHorizontal: 14,
+    paddingVertical: 12,
     flexDirection: "row",
     alignItems: "center",
   },
-  achievementHexagon: {
-    width: 64,
-    height: 64,
-    backgroundColor: "#E8EDF5",
-    borderRadius: 12,
-    borderWidth: 2,
-    borderColor: "#C5CEE0",
-    alignItems: "center",
-    justifyContent: "center",
+  achievementHexagonWrap: {
     marginRight: 12,
   },
   achievementHexagonLocked: {
@@ -832,21 +825,16 @@ const styles = StyleSheet.create({
     color: "#3B5998",
     fontSize: 12,
     fontWeight: "800",
-    marginTop: 6,
+    marginTop: 4,
   },
   achievementPreviewRow: {
     flexDirection: "row",
-    marginRight: 4,
+    gap: 3,
+    marginRight: 2,
   },
   achievementPreview: {
-    width: 26,
-    height: 26,
-    borderRadius: 7,
-    borderWidth: 1,
-    borderColor: "#FFFFFF",
-    backgroundColor: "#D8DDE8",
-    marginLeft: -7,
-    overflow: "hidden",
+    width: 34,
+    height: 34,
     alignItems: "center",
     justifyContent: "center",
   },
@@ -859,7 +847,8 @@ const styles = StyleSheet.create({
   },
   emptyBadgesContainer: {
     alignItems: "center",
-    paddingVertical: 24,
+    paddingTop: 20,
+    paddingBottom: 220,
   },
   emptyBadgesText: {
     fontSize: 16,
@@ -869,9 +858,10 @@ const styles = StyleSheet.create({
   },
   goToLessonsButton: {
     backgroundColor: "#FF5722",
-    paddingVertical: 12,
-    paddingHorizontal: 32,
-    borderRadius: 24,
+    width: "72%",
+    paddingVertical: 16,
+    borderRadius: 16,
+    alignItems: "center",
   },
   goToLessonsText: {
     color: "#FFFFFF",
@@ -1152,6 +1142,14 @@ const BADGE_CATEGORY_DETAILS: Record<BadgeCategory, {
   },
 };
 
+const PROFILE_BADGE_CATEGORY_ORDER: BadgeCategory[] = [
+  "ACHIEVEMENT",
+  "JOURNEY",
+  "QUEST",
+  "SECTION",
+  "CONSISTENCY",
+];
+
 const BadgesAchievementsSection: React.FC<{
   navigation: any;
 }> = ({ navigation }) => {
@@ -1168,15 +1166,18 @@ const BadgesAchievementsSection: React.FC<{
     }, [dispatch, user?.$id])
   );
 
-  const categoryGroups = groupBadgesByCategory(badgeCatalogue);
+  const groupedBadges = groupBadgesByCategory(badgeCatalogue);
+  const categoryGroups = PROFILE_BADGE_CATEGORY_ORDER.map(
+    (category) => groupedBadges.find((group) => group.category === category)!
+  );
 
   return (
     <View style={styles.achievementsSection}>
       <Text style={styles.sectionTitle}>Badges & Achievements</Text>
 
-      {categoryGroups.length === 0 ? (
+      {badgeCatalogue.length === 0 ? (
         <View style={styles.emptyBadgesContainer}>
-          <Text style={styles.emptyBadgesText}>Badges are loading</Text>
+          <Text style={styles.emptyBadgesText}>No Badge/Achievement Yet</Text>
           <TouchableOpacity
             style={styles.goToLessonsButton}
             onPress={() => navigation.navigate("MainApp", { screen: "Home" })}
@@ -1191,35 +1192,35 @@ const BadgesAchievementsSection: React.FC<{
             return (
             <TouchableOpacity
               key={group.category}
-              style={[styles.achievementCard, { backgroundColor: details.background, borderColor: `${details.foreground}22` }]}
+              style={[styles.achievementCard, { backgroundColor: details.background }]}
               onPress={() => navigation.navigate("BadgeCatalogue", { category: group.category })}
               activeOpacity={0.7}
             >
-              <View
-                style={[styles.achievementHexagon, { backgroundColor: `${details.foreground}18`, borderColor: `${details.foreground}44` }]}
-              >
-                <Ionicons name={details.icon} size={30} color={details.foreground} />
+              <View style={styles.achievementHexagonWrap}>
+                <BadgeHexagon size={74} fill={details.foreground} borderColor={details.foreground}>
+                  <Ionicons name={details.icon} size={28} color="#FFFFFF" />
+                </BadgeHexagon>
               </View>
               <View style={styles.achievementCategoryCopy}>
                 <Text style={styles.achievementName}>{details.title}</Text>
                 <Text style={styles.achievementCategoryDescription}>{details.description}</Text>
-                <Text style={[styles.achievementCategoryCount, { color: details.foreground }]}>
-                  {group.earnedCount} of {group.totalCount} earned
+                <Text style={[styles.achievementCategoryCount, { color: details.foreground }]}> 
+                  {group.earnedCount}/{group.totalCount}
                 </Text>
               </View>
               <View style={styles.achievementPreviewRow}>
-                {group.items.slice(0, 3).map((badge) => (
-                  <View
-                    key={badge.badge_definition_id}
-                    style={[styles.achievementPreview, !badge.is_earned && styles.achievementPreviewLocked]}
-                  >
-                    {badge.asset_reference ? (
-                      <Image source={{ uri: badge.asset_reference }} style={styles.achievementPreviewImage} resizeMode="contain" />
-                    ) : (
-                      <Ionicons name={badge.is_earned ? "medal" : "lock-closed"} size={14} color={badge.is_earned ? details.foreground : "#687085"} />
-                    )}
+                {[0, 1, 2].map((index) => {
+                  const badge = group.items[index];
+                  return (
+                  <View key={badge?.badge_definition_id || `${group.category}-${index}`} style={styles.achievementPreview}>
+                    <BadgeHexagon size={34} fill={badge?.is_earned ? details.foreground : "#687078"} borderColor="#9AA3AE">
+                      {badge?.asset_reference ? (
+                        <Image source={{ uri: badge.asset_reference }} style={styles.achievementPreviewImage} resizeMode="contain" />
+                      ) : null}
+                    </BadgeHexagon>
                   </View>
-                ))}
+                  );
+                })}
               </View>
               <Ionicons name="chevron-forward" size={18} color="#8A91A1" />
             </TouchableOpacity>

@@ -226,7 +226,7 @@ const styles = StyleSheet.create({
     alignItems: 'center',
   },
   overlayTouchable: {
-    ...StyleSheet.absoluteFillObject,
+    ...StyleSheet.absoluteFill,
   },
   tooltipContainer: {
     position: 'absolute',

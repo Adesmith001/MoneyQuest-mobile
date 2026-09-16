@@ -42,3 +42,11 @@
 - `CelebrationFlow` already sequences post-lesson screens, but `buildCelebrationsFromBundle` can prepend a combined `primary_celebration` and then add the same explicit badge/quest results again.
 - Badge data already contains `category`, progress, earned state, description, and artwork. The current profile and catalogue flatten that data instead of presenting the PRD categories.
 - Visual direction from the ZIP: orange celebration hero, white field, navy/orange data colors, rounded bordered cards, strong medal/badge/fox art, and an always-visible bottom action.
+
+# 2026-09-15 Figma Parity Follow-up
+
+- The bottom chest icon already maps directly to `QuestsScreen`, so navigation needs a regression test rather than a routing rewrite.
+- `QuestsScreen` currently inserts backend chest claim cards above Active Challenges; the supplied all-quests reference instead presents Active Challenges, Hall of Fame, then Locked Adventures.
+- `DailyQuestScreen`, `LevelCompletionScreen`, and `AchievementUnlockScreen` currently add secondary footer copy/actions that are not present in the supplied references.
+- Profile category cards use rounded rectangles and generic Ionicons; the references use large outlined hexagons, three small hex previews, category-specific pastel backgrounds, and compact `8/24`-style counts.
+- The supplied screenshots are the available visual source of truth; no Figma node URL or inspectable design metadata was provided.

@@ -1,5 +1,18 @@
 # Progress Log
 
+## Session: 2026-09-15 Figma Parity Follow-up
+
+### Discovery and Approval
+- **Status:** complete
+- User approved exact visual alignment to the eight supplied mobile references.
+- Confirmed the chest tab already targets `QuestsScreen`; the required change is the full-screen quest presentation and a regression check.
+- Started a test-first parity pass covering quests, post-lesson celebrations, profile badge states, and badge catalogue.
+
+### Failing Contracts
+- **Status:** complete
+- Added `tests/figmaScreenParity.test.js` and updated the earlier post-lesson action contract to the approved single-action design.
+- Confirmed RED: 8 expected failures cover missing Locked Adventures, secondary celebration actions/copy, profile empty-state copy/order, and hexagon artwork; the existing chest-to-Quests route check passes.
+
 ## Session: 2026-09-15
 
 ### Discovery and Design

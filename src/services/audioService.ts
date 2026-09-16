@@ -1,4 +1,8 @@
-import { Audio } from 'expo-av';
+import {
+  createAudioPlayer,
+  setAudioModeAsync,
+  type AudioPlayer,
+} from 'expo-audio';
 import { backendApi } from './backendApi';
 import {
   BackendTTSStreamRequest,
@@ -7,10 +11,10 @@ import {
 
 /**
  * Audio Service - Handles TTS operations for React Native
- * Uses expo-av for audio playback
+ * Uses expo-audio for audio playback
  */
 class AudioService {
-  private currentSound: Audio.Sound | null = null;
+  private currentSound: AudioPlayer | null = null;
   private isInitialized: boolean = false;
 
   /**
@@ -20,12 +24,12 @@ class AudioService {
     if (this.isInitialized) return;
 
     try {
-      await Audio.setAudioModeAsync({
-        allowsRecordingIOS: false,
-        playsInSilentModeIOS: true,
-        staysActiveInBackground: false,
-        shouldDuckAndroid: true,
-        playThroughEarpieceAndroid: false,
+      await setAudioModeAsync({
+        allowsRecording: false,
+        playsInSilentMode: true,
+        shouldPlayInBackground: false,
+        interruptionMode: 'duckOthers',
+        shouldRouteThroughEarpiece: false,
       });
       this.isInitialized = true;
     } catch (error) {
@@ -50,7 +54,7 @@ class AudioService {
     voice: string = 'Arista',
     speed: number = 1.0,
     format: 'mp3' | 'opus' | 'aac' | 'flac' | 'wav' = 'mp3'
-  ): Promise<Audio.Sound> {
+  ): Promise<AudioPlayer> {
     try {
       // Initialize if needed
       await this.initialize();
@@ -71,26 +75,22 @@ class AudioService {
       }
 
       // Convert base64 to data URI for React Native
-      // expo-av can play audio directly from data URI
+      // expo-audio can play audio directly from a data URI.
       const audioUri = `data:audio/${response.output_format};base64,${response.audio_base64}`;
-      
-      const { sound } = await Audio.Sound.createAsync(
-        { uri: audioUri },
-        { shouldPlay: true }
-      );
+
+      const sound = createAudioPlayer({ uri: audioUri });
 
       this.currentSound = sound;
 
       // Clean up when audio finishes
-      sound.setOnPlaybackStatusUpdate((status) => {
-        if (status.isLoaded) {
-          if (status.didJustFinish) {
-            this.cleanup();
-          }
+      sound.addListener('playbackStatusUpdate', (status) => {
+        if (status.didJustFinish) {
+          void this.cleanup();
         } else if (status.error) {
           console.error('Audio playback error:', status.error);
         }
       });
+      sound.play();
 
       return sound;
     } catch (error) {
@@ -133,7 +133,7 @@ class AudioService {
   async readQuestion(
     questionText: string,
     options: { voice?: string; speed?: number } = {}
-  ): Promise<Audio.Sound> {
+  ): Promise<AudioPlayer> {
     return await this.speakText(
       questionText,
       options.voice || 'Arista',
@@ -151,7 +151,7 @@ class AudioService {
     questionText: string,
     optionsObj: { A: string; B: string; C: string; D: string },
     options: { voice?: string; speed?: number } = {}
-  ): Promise<Audio.Sound> {
+  ): Promise<AudioPlayer> {
     // Build text with question and options
     const fullText = `${questionText}. Option A: ${optionsObj.A}. Option B: ${optionsObj.B}. Option C: ${optionsObj.C}. Option D: ${optionsObj.D}.`;
     
@@ -170,7 +170,7 @@ class AudioService {
   async readExplanation(
     explanationText: string,
     options: { voice?: string; speed?: number } = {}
-  ): Promise<Audio.Sound> {
+  ): Promise<AudioPlayer> {
     return await this.speakText(
       explanationText,
       options.voice || 'Arista',
@@ -184,8 +184,8 @@ class AudioService {
   async stopAudio(): Promise<void> {
     if (this.currentSound) {
       try {
-        await this.currentSound.stopAsync();
-        await this.currentSound.unloadAsync();
+        this.currentSound.pause();
+        this.currentSound.remove();
       } catch (error) {
         console.error('Error stopping audio:', error);
       }
@@ -199,7 +199,7 @@ class AudioService {
   async pauseAudio(): Promise<void> {
     if (this.currentSound) {
       try {
-        await this.currentSound.pauseAsync();
+        this.currentSound.pause();
       } catch (error) {
         console.error('Error pausing audio:', error);
       }
@@ -212,7 +212,7 @@ class AudioService {
   async resumeAudio(): Promise<void> {
     if (this.currentSound) {
       try {
-        await this.currentSound.playAsync();
+        this.currentSound.play();
       } catch (error) {
         console.error('Error resuming audio:', error);
       }
@@ -225,8 +225,7 @@ class AudioService {
   async isPlaying(): Promise<boolean> {
     if (!this.currentSound) return false;
     try {
-      const status = await this.currentSound.getStatusAsync();
-      return status.isLoaded && status.isPlaying;
+      return this.currentSound.isLoaded && this.currentSound.playing;
     } catch (error) {
       return false;
     }
@@ -235,7 +234,7 @@ class AudioService {
   /**
    * Get current sound object
    */
-  getCurrentSound(): Audio.Sound | null {
+  getCurrentSound(): AudioPlayer | null {
     return this.currentSound;
   }
 
@@ -245,7 +244,7 @@ class AudioService {
   private async cleanup(): Promise<void> {
     if (this.currentSound) {
       try {
-        await this.currentSound.unloadAsync();
+        this.currentSound.remove();
       } catch (error) {
         console.error('Error during cleanup:', error);
       }

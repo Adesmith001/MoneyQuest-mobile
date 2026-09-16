@@ -1,10 +1,14 @@
-import { Audio } from 'expo-av';
+import {
+  createAudioPlayer,
+  setAudioModeAsync,
+  type AudioPlayer,
+} from 'expo-audio';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 
 const SOUND_ENABLED_KEY = 'soundEnabled';
 
 class SoundService {
-  private sounds: { [key: string]: Audio.Sound } = {};
+  private sounds: { [key: string]: AudioPlayer } = {};
   private isSoundEnabled: boolean = true;
   private isInitialized: boolean = false;
 
@@ -13,12 +17,12 @@ class SoundService {
 
     try {
       // Set audio mode - iOS specific settings to prevent crashes
-      await Audio.setAudioModeAsync({
-        allowsRecordingIOS: false,
-        playsInSilentModeIOS: true,
-        staysActiveInBackground: false,
-        shouldDuckAndroid: true,
-        playThroughEarpieceAndroid: false,
+      await setAudioModeAsync({
+        allowsRecording: false,
+        playsInSilentMode: true,
+        shouldPlayInBackground: false,
+        interruptionMode: 'duckOthers',
+        shouldRouteThroughEarpiece: false,
       });
 
       // Load sound preference from storage
@@ -48,10 +52,10 @@ class SoundService {
 
       for (const [key, file] of Object.entries(soundFiles)) {
         try {
-          const { sound } = await Audio.Sound.createAsync(file, {
-            shouldPlay: false,
-            volume: 1.0,
+          const sound = createAudioPlayer(file, {
+            keepAudioSessionActive: true,
           });
+          sound.volume = 1;
           this.sounds[key] = sound;
         } catch (error) {
           console.warn(`Failed to load sound ${key}:`, error);
@@ -74,18 +78,18 @@ class SoundService {
     try {
       const sound = this.sounds[soundName];
       if (sound) {
-        const status = await sound.getStatusAsync();
-        if (status.isLoaded) {
+        if (sound.isLoaded) {
           // Re-request audio focus before playing (Android can lose focus between plays)
-          await Audio.setAudioModeAsync({
-            allowsRecordingIOS: false,
-            playsInSilentModeIOS: true,
-            staysActiveInBackground: false,
-            shouldDuckAndroid: true,
-            playThroughEarpieceAndroid: false,
+          await setAudioModeAsync({
+            allowsRecording: false,
+            playsInSilentMode: true,
+            shouldPlayInBackground: false,
+            interruptionMode: 'duckOthers',
+            shouldRouteThroughEarpiece: false,
           });
           // replayAsync resets position and plays — reliable for short SFX
-          await sound.replayAsync();
+          await sound.seekTo(0);
+          sound.play();
         }
       } else {
         console.warn(`Sound '${soundName}' not found. Available: ${Object.keys(this.sounds).join(', ')}`);
@@ -116,7 +120,7 @@ class SoundService {
   async cleanup() {
     try {
       for (const sound of Object.values(this.sounds)) {
-        await sound.unloadAsync();
+        sound.remove();
       }
       this.sounds = {};
       this.isInitialized = false;

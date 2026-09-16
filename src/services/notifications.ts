@@ -1,7 +1,8 @@
-import * as Notifications from 'expo-notifications';
+import { isRunningInExpoGo } from 'expo';
 import * as Device from 'expo-device';
 import { Platform, AppState, AppStateStatus } from 'react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
+import { loadNotificationModule } from './notificationModule';
 import analyticsService from './analytics';
 import { databases, DB_ID, Query, COLLECTIONS } from './appwrite';
 import { ENV } from '../config/environment';
@@ -18,6 +19,34 @@ import {
   type SelectedNotificationTemplate,
 } from '../utils/notificationReminderConfig';
 import { shouldResetMonthlyXP } from '../utils';
+
+type NotificationsModule = typeof import('expo-notifications');
+
+const expoGoNotifications = {
+  setNotificationHandler: () => {},
+  getPermissionsAsync: async () => ({ status: 'denied' }),
+  requestPermissionsAsync: async () => ({ status: 'denied' }),
+  setNotificationChannelAsync: async () => null,
+  addNotificationReceivedListener: () => ({ remove: () => {} }),
+  addNotificationResponseReceivedListener: () => ({ remove: () => {} }),
+  scheduleNotificationAsync: async () => '',
+  getAllScheduledNotificationsAsync: async () => [],
+  cancelScheduledNotificationAsync: async () => {},
+  cancelAllScheduledNotificationsAsync: async () => {},
+  AndroidImportance: { HIGH: 4, DEFAULT: 3 },
+  AndroidNotificationPriority: { HIGH: 'high', DEFAULT: 'default' },
+  SchedulableTriggerInputTypes: {
+    DAILY: 'daily',
+    TIME_INTERVAL: 'timeInterval',
+    DATE: 'date',
+  },
+} as unknown as NotificationsModule;
+
+const Notifications = loadNotificationModule(
+  isRunningInExpoGo(),
+  () => require('expo-notifications') as NotificationsModule,
+  expoGoNotifications
+);
 
 // Configure how notifications should be handled when the app is in foreground
 // Wrap in try-catch to prevent iOS crash if notification system isn't ready

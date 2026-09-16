@@ -4,10 +4,10 @@
 Fix the phone-size matching, post-lesson celebration, navigation, and categorized badge issues reported by QA using the supplied Money Quest designs.
 
 ## Next Step
-Deliver the completed inline implementation to the user.
+Implement the approved Figma parity changes with the smallest reusable visual primitives.
 
 ## Current Phase
-Phase 9
+Phase 11
 
 ## Phases
 
@@ -62,6 +62,23 @@ Phase 9
 - [x] Inspect at a standard-phone viewport
 - [x] Review diff and deliver
 - **Status:** complete
+
+### Phase 10: Figma Parity Tests
+- [x] Add failing source-level contracts for the full quest layout, celebration screens, and badge/profile states
+- [x] Add a chest-tab navigation regression check
+- **Status:** complete
+
+### Phase 11: Figma Parity Implementation
+- [ ] Match the full quest catalogue and locked-adventure layout
+- [ ] Match daily quest and celebration hierarchy/actions
+- [ ] Match profile badge category cards and badge catalogue
+- **Status:** in_progress
+
+### Phase 12: Visual and Automated Verification
+- [ ] Run focused tests and TypeScript diagnostics
+- [ ] Render standard phone viewport and compare against references
+- [ ] Review the final diff and deliver
+- **Status:** pending
 
 ## Decisions Made
 

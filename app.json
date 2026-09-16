@@ -7,17 +7,10 @@
     "icon": "./assets/logo-white.png",
     "scheme": "moneyquest",
     "userInterfaceStyle": "light",
-    "splash": {
-      "image": "./assets/logo-black.png",
-      "resizeMode": "contain",
-      "backgroundColor": "#ffffff"
-    },
     "ios": {
       "supportsTablet": true,
       "bundleIdentifier": "com.expo.moneyquest",
       "buildNumber": "1.1.2",
-      "jsEngine": "hermes",
-      "newArchEnabled": false,
       "entitlements": {
         "com.apple.developer.game-center": true
       },
@@ -33,7 +26,7 @@
       "package": "com.expo.moneyquest",
       "versionCode": 1,
       "adaptiveIcon": {
-        "foregroundImage": "./assets/logo-orange.png",
+        "foregroundImage": "./assets/logo-white.png",
         "backgroundColor": "#ffffff"
       },
       "permissions": [
@@ -65,8 +58,7 @@
           ]
         }
       ],
-      "softwareKeyboardLayoutMode": "pan",
-      "edgeToEdgeEnabled": true
+      "softwareKeyboardLayoutMode": "pan"
     },
     "web": {
       "bundler": "metro",
@@ -114,15 +106,19 @@
     "owner": "adesmith",
     "plugins": [
       [
+        "expo-splash-screen",
+        {
+          "image": "./assets/logo-black.png",
+          "resizeMode": "contain",
+          "backgroundColor": "#ffffff"
+        }
+      ],
+      [
         "expo-build-properties",
         {
           "ios": {
-            "deploymentTarget": "15.1",
-            "newArchEnabled": false,
+            "deploymentTarget": "16.4",
             "flipper": false
-          },
-          "android": {
-            "newArchEnabled": false
           }
         }
       ],
@@ -141,7 +137,8 @@
           "color": "#FF6B35",
           "sounds": []
         }
-      ]
+      ],
+      "expo-web-browser"
     ]
   }
 }

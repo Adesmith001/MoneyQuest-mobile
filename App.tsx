@@ -124,7 +124,6 @@ function AppContent() {
         if (Platform.OS === 'android') {
           try {
             await NavigationBar.setVisibilityAsync('hidden');
-            await NavigationBar.setBehaviorAsync('overlay-swipe');
           } catch (navErr) {
             console.warn('⚠️ Could not hide navigation bar:', navErr);
           }
@@ -247,7 +246,7 @@ function AppContent() {
       <PersistGate loading={<LoadingScreen />} persistor={persistor}>
         <AppFrame>
           <AppNavigator />
-          <StatusBar style="dark" translucent backgroundColor="transparent" />
+          <StatusBar style="dark" />
         </AppFrame>
       </PersistGate>
     </Provider>

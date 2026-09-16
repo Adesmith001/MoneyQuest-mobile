@@ -12,7 +12,6 @@ import {
   StyleProp,
   ViewStyle,
   Animated,
-  TouchableOpacity,
 } from "react-native";
 import CustomButton from "../../components/CustomButton";
 import { COLORS } from "../../constants";
@@ -27,8 +26,6 @@ const { width: SCREEN_WIDTH } = Dimensions.get("window");
 interface Props {
   navigation: any;
   onContinue?: () => void;
-  onBackToHome?: () => void;
-  nextPrompt?: string;
   route: {
     params: {
       xpGained: number;
@@ -47,8 +44,6 @@ const LessonCompleteScreen: React.FC<Props> = ({
   navigation,
   route,
   onContinue,
-  onBackToHome,
-  nextPrompt = "Your next lesson is ready on Home.",
 }) => {
   const {
     xpGained,
@@ -130,10 +125,6 @@ const LessonCompleteScreen: React.FC<Props> = ({
   }, [completedLevelsCount, sectionId]);
 
   const handleContinue = () => (onContinue ? onContinue() : navigation.popToTop());
-  const handleBackToHome = () =>
-    onBackToHome
-      ? onBackToHome()
-      : navigation.navigate("MainApp", { screen: "Home" });
 
   const { height: windowHeight } = useWindowDimensions();
   const layoutWidth = Platform.OS === "web" ? Math.min(windowWidth, 480) : SCREEN_WIDTH;
@@ -240,7 +231,6 @@ const LessonCompleteScreen: React.FC<Props> = ({
       </ScrollView>
 
       <View style={styles.actionFooter}>
-        <Text style={styles.nextPrompt}>{nextPrompt}</Text>
         <CustomButton
           title="Continue"
           onPress={handleContinue}
@@ -248,9 +238,6 @@ const LessonCompleteScreen: React.FC<Props> = ({
           style={styles.button}
           textStyle={styles.buttonText}
         />
-        <TouchableOpacity style={styles.homeAction} onPress={handleBackToHome}>
-          <Text style={styles.homeActionText}>Back to Home</Text>
-        </TouchableOpacity>
       </View>
     </SafeAreaView>
   );
@@ -429,18 +416,10 @@ const styles = StyleSheet.create({
   },
 
   actionFooter: {
-    borderTopWidth: 1,
-    borderTopColor: "#F1F1F1",
     backgroundColor: "#FFFFFF",
     paddingHorizontal: 24,
-    paddingTop: 10,
-    paddingBottom: Platform.OS === "web" ? 18 : 10,
-  },
-  nextPrompt: {
-    color: "#666666",
-    fontSize: 13,
-    textAlign: "center",
-    marginBottom: 8,
+    paddingTop: 14,
+    paddingBottom: Platform.OS === "web" ? 22 : 16,
   },
   button: {
     borderRadius: 18,
@@ -449,15 +428,6 @@ const styles = StyleSheet.create({
   },
   buttonText: {
     fontSize: 18,
-    fontWeight: "700",
-  },
-  homeAction: {
-    alignItems: "center",
-    paddingVertical: 9,
-  },
-  homeActionText: {
-    color: COLORS.primary,
-    fontSize: 15,
     fontWeight: "700",
   },
 });

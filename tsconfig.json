@@ -3,5 +3,9 @@
   "compilerOptions": {
     "jsx": "react",
     "strict": true
-  }
+  },
+  "exclude": [
+    "moneyquest-dashboard",
+    "school-dashboard"
+  ]
 }

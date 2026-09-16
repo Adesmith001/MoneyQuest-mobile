@@ -96,7 +96,7 @@ export const parseMarkdownContent = (content: string): ParsedContent[] => {
 /**
  * Render parsed markdown content with proper table formatting
  */
-export const renderMarkdownContent = (content: string, textStyle?: any): JSX.Element[] => {
+export const renderMarkdownContent = (content: string, textStyle?: any): React.ReactElement[] => {
   const sections = parseMarkdownContent(content);
 
   return sections.map((section, index) => {

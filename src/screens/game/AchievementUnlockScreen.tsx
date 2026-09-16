@@ -8,15 +8,14 @@ import {
   Platform,
   Animated,
   ScrollView,
-  TouchableOpacity,
 } from "react-native";
 import CustomButton from "../../components/CustomButton";
 import { COLORS } from "../../constants";
+import BadgeHexagon from "../../components/gamification/BadgeHexagon";
 
 interface Props {
   navigation: any;
   onContinue?: () => void;
-  onBackToHome?: () => void;
   route: {
     params: {
       /** Badge code (e.g., "1ST_STEP") */
@@ -40,7 +39,6 @@ const AchievementUnlockScreen: React.FC<Props> = ({
   navigation,
   route,
   onContinue,
-  onBackToHome,
 }) => {
   const {
     badgeCode,
@@ -101,10 +99,6 @@ const AchievementUnlockScreen: React.FC<Props> = ({
   }, []);
 
   const handleContinue = () => (onContinue ? onContinue() : navigation.popToTop());
-  const handleBackToHome = () =>
-    onBackToHome
-      ? onBackToHome()
-      : navigation.navigate("MainApp", { screen: "Home" });
 
   const progress = targetValue > 0 ? progressValue / targetValue : 0;
   const remaining = Math.max(targetValue - progressValue, 0);
@@ -134,15 +128,13 @@ const AchievementUnlockScreen: React.FC<Props> = ({
             },
           ]}
         >
-          <View style={styles.hexagonOuter}>
-            <View style={styles.hexagonInner}>
+          <BadgeHexagon size={240} fill="#42679C" borderColor="#92ADD6">
               {badgeAssetReference ? (
                 <Image source={{ uri: badgeAssetReference }} style={styles.badgeImage} resizeMode="contain" />
               ) : (
                 <Text style={styles.badgeEmoji}>🏅</Text>
               )}
-            </View>
-          </View>
+          </BadgeHexagon>
           {/* Badge name ribbon */}
           <View style={styles.ribbon}>
             <Text style={styles.ribbonText}>{badgeName}</Text>
@@ -199,11 +191,7 @@ const AchievementUnlockScreen: React.FC<Props> = ({
       </ScrollView>
 
       <View style={styles.actionFooter}>
-        <Text style={styles.nextPrompt}>Continue to see your next reward.</Text>
         <CustomButton title="Continue" onPress={handleContinue} />
-        <TouchableOpacity style={styles.homeAction} onPress={handleBackToHome}>
-          <Text style={styles.homeActionText}>Back to Home</Text>
-        </TouchableOpacity>
       </View>
     </SafeAreaView>
   );
@@ -244,30 +232,12 @@ const styles = StyleSheet.create({
   badgeContainer: {
     alignItems: "center",
   },
-  hexagonOuter: {
-    width: 170,
-    height: 184,
-    alignItems: "center",
-    justifyContent: "center",
-  },
-  hexagonInner: {
-    width: 154,
-    height: 166,
-    backgroundColor: "#E8EDF5",
-    borderRadius: 20,
-    transform: [{ rotate: "0deg" }],
-    alignItems: "center",
-    justifyContent: "center",
-    // Hexagonal clip via border
-    borderWidth: 4,
-    borderColor: "#C5CEE0",
-  },
   badgeEmoji: {
     fontSize: 70,
   },
   badgeImage: {
-    width: 132,
-    height: 132,
+    width: 205,
+    height: 205,
   },
   ribbon: {
     backgroundColor: "#E8EDF5",
@@ -365,27 +335,10 @@ const styles = StyleSheet.create({
   },
 
   actionFooter: {
-    borderTopWidth: 1,
-    borderTopColor: "#F1F1F1",
     backgroundColor: "#FFFFFF",
     paddingHorizontal: 24,
-    paddingTop: 10,
-    paddingBottom: Platform.OS === "web" ? 18 : 10,
-  },
-  nextPrompt: {
-    color: "#666666",
-    fontSize: 13,
-    textAlign: "center",
-    marginBottom: 8,
-  },
-  homeAction: {
-    alignItems: "center",
-    paddingVertical: 9,
-  },
-  homeActionText: {
-    color: COLORS.primary,
-    fontSize: 15,
-    fontWeight: "700",
+    paddingTop: 14,
+    paddingBottom: Platform.OS === "web" ? 22 : 16,
   },
 });
 
