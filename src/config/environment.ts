@@ -1,3 +1,4 @@
+import Constants from 'expo-constants';
 import {
   APPWRITE_ENDPOINT as ENV_APPWRITE_ENDPOINT,
   APPWRITE_PROJECT_ID as ENV_APPWRITE_PROJECT_ID,
@@ -26,13 +27,13 @@ import {
   REVENUECAT_WEB_KEY as ENV_REVENUECAT_WEB_KEY,
 } from '@env';
 
-// Hardcoded fallback values for production builds
-// IMPORTANT: Do NOT include sensitive IDs or credentials here
-// All critical configuration should come from environment variables
+// Public connection settings travel with EAS builds even when .env is absent.
+// Secret API keys must never be added to the public Expo configuration.
+const extra = Constants.expoConfig?.extra ?? {};
 const FALLBACK = {
-  APPWRITE_ENDPOINT: '',
-  APPWRITE_PROJECT_ID: '',
-  APPWRITE_DATABASE_ID: '',
+  APPWRITE_ENDPOINT: extra.APPWRITE_ENDPOINT || '',
+  APPWRITE_PROJECT_ID: extra.APPWRITE_PROJECT_ID || '',
+  APPWRITE_DATABASE_ID: extra.APPWRITE_DATABASE_ID || '',
   APPWRITE_USERS_COLLECTION_ID: 'users',
   APPWRITE_QUESTIONS_COLLECTION_ID: 'questions',
   APPWRITE_LEADERBOARD_COLLECTION_ID: 'leaderboard',

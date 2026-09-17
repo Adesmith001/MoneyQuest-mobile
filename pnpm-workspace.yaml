@@ -2,7 +2,7 @@ packages:
   - '.'
 
 overrides:
-  expo-file-system: 19.0.22
+  expo-file-system: ~57.0.7
 
 minimumReleaseAgeExclude:
   - '@expo/cli@57.0.25'
