@@ -6,7 +6,10 @@
   "build": {
     "development": {
       "developmentClient": true,
-      "distribution": "internal"
+      "distribution": "internal",
+      "env": {
+        "MONEYQUEST_API_BASE_URL": "https://moneyquestproject-demo-development.up.railway.app"
+      }
     },
     "preview": {
       "distribution": "internal",
@@ -17,6 +20,16 @@
         "MONEYQUEST_API_BASE_URL": "https://moneyquestproject-demo-development.up.railway.app"
       }
     },
+    "testflight": {
+      "distribution": "store",
+      "autoIncrement": true,
+      "ios": {
+        "buildConfiguration": "Release"
+      },
+      "env": {
+        "MONEYQUEST_API_BASE_URL": "https://moneyquestproject-demo-development.up.railway.app"
+      }
+    },
     "production": {
       "autoIncrement": true,
       "android": {
@@ -24,6 +37,9 @@
       },
       "ios": {
         "buildConfiguration": "Release"
+      },
+      "env": {
+        "MONEYQUEST_API_BASE_URL": "https://moneyquestproject-demo-production.up.railway.app"
       }
     }
   },
