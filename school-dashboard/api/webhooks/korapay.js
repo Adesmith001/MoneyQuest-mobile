@@ -2,15 +2,15 @@ import crypto from 'crypto';
 
 // Subscription plan prices (must match web frontend)
 const SUBSCRIPTION_PLANS = {
-  monthly: { price: 2000, billingCycle: 'month' },
-  annual: { price: 24000, billingCycle: 'year' },
+  monthly: { price: 3000, billingCycle: 'month' },
+  annual: { price: 36000, billingCycle: 'year' },
 };
 
 const SCHOOL_SEAT_PRICES = {
-  monthly: 2000,
-  annual: 24000,
-  school_monthly_100: 2000,
-  school_annual_100: 24000,
+  monthly: 3000,
+  annual: 36000,
+  school_monthly_100: 3000,
+  school_annual_100: 36000,
 };
 
 export default async function handler(req, res) {
@@ -282,7 +282,7 @@ async function handleSchoolPayment(data, res) {
       expirationDate.setMonth(expirationDate.getMonth() + 1);
     }
 
-    // School bulk pricing: 3200/month, 38400/year per seat
+    // School seat pricing: 3000/month, 36000/year per seat
     const pricePerSeat = SCHOOL_SEAT_PRICES[planType] || 0;
 
     await databases.createDocument(dbId, 'school_codes', 'unique()', {
