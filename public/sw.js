@@ -18,7 +18,7 @@ const SHELL_CACHE = `moneyquest-shell-${CACHE_VERSION}`;
 const STATIC_CACHE = `moneyquest-static-${CACHE_VERSION}`;
 
 // The app shell: navigation entry points + PWA metadata.
-const SHELL_URLS = ['/', '/manifest.json', '/icons/icon-192.png', '/icons/icon-512.png', '/icons/maskable-512.png'];
+const SHELL_URLS = ['/', '/manifest.json', '/icons/logo-white.png', '/icons/logo-white.png', '/icons/maskable-512.png'];
 
 self.addEventListener('install', (event) => {
   event.waitUntil(

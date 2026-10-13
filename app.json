@@ -77,12 +77,12 @@
       "id": "/",
       "icons": [
         {
-          "source": "./public/icons/icon-192.png",
+          "source": "./public/icons/logo-white.png",
           "sizes": "192x192",
           "type": "image/png"
         },
         {
-          "source": "./public/icons/icon-512.png",
+          "source": "./public/icons/logo-white.png",
           "sizes": "512x512",
           "type": "image/png"
         },
@@ -93,7 +93,7 @@
           "purpose": "maskable"
         }
       ],
-      "appleTouchIcon": "./public/icons/icon-192.png"
+      "appleTouchIcon": "./public/icons/logo-white.png"
     },
     "extra": {
       "eas": {
