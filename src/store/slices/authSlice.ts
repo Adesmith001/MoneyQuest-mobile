@@ -318,6 +318,7 @@ export const signUpWithOnboarding = createAsyncThunk(
       firstName: string;
       lastName: string;
       username: string;
+      schoolName?: string;
       email: string;
       phoneNumber: string;
       password: string;
@@ -345,6 +346,7 @@ export const signUpWithOnboarding = createAsyncThunk(
         password: registrationData.password,
         name: fullName,
         username: registrationData.username,
+        schoolName: registrationData.schoolName,
         phoneNumber: registrationData.phoneNumber,
         ...onboardingData
       });

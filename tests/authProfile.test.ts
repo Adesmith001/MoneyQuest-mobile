@@ -58,6 +58,7 @@ async function testCreatesMissingUserDocument() {
     profileSeed: {
       username: 'ExampleUser',
       phoneNumber: '+2348000000000',
+      schoolName: 'Example School',
     },
   });
 
@@ -67,11 +68,50 @@ async function testCreatesMissingUserDocument() {
   assert.equal(result.username, 'exampleuser', 'normalizes usernames before creating repaired profiles');
   assert.equal(result.phoneNumber, '+2348000000000', 'preserves optional seeded fields');
   assert.ok(createdPayload, 'creates a replacement profile document when it is missing');
+  assert.equal((createdPayload as Record<string, unknown>).schoolName, 'Example School', 'persists the optional school name');
+}
+
+async function testFallsBackWhenSchoolNameAttributeIsUnavailable() {
+  const payloads: Record<string, unknown>[] = [];
+  const databases = {
+    async getDocument() {
+      const error = new Error('not found') as Error & { code?: number };
+      error.code = 404;
+      throw error;
+    },
+    async createDocument(
+      dbId: string,
+      collectionId: string,
+      documentId: string,
+      payload: Record<string, unknown>
+    ) {
+      payloads.push(payload);
+      if (payload.schoolName) {
+        const error = new Error('Unknown attribute: "schoolName"') as Error & { type?: string };
+        error.type = 'document_invalid_structure';
+        throw error;
+      }
+      return { $id: documentId, ...payload };
+    },
+  };
+
+  const result = await findOrCreateUserDocument({
+    databases,
+    dbId: 'db',
+    usersCollectionId: 'users',
+    accountInfo,
+    profileSeed: { schoolName: 'Example School' },
+  });
+
+  assert.equal(result.$id, accountInfo.$id, 'retries signup without the unavailable optional field');
+  assert.equal(payloads.length, 2, 'attempts the new schema and then the compatible fallback');
+  assert.equal(payloads[1].schoolName, undefined, 'omits schoolName from the fallback payload');
 }
 
 Promise.resolve()
   .then(testReturnsExistingUserDocument)
   .then(testCreatesMissingUserDocument)
+  .then(testFallsBackWhenSchoolNameAttributeIsUnavailable)
   .catch((error) => {
     console.error(error);
     process.exit(1);

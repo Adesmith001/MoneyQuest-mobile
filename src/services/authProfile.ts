@@ -6,6 +6,7 @@ type AccountProfileInfo = {
 
 type ProfileSeed = {
   username?: string;
+  schoolName?: string;
   phoneNumber?: string;
   profilePicture?: string;
   profilePictureId?: string;
@@ -55,6 +56,7 @@ export const buildUserDocumentData = (
 ): Record<string, unknown> => {
   const currentDate = new Date().toISOString();
   const username = normalizeOptionalString(profileSeed.username);
+  const schoolName = normalizeOptionalString(profileSeed.schoolName);
   const phoneNumber = normalizeOptionalString(profileSeed.phoneNumber);
 
   return {
@@ -76,6 +78,7 @@ export const buildUserDocumentData = (
     profilePicture: profileSeed.profilePicture ?? '',
     profilePictureId: profileSeed.profilePictureId ?? '',
     ...(username ? { username: username.toLowerCase() } : {}),
+    ...(schoolName ? { schoolName } : {}),
     ...(phoneNumber ? { phoneNumber } : {}),
     ...(profileSeed.age !== undefined ? { age: profileSeed.age } : {}),
     ...(profileSeed.learningLimit !== undefined ? { learningLimit: profileSeed.learningLimit } : {}),
@@ -120,6 +123,21 @@ export async function findOrCreateUserDocument({
   } catch (error: any) {
     if (error?.code === 409) {
       return databases.getDocument(dbId, usersCollectionId, accountInfo.$id);
+    }
+
+    // Keep signup compatible with environments that have not received the
+    // optional schoolName attribute yet.
+    if (
+      payload.schoolName &&
+      (error?.type === 'document_invalid_structure' || /schoolName|unknown attribute/i.test(error?.message || ''))
+    ) {
+      const { schoolName: _schoolName, ...legacyPayload } = payload;
+      return databases.createDocument(
+        dbId,
+        usersCollectionId,
+        accountInfo.$id,
+        legacyPayload
+      );
     }
 
     throw error;

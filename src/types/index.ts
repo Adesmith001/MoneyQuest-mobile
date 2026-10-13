@@ -7,6 +7,7 @@ export interface User {
   email: string;
   name: string;
   username?: string;
+  schoolName?: string;
   phoneNumber?: string;
   profilePicture?: string;
   profilePictureId?: string;

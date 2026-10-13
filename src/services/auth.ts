@@ -25,6 +25,7 @@ class AuthService {
     accountInfo: { $id: string; email: string; name: string },
     profileSeed?: {
       username?: string;
+      schoolName?: string;
       phoneNumber?: string;
       age?: number;
       learningLimit?: string;
@@ -462,6 +463,7 @@ class AuthService {
     password,
     name,
     username,
+    schoolName,
     phoneNumber,
     age,
     learningLimit,
@@ -473,6 +475,7 @@ class AuthService {
     password: string;
     name: string;
     username?: string;
+    schoolName?: string;
     phoneNumber?: string;
     age: number;
     learningLimit: string;
@@ -505,6 +508,7 @@ class AuthService {
       // Step 4: Create or repair the user document with all onboarding data
       const seededPayload = buildUserDocumentData(user, {
         username,
+        schoolName,
         phoneNumber,
         age,
         learningLimit,
@@ -562,6 +566,7 @@ class AuthService {
           email: user.email,
           name: user.name,
           username: userDocument.username,
+          schoolName: userDocument.schoolName,
           phoneNumber: userDocument.phoneNumber,
           profilePicture: userDocument.profilePicture,
           profilePictureId: userDocument.profilePictureId,
