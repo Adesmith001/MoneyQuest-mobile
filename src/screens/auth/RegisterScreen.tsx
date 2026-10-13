@@ -28,6 +28,7 @@ const RegisterScreen: React.FC<Props> = ({ navigation }) => {
   const [lastName, setLastName] = useState('');
   const [username, setUsername] = useState('');
   const [usernameStatus, setUsernameStatus] = useState<'idle' | 'checking' | 'available' | 'taken'>('idle');
+  const [schoolName, setSchoolName] = useState('');
   const [phoneNumber, setPhoneNumber] = useState('');
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
@@ -90,6 +91,7 @@ const RegisterScreen: React.FC<Props> = ({ navigation }) => {
         firstName,
         lastName,
         username,
+        schoolName,
         email,
         phoneNumber,
         password,
@@ -177,6 +179,13 @@ const RegisterScreen: React.FC<Props> = ({ navigation }) => {
                 value={phoneNumber}
                 onChangeText={setPhoneNumber}
                 keyboardType="phone-pad"
+              />
+
+               <AnimatedTextInput
+                label="School Name (Optional)"
+                value={schoolName}
+                onChangeText={setSchoolName}
+                autoCapitalize="words"
               />
 
               <AnimatedTextInput
