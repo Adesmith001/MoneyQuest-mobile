@@ -22,8 +22,8 @@ const source = path.join(projectRoot, 'assets', 'icon.png');
 const outDir = path.join(projectRoot, 'public', 'icons');
 
 const SIZES = [
-  { name: 'icon-192.png', width: 192, height: 192 },
-  { name: 'icon-512.png', width: 512, height: 512 },
+  { name: 'logo-white.png', width: 192, height: 192 },
+  { name: 'logo-white.png', width: 512, height: 512 },
   { name: 'maskable-512.png', width: 512, height: 512 },
 ];
 
