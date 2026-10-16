@@ -420,6 +420,9 @@ const QuestionScreen: React.FC<Props> = ({ navigation, route }) => {
   useEffect(() => {
     async function loadLevelData() {
       const isRecapLevel = levelId.startsWith('recap_');
+      // Questions actually loaded for this session; used to validate any
+      // saved resume point against the current question set.
+      let loadedQuestions: AnyQuestion[] = [];
 
       try {
         setIsLoading(true);
@@ -551,6 +554,7 @@ const QuestionScreen: React.FC<Props> = ({ navigation, route }) => {
           
           const mixedQuestions = mixAndLimitQuestions(allQuestions);
           setQuestions(mixedQuestions);
+          loadedQuestions = mixedQuestions;
         } else {
           // Regular level - always fetch latest article data from API
           // Get level description (includes level_summary for article view)
@@ -621,6 +625,7 @@ const QuestionScreen: React.FC<Props> = ({ navigation, route }) => {
           }
 
           setQuestions(mixedQuestions);
+          loadedQuestions = mixedQuestions;
         }
 
         // Check if user has saved progress for this level
@@ -669,19 +674,29 @@ const QuestionScreen: React.FC<Props> = ({ navigation, route }) => {
 
               // Resume from saved question index
               if (progress.currentQuestionIndex !== undefined) {
-                setCurrentQuestionIndex(resumedProgress.currentQuestionIndex);
-                setCorrectAnswersCount(resumedProgress.questionsCorrect);
-                setXpGained(resumedProgress.xpEarned);
-                setTotalAttempts(resumedProgress.totalAttempts);
+                // Only resume when the saved index still points inside the
+                // freshly loaded question set. Saves written by older builds
+                // (or longer question sets) can point past the end, which
+                // would otherwise render as "No questions available".
+                if (resumedProgress.currentQuestionIndex < loadedQuestions.length) {
+                  setCurrentQuestionIndex(resumedProgress.currentQuestionIndex);
+                  setCorrectAnswersCount(resumedProgress.questionsCorrect);
+                  setXpGained(resumedProgress.xpEarned);
+                  setTotalAttempts(resumedProgress.totalAttempts);
 
-                // If there's saved progress, skip directly to quiz
-                if (
-                  resumedProgress.currentQuestionIndex > 0 ||
-                  resumedProgress.totalAttempts > 0 ||
-                  resumedProgress.questionsCorrect > 0 ||
-                  resumedProgress.xpEarned > 0
-                ) {
-                  setViewMode("quiz");
+                  // If there's saved progress, skip directly to quiz
+                  if (
+                    resumedProgress.currentQuestionIndex > 0 ||
+                    resumedProgress.totalAttempts > 0 ||
+                    resumedProgress.questionsCorrect > 0 ||
+                    resumedProgress.xpEarned > 0
+                  ) {
+                    setViewMode("quiz");
+                  }
+                } else {
+                  console.warn(
+                    `Saved progress for level ${levelId} points to question index ${resumedProgress.currentQuestionIndex}, but only ${loadedQuestions.length} questions were loaded; starting the quiz fresh.`
+                  );
                 }
               }
             }
@@ -764,7 +779,10 @@ const QuestionScreen: React.FC<Props> = ({ navigation, route }) => {
           questionsAnswered: currentQuestionIndex + 1,
           questionsCorrect: correctAnswersCount,
           xpEarned: xpGained,
-          attempts: totalAttempts,
+          // NOTE: `attempts` is intentionally not persisted here — the
+          // user_progress collection has no such attribute, so sending it
+          // made every save fail with a 400 before the fallback retry.
+          // Attempts are kept in AsyncStorage instead.
           isCompleted: false,
           updatedAt: new Date().toISOString(),
         };
@@ -1164,7 +1182,6 @@ const QuestionScreen: React.FC<Props> = ({ navigation, route }) => {
                     questionsAnswered: questions.length,
                     questionsCorrect: correctAnswersCount,
                     xpEarned: xpGained,
-                    attempts: totalAttempts,
                   }
                 );
               } catch (error) {
@@ -1196,7 +1213,6 @@ const QuestionScreen: React.FC<Props> = ({ navigation, route }) => {
                     questionsAnswered: questions.length,
                     questionsCorrect: correctAnswersCount,
                     xpEarned: xpGained,
-                    attempts: totalAttempts,
                     isCompleted: true,
                     completedAt: new Date().toISOString(),
                   }
