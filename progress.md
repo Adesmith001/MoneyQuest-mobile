@@ -1,5 +1,25 @@
 # Progress Log
 
+## Session: 2026-10-20 Shared-Device Login Isolation (Web)
+
+### Discovery
+- **Status:** complete
+- Root cause: on the web app, Appwrite sessions persist in the browser. On shared school PCs, `checkAuthStatus` silently restored the previous student's session, the login screen was never reachable, and the next student played on the previous student's account ("can't log in", "progress affects the other").
+
+### Implementation
+- **Status:** complete
+- Added `src/utils/webSessionMarker.ts`: per-tab session ownership marker backed by `sessionStorage` (injected store for testability).
+- `AuthService`: marks the session after sign-in/sign-up; `getCurrentUser` on web only restores sessions created by the current tab; `signOut` never throws and clears marker + fallback-session remnants.
+- `authSlice`: web boot ends leftover sessions (timeout-capped), sign-out always clears local state, reactivate guards a missing session.
+- `store/index.ts`: rehydration starts `auth.isLoading` so the previous student's dashboard can never flash before the auth check resolves.
+- Native (phone) behavior is unchanged.
+
+### Verification
+- **Status:** complete
+- `tsc --noEmit` exit 0.
+- Compiled test programs: `webSharedDeviceSession`, `userScopedPersistence`, `authProfile` all exit 0.
+- `expo export --platform web` (Vercel build command) succeeded.
+
 ## Session: 2026-09-15 Figma Parity Follow-up
 
 ### Discovery and Approval

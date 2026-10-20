@@ -1,4 +1,53 @@
-# Task Plan: Mobile QA Celebrations and Badges
+# Task Plan: Shared-Device Login Isolation (Web)
+
+## Goal
+On shared school computers, every student must be able to log in with their own account, and one student's progress must never affect another student's account.
+
+## Next Step
+Complete.
+
+## Current Phase
+Phase 3 (complete)
+
+## Phases
+
+### Phase 1: Requirements & Discovery
+- [x] Confirm the failure: on shared PCs, the previous student's Appwrite session is silently restored, the login screen is unreachable, and play lands on the previous student's account
+- [x] Confirm user-scoped Redux state already resets when the signed-in user changes
+- **Status:** complete
+
+### Phase 2: Implementation
+- [x] Add a per-tab web session marker (sessionStorage) so only the tab that signed in can restore the session
+- [x] On web boot, end leftover sessions so every new visit starts at the login screen
+- [x] Make sign-out resilient (never throws) and always clear local auth state
+- [x] Prevent the previous student's dashboard from flashing while the auth check runs
+- **Status:** complete
+
+### Phase 3: Verification
+- [x] Add script-style tests for the session marker utility
+- [x] Run TypeScript diagnostics (exit 0)
+- [x] Run compiled test programs (exit 0)
+- [x] Export the production web bundle
+- **Status:** complete
+
+## Decisions Made
+
+| Decision | Rationale |
+|----------|-----------|
+| Restore web sessions only within the same tab (sessionStorage marker) | Refreshing keeps the student logged in; a new visit starts logged out so the next student can always sign in |
+| Delete the leftover Appwrite session at web boot | Guarantees the login screen is reachable and no progress bleeds between students on a shared computer |
+| Keep native (phone) session restore unchanged | Personal devices are not shared; no need to re-login there |
+| Cap the boot auth check with timeouts | The loading gate can never hang on a slow or dead network |
+
+## Errors Encountered
+
+| Error | Attempt | Resolution |
+|-------|---------|------------|
+| Root Jest discovery rejects script-style TypeScript checks ("must contain at least one test") | 1 | Used the repository's intended compiled-program runner; scoped checks passed |
+| Ad-hoc test compile lacks `@types/node` for `tests/authProfile.test.ts` | 1 | Compiled with `--types node`; program exited 0 |
+| Expo export verification dir could not be deleted (Windows long paths) | 1 | Mirrored an empty dir over it with robocopy, then removed it |
+
+## Original Task Plan: Mobile QA Celebrations and Badges
 
 ## Goal
 Fix the phone-size matching, post-lesson celebration, navigation, and categorized badge issues reported by QA using the supplied Money Quest designs.

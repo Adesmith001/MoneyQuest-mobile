@@ -25,8 +25,8 @@ export type KoraPayFailedData = {
 export const KORAPAY_WEBHOOK_URL = '';
 
 export const KORAPAY_WEB_PLANS = {
-  monthly: 2000,
-  annual: 24000,
+  monthly: 3000,
+  annual: 36000,
 } as const;
 
 export function loadKoraPayScript(): Promise<void> {

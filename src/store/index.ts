@@ -62,7 +62,11 @@ const rootReducer = (
 const authStateTransform = createTransform<AuthState, AuthState, RootReducerState>(
   (inboundState) => ({
     ...inboundState,
-    isLoading: false,
+    // Always start in the loading state after rehydration. On shared school
+    // devices the persisted `isAuthenticated`/`user` belong to the previous
+    // student; the navigator must wait for checkAuthStatus to resolve before
+    // rendering anything, otherwise the previous student's dashboard flashes.
+    isLoading: true,
     isLoggingOut: false,
     error: null,
   }),
