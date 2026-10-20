@@ -4,8 +4,8 @@ import {
   Text,
   StyleSheet,
   SafeAreaView,
-  Dimensions,
-  TextInput,
+  ScrollView,
+  TouchableOpacity,
 } from 'react-native';
 import CustomButton from '../../components/CustomButton';
 import analyticsService, { getAgeGroup } from '../../services/analytics';
@@ -18,11 +18,38 @@ interface Props {
 const AgeSelectionScreen: React.FC<Props> = ({ navigation, route }) => {
   const [age, setAge] = useState(7);
   const [ageText, setAgeText] = useState('7');
-  const { width } = Dimensions.get('window');
 
-  const handleAgeChange = (text: string) => {
-    setAgeText(text);
+  const pressDigit = (digit: string) => {
+    setAgeText((prev) => {
+      if (prev.length >= 3) return prev;
+      if (prev === '' && digit === '0') return prev;
+      return prev + digit;
+    });
   };
+
+  const pressBackspace = () => {
+    setAgeText((prev) => prev.slice(0, -1));
+  };
+
+  const pressClear = () => {
+    setAgeText('');
+  };
+
+  type NumpadKey = { label: string; onPress: () => void; action?: boolean };
+  const digitKey = (digit: string): NumpadKey => ({
+    label: digit,
+    onPress: () => pressDigit(digit),
+  });
+  const numpadRows: NumpadKey[][] = [
+    [digitKey('1'), digitKey('2'), digitKey('3')],
+    [digitKey('4'), digitKey('5'), digitKey('6')],
+    [digitKey('7'), digitKey('8'), digitKey('9')],
+    [
+      { label: 'C', onPress: pressClear, action: true },
+      digitKey('0'),
+      { label: '⌫', onPress: pressBackspace, action: true },
+    ],
+  ];
 
   const handleContinue = () => {
     const numericValue = parseInt(ageText, 10);
@@ -45,7 +72,10 @@ const AgeSelectionScreen: React.FC<Props> = ({ navigation, route }) => {
 
   return (
     <SafeAreaView style={styles.container}>
-      <View style={styles.content}>
+      <ScrollView
+        contentContainerStyle={styles.content}
+        keyboardShouldPersistTaps="handled"
+      >
         {/* Header */}
         <View style={styles.header}>
           <Text style={styles.title}>Money Quest</Text>
@@ -56,29 +86,53 @@ const AgeSelectionScreen: React.FC<Props> = ({ navigation, route }) => {
           <Text style={styles.mainTitle}>Enter your age</Text>
         </View>
 
-        {/* Age Input */}
+        {/* Age display (entered via the on-screen numpad below) */}
         <View style={styles.ageContainer}>
           <Text style={styles.ageLabel}>Your age:</Text>
-          <TextInput
-            style={styles.ageInput}
-            value={ageText}
-            onChangeText={handleAgeChange}
-            keyboardType="number-pad"
-            maxLength={3}
-            placeholder="Enter age"
-            placeholderTextColor="#999"
-            textAlign="center"
-            returnKeyType="done"
-          />
+          <View style={styles.ageInput}>
+            <Text
+              style={[styles.ageValue, ageText === '' && styles.ageValueEmpty]}
+            >
+              {ageText === '' ? '--' : ageText}
+            </Text>
+          </View>
           <Text style={styles.ageSubtext}>for the wise</Text>
           <Text style={styles.ageHint}>(between 7 and 150)</Text>
+        </View>
+
+        {/* On-screen numpad */}
+        <View style={styles.numpad}>
+          {numpadRows.map((row, rowIndex) => (
+            <View key={rowIndex} style={styles.numpadRow}>
+              {row.map((key) => (
+                <TouchableOpacity
+                  key={key.label}
+                  style={styles.key}
+                  onPress={key.onPress}
+                  activeOpacity={0.7}
+                  accessibilityRole="button"
+                  accessibilityLabel={
+                    key.action
+                      ? key.label === 'C'
+                        ? 'Clear age'
+                        : 'Delete last digit'
+                      : `Digit ${key.label}`
+                  }
+                >
+                  <Text style={[styles.keyText, key.action && styles.keyTextAction]}>
+                    {key.label}
+                  </Text>
+                </TouchableOpacity>
+              ))}
+            </View>
+          ))}
         </View>
 
         <View style={styles.spacer} />
 
         {/* Continue Button */}
         <CustomButton title={'Continue'} onPress={handleContinue} />
-      </View>
+      </ScrollView>
     </SafeAreaView>
   );
 };
@@ -91,12 +145,12 @@ const styles = StyleSheet.create({
   content: {
     flexGrow: 1,
     paddingHorizontal: 24,
-    paddingTop: 40,
+    paddingTop: 24,
     paddingBottom: 30,
   },
   header: {
     alignItems: 'center',
-    marginBottom: 60,
+    marginBottom: 24,
   },
   title: {
     fontSize: 20,
@@ -105,7 +159,7 @@ const styles = StyleSheet.create({
   },
   mainHeader: {
     alignItems: 'center',
-    marginBottom: 80,
+    marginBottom: 32,
   },
   mainTitle: {
     fontSize: 28,
@@ -115,7 +169,7 @@ const styles = StyleSheet.create({
   },
   ageContainer: {
     alignItems: 'center',
-    marginBottom: 60,
+    marginBottom: 24,
   },
   ageLabel: {
     fontSize: 18,
@@ -123,15 +177,49 @@ const styles = StyleSheet.create({
     marginBottom: 20,
   },
   ageInput: {
-    fontSize: 60,
-    fontWeight: 'bold',
-    color: '#212121',
-    lineHeight: 80,
     borderBottomWidth: 3,
     borderBottomColor: '#FF5722',
     minWidth: 180,
     paddingVertical: 8,
     paddingHorizontal: 16,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  ageValue: {
+    fontSize: 60,
+    fontWeight: 'bold',
+    color: '#212121',
+    lineHeight: 80,
+    textAlign: 'center',
+  },
+  ageValueEmpty: {
+    color: '#CCC',
+  },
+  numpad: {
+    alignSelf: 'center',
+    width: '100%',
+    maxWidth: 320,
+    gap: 10,
+  },
+  numpadRow: {
+    flexDirection: 'row',
+    gap: 10,
+  },
+  key: {
+    flex: 1,
+    height: 56,
+    borderRadius: 12,
+    backgroundColor: '#F5F5F5',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  keyText: {
+    fontSize: 24,
+    fontWeight: '600',
+    color: '#212121',
+  },
+  keyTextAction: {
+    color: '#F04D23',
   },
   ageSubtext: {
     fontSize: 16,

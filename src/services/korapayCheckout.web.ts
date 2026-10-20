@@ -61,8 +61,8 @@ export const KORAPAY_WEBHOOK_URL =
 // SUBSCRIPTION_PLANS (school-dashboard/api/webhooks/korapay.js) — the webhook
 // rejects any charge below these amounts.
 export const KORAPAY_WEB_PLANS = {
-  monthly: 2000,
-  annual: 24000,
+  monthly: 3000,
+  annual: 36000,
 } as const;
 
 // Load KoraPay script dynamically
