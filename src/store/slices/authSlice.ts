@@ -1,5 +1,6 @@
 import { createSlice, createAsyncThunk, PayloadAction } from '@reduxjs/toolkit';
 import { AuthState, User } from '../../types';
+import { Platform } from 'react-native';
 import AuthService from '../../services/auth';
 import googleAuthService from '../../services/googleAuth';
 import { updateStreakOnLogin, resetStreakState } from './streakSlice';
@@ -108,14 +109,24 @@ export const signOut = createAsyncThunk(
   'auth/signOut',
   async (_, { rejectWithValue, dispatch }) => {
     try {
-      await analyticsService.endSession('logout');
-      analyticsService.identifyUser(null);
+      try {
+        await analyticsService.endSession('logout');
+        analyticsService.identifyUser(null);
+      } catch (analyticsError) {
+        // Non-fatal - analytics must never block signing out
+      }
       await AuthService.signOut();
       // Reset streak state on sign out
       dispatch(resetStreakState());
       // Unlink RevenueCat user (non-blocking)
       revenueCatService.logOut().catch(() => {});
+      // Guarantee the local state is cleared so the next student on a shared
+      // device always starts from the login screen.
+      dispatch(logout());
     } catch (error: any) {
+      // Even if the server sign-out failed, never leave the previous
+      // student signed in locally on a shared device.
+      dispatch(logout());
       return rejectWithValue(error.message);
     }
   }
@@ -127,6 +138,9 @@ export const reactivateAccount = createAsyncThunk(
     try {
       await AuthService.reactivateAccount(userId);
       const currentUser = await AuthService.getCurrentUser();
+      if (!currentUser?.$id) {
+        throw new Error('Your session expired. Please sign in again.');
+      }
       const userDocument = await AuthService.getUserDocument(currentUser.$id);
       if (userDocument?.$id) {
         try { dispatch(updateStreakOnLogin(userDocument.$id)); } catch {}
@@ -219,7 +233,15 @@ export const checkAuthStatus = createAsyncThunk(
   'auth/checkAuthStatus',
   async (_, { rejectWithValue, dispatch }) => {
     try {
-      const currentUser = await AuthService.getCurrentUser();
+      // Never hang on a slow network: the app always renders after this
+      // resolves, so cap the session check with a hard timeout.
+      const currentUser = await Promise.race([
+        AuthService.getCurrentUser(),
+        new Promise<null>((resolve) =>
+          setTimeout(() => resolve(null), 10000)
+        ),
+      ]);
+
       if (currentUser) {
         const userDocument = await AuthService.getUserDocument(currentUser.$id);
         await schoolEntitlementService.claimByEmail();
@@ -242,6 +264,18 @@ export const checkAuthStatus = createAsyncThunk(
         revenueCatService.identifyUser(currentUser.$id).catch(() => {});
         return { currentUser, userDocument };
       }
+
+      // No session to restore. On shared web devices, end any leftover
+      // session from a previous student so the next login is always clean
+      // and the login screen is reachable. Capped so a dead network cannot
+      // block the login screen either.
+      if (Platform.OS === 'web') {
+        await Promise.race([
+          AuthService.signOut(),
+          new Promise<void>((resolve) => setTimeout(resolve, 5000)),
+        ]);
+      }
+
       return null;
     } catch (error: any) {
       // Don't reject for auth check - just return null
