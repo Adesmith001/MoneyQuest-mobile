@@ -29,6 +29,8 @@ import cacheService from "../../services/cacheService";
 import { getCompletedLevelIds } from "../../services/completedLevelService";
 import { livesService } from "../../services/lives";
 import LearningPathSkeleton from "../../components/skeletons/LearningPathSkeleton";
+import { getSupportCode } from '../../utils/supportCode';
+import analyticsService from '../../services/analytics';
 import { getDecorationsForSection } from "../../config/sectionDecorations";
 import CoachMark from "../../components/tutorial/CoachMark";
 import { HOME_COACH_STEPS } from "../../config/coachMarkSteps";
@@ -366,6 +368,7 @@ const HomeScreen: React.FC<Props> = ({ navigation }) => {
     // Prevent concurrent invocations (useEffect + useFocusEffect can fire together)
     if (isFetchingRef.current) return;
     isFetchingRef.current = true;
+    const fetchStartedAt = Date.now();
 
     try {
         // Show loading spinner only on first-ever load
@@ -386,12 +389,11 @@ const HomeScreen: React.FC<Props> = ({ navigation }) => {
                 setTimeout(() => reject(new Error('Lives refresh timeout')), 5000)
               );
 
-              const { lives, lastLifeRegenTime } = await Promise.race([livesPromise, timeoutPromise]);
-
-              // Update Redux store if lives changed
-              if (lives !== user.lives || lastLifeRegenTime !== user.lastLifeRegenTime) {
-                dispatch(updateUser({ lives, lastLifeRegenTime }));
-              }
+              void Promise.race([livesPromise, timeoutPromise]).then(({ lives, lastLifeRegenTime }) => {
+                if (lives !== user.lives || lastLifeRegenTime !== user.lastLifeRegenTime) {
+                  dispatch(updateUser({ lives, lastLifeRegenTime }));
+                }
+              }).catch(error => console.warn('Lives refresh unavailable:', error));
             } catch (error) {
               console.error('Failed to refresh lives on HomeScreen (non-fatal):', error);
               // Continue with cached lives - don't block the UI
@@ -405,13 +407,19 @@ const HomeScreen: React.FC<Props> = ({ navigation }) => {
           // CRITICAL: Merge instead of replace to prevent race conditions where
           // Appwrite might not yet have the just-completed level synced
           if (user?.$id) {
-            const cachedCompletedLevels = await cacheService.getCompletedLevels(user.$id);
+            const cachedCompletedLevels = await Promise.race([
+              cacheService.getCompletedLevels(user.$id),
+              new Promise<string[]>((resolve) => setTimeout(() => resolve([]), 3000)),
+            ]);
             if (cachedCompletedLevels.length > 0) {
               latestCompletedLevels = new Set(cachedCompletedLevels);
             }
 
             try {
-              const appwriteCompletedLevels = await getCompletedLevelIds(user.$id);
+              const appwriteCompletedLevels = await Promise.race([
+                getCompletedLevelIds(user.$id),
+                new Promise<never>((_, reject) => setTimeout(() => reject(new Error('Progress request timed out')), 5000)),
+              ]);
               // MERGE: always include both Appwrite and cached levels.
               // Appwrite is the source of truth, but recent completions may
               // not have synced yet, so we keep cache entries too.
@@ -421,7 +429,7 @@ const HomeScreen: React.FC<Props> = ({ navigation }) => {
               ]);
               latestCompletedLevels = mergedSet;
               // 💾 Persist the merged set so both platforms stay in sync
-              await cacheService.saveCompletedLevels(user.$id, Array.from(latestCompletedLevels));
+              void cacheService.saveCompletedLevels(user.$id, Array.from(latestCompletedLevels)).catch(() => {});
 
             } catch (error) {
               console.error('❌ Failed to fetch from Appwrite:', error);
@@ -433,9 +441,12 @@ const HomeScreen: React.FC<Props> = ({ navigation }) => {
           setCompletedLevels(latestCompletedLevels);
 
           // Get all sections (documents) from backend with caching
-          const backendSections = await cachedBackendApi.getSections();
-          await notifyOnNewSections(backendSections);
-          await ensureSectionsVersionCheckWindowStarted();
+          const backendSections = await Promise.race([
+            cachedBackendApi.getSections(),
+            new Promise<never>((_, reject) => setTimeout(() => reject(new Error('Sections request timed out')), 8000)),
+          ]);
+          void notifyOnNewSections(backendSections).catch(() => {});
+          void ensureSectionsVersionCheckWindowStarted().catch(() => {});
 
           if (user?.$id) {
             notificationService.syncAdminBroadcasts(user.$id).catch(() => {});
@@ -443,9 +454,25 @@ const HomeScreen: React.FC<Props> = ({ navigation }) => {
 
           const sectionsData: Section[] = [];
           let regularSectionsProcessed = 0;
+          const levelsDeadline = Date.now() + 12000;
 
           // Process regular sections and insert recap sections after every 9th section
-          for (let i = 0; i < backendSections.length; i++) {
+          for (let batchStart = 0; batchStart < backendSections.length; batchStart += 4) {
+            if (Date.now() >= levelsDeadline) break;
+            const batch = backendSections.slice(batchStart, batchStart + 4);
+            const batchTimeout = Math.max(1000, Math.min(8000, levelsDeadline - Date.now()));
+            const batchLevels = await Promise.all(batch.map(section =>
+              section.section_id
+                ? Promise.race([
+                    cachedBackendApi.getLevels(section.section_id),
+                    new Promise<never>((_, reject) => setTimeout(() => reject(new Error('Levels request timed out')), batchTimeout)),
+                  ]).catch(error => {
+                    console.warn(`Levels unavailable for ${section.section_id}:`, error);
+                    return [];
+                  })
+                : Promise.resolve([])
+            ));
+          for (let i = batchStart; i < Math.min(batchStart + 4, backendSections.length); i++) {
             const section = backendSections[i];
 
             try {
@@ -456,7 +483,7 @@ const HomeScreen: React.FC<Props> = ({ navigation }) => {
               }
 
               // Fetch levels for this section using section_id with caching
-              const levels = await cachedBackendApi.getLevels(section.section_id);
+              const levels = batchLevels[i - batchStart];
               if (levels.length === 0) continue;
 
               const levelNodes: LevelNode[] = levels.map((level, levelIndex) => {
@@ -497,7 +524,10 @@ const HomeScreen: React.FC<Props> = ({ navigation }) => {
               const recapSectionNumber = getRecapSectionNumberForCompletedRegularSections(regularSectionsProcessed);
               if (recapSectionNumber !== null) {
                 try {
-                  const recapData = await backendApi.getRecapSection(recapSectionNumber, 10, true);
+                  const recapData = await Promise.race([
+                    backendApi.getRecapSection(recapSectionNumber, 10, true),
+                    new Promise<never>((_, reject) => setTimeout(() => reject(new Error('Recap request timed out')), 5000)),
+                  ]);
 
                   // Create level nodes for recap section
                   // Each source section becomes a "level" in the recap
@@ -550,23 +580,31 @@ const HomeScreen: React.FC<Props> = ({ navigation }) => {
             }
           }
 
-          // If sections came back empty but we haven't exhausted retries,
-          // reset the cache session flags and retry after a short delay.
-          if (sectionsData.length === 0 && retryCountRef.current < MAX_RETRIES) {
-            retryCountRef.current += 1;
-            console.warn(`[HomeScreen] Sections empty — retry ${retryCountRef.current}/${MAX_RETRIES}`);
-            // Reset the cached API session flags so the next call hits the real API
-            cachedBackendApi.resetSessionTracking();
-            isFetchingRef.current = false;
-            // Short delay before retrying to allow backend/network to settle
-            setTimeout(() => fetchLearningPath(), 1000);
-            return; // Exit this invocation; the retry will finish the job
+            if (sectionsData.length > 0) {
+              setSections([...sectionsData]);
+              if (!hasInitiallyLoadedRef.current) {
+                void analyticsService.trackEvent('feature_used', {
+                  stage: 'home_first_content',
+                  duration_ms: Date.now() - fetchStartedAt,
+                  support_code: getSupportCode(),
+                }).catch(() => {});
+              }
+              hasInitiallyLoadedRef.current = true;
+              setHasInitiallyLoaded(true);
+              setIsLoading(false);
+            }
           }
 
           // Reset retry counter on success (or final attempt)
           retryCountRef.current = 0;
 
           setSections(sectionsData);
+          if (sectionsData.length === 0) {
+            void analyticsService.trackEvent('app_error', {
+              stage: 'home_empty_content',
+              support_code: getSupportCode(),
+            }).catch(() => {});
+          }
 
           // Mark that we've successfully loaded data
           hasInitiallyLoadedRef.current = true;
@@ -591,13 +629,16 @@ const HomeScreen: React.FC<Props> = ({ navigation }) => {
           }
         } catch (error) {
           console.error('Failed to fetch learning path:', error);
-          Alert.alert(
-            'Error',
-            'Failed to load learning path. Please check your connection and try again.'
-          );
+          void analyticsService.trackEvent('app_error', {
+            stage: 'home_content',
+            support_code: getSupportCode(),
+            error_code: String((error as any)?.code ?? (error as any)?.status ?? 'network'),
+          }).catch(() => {});
+          hasInitiallyLoadedRef.current = true;
+          setHasInitiallyLoaded(true);
         } finally {
           setIsLoading(false);
-          await refreshStaleState();
+          void refreshStaleState().catch(() => {});
           isFetchingRef.current = false;
         }
   }, [activeSectionIndex, ensureSectionsVersionCheckWindowStarted, user?.$id, user?.currentLevelId, user?.currentSectionId, dispatch, notifyOnNewSections, refreshStaleState]);
@@ -1380,6 +1421,7 @@ const HomeScreen: React.FC<Props> = ({ navigation }) => {
             We couldn't load the learning content.{'\n\n'}
             Check your internet connection and try again.
           </Text>
+          <Text style={{ textAlign: 'center', marginBottom: 12 }}>Support code: {getSupportCode()} · lessons</Text>
           <TouchableOpacity
             style={styles.emptyStateButton}
             onPress={() => {

@@ -1,33 +1,29 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { NavigationContainer, LinkingOptions } from '@react-navigation/native';
 import { createStackNavigator } from '@react-navigation/stack';
 import { useSelector, useDispatch } from 'react-redux';
 import { RootState, AppDispatch } from '../store';
 import * as Linking from 'expo-linking';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
-import { Alert, ActivityIndicator, View, Text, Platform } from 'react-native';
-import googleAuthService from '../services/googleAuth';
-import { checkAuthStatus, updateUser } from '../store/slices/authSlice';
+import { Alert, ActivityIndicator, View, Text, Platform, TouchableOpacity } from 'react-native';
+import { checkAuthStatus, handleOAuthCallback, logout } from '../store/slices/authSlice';
+import AuthService from '../services/auth';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 import revenueCatService from '../services/revenueCatService';
 import analyticsService from '../services/analytics';
 import { bootstrapGamification } from '../store/slices/gamificationSlice';
 import { getAppTourMode } from '../utils/tutorialBehavior';
+import { getSupportCode } from '../utils/supportCode';
 
 // ⚡ Import ALL screens directly - lazy loading causes white screen on iOS production
 import LoadingScreen from '../screens/common/LoadingScreen';
 import SplashScreen from '../screens/onboarding/SplashScreen';
 
 // Onboarding
-import OnboardingFlow from '../screens/onboarding/OnboardingFlow';
-import AgeSelectionScreen from '../screens/onboarding/AgeSelectionScreen';
-import LearningLimitScreen from '../screens/onboarding/LearningLimitScreen';
-import GoalSelectionScreen from '../screens/onboarding/GoalSelectionScreen';
-import ReferralSourceScreen from '../screens/onboarding/ReferralSourceScreen';
-import AvatarSelectionScreen from '../screens/onboarding/AvatarSelectionScreen';
-import WelcomeSuccessScreen from '../screens/onboarding/WelcomeSuccessScreen';
-
-// Tutorial
-import AppTourScreen from '../screens/tutorial/AppTourScreen';
+import {
+  OnboardingFlow, AgeSelectionScreen, LearningLimitScreen, GoalSelectionScreen,
+  ReferralSourceScreen, AvatarSelectionScreen, WelcomeSuccessScreen, AppTourScreen,
+} from './onboardingScreens';
 
 // Auth Screens
 import WelcomeScreen from '../screens/auth/WelcomeScreen';
@@ -36,21 +32,12 @@ import RegisterScreen from '../screens/auth/RegisterScreen';
 import ForgotPasswordScreen from '../screens/auth/ForgotPasswordScreen';
 import ProfileSetupScreen from '../screens/auth/ProfileSetupScreen';
 
-// Main App
-import MainTabNavigator from './MainTabNavigator';
-
-// Other Screens
-import PremiumScreen from '../screens/common/PremiumScreen';
-import SchoolCodeEntryScreen from '../screens/common/SchoolCodeEntryScreen';
-import QuestionScreen from '../screens/game/QuestionScreen';
-import LevelCompletionScreen from '../screens/game/LevelCompletionScreen';
-import DailyQuestScreen from '../screens/game/DailyQuestScreen';
-import AchievementUnlockScreen from '../screens/game/AchievementUnlockScreen';
-import BadgeCatalogueScreen from '../screens/game/BadgeCatalogueScreen';
+import {
+  MainTabNavigator, PremiumScreen, SchoolCodeEntryScreen, QuestionScreen,
+  CelebrationFlow, DailyQuestScreen, AchievementUnlockScreen,
+  BadgeCatalogueScreen, EditProfileScreen, ChangeAvatarScreen,
+} from './mainScreens';
 import { BadgeCategory } from '../types/gamification';
-import CelebrationFlow from '../components/gamification/CelebrationFlow';
-import EditProfileScreen from '../screens/profile/EditProfileScreen';
-import ChangeAvatarScreen from '../screens/profile/ChangeAvatarScreen';
 
 // Simple fallback loading component (no longer using Suspense)
 const SimpleFallback = () => (
@@ -225,15 +212,16 @@ function getActiveRouteName(state: any): string | null {
 }
 
 const AppNavigator: React.FC = () => {
-  const { isAuthenticated, isLoading, showWelcomeScreen, user } = useSelector((state: RootState) => state.auth);
+  const { isAuthenticated, isLoading, isCheckingSession, showWelcomeScreen, user, sessionCheckError } = useSelector((state: RootState) => state.auth);
   const { hasCompletedAppTour, latestFeatureTourVersionSeen } = useSelector(
     (state: RootState) => state.tutorial
   );
   const dispatch = useDispatch<AppDispatch>();
+  const startupTracked = useRef(false);
   // Skip onboarding screens - users go directly to login/home
   const [showOnboarding, setShowOnboarding] = useState<boolean>(false);
   // Always show splash screen first when app opens
-  const [showSplash, setShowSplash] = useState<boolean>(true);
+  const [showSplash, setShowSplash] = useState<boolean>(Platform.OS !== 'web');
   // Show app tour after welcome screen for new users
   const [showAppTour, setShowAppTour] = useState<boolean>(false);
 
@@ -249,21 +237,45 @@ const AppNavigator: React.FC = () => {
     dispatch(checkAuthStatus());
   }, [dispatch]);
 
+  useEffect(() => {
+    if (Platform.OS === 'web' && !isCheckingSession && !sessionCheckError && !startupTracked.current) {
+      startupTracked.current = true;
+      void analyticsService.trackEvent('feature_used', {
+        stage: 'first_usable_screen',
+        duration_ms: Math.round(performance.now()),
+        support_code: getSupportCode(),
+      }).catch(() => {});
+    }
+  }, [isCheckingSession, sessionCheckError]);
+
+  useEffect(() => {
+    if (Platform.OS !== 'web' || !user?.$id) return;
+    const onSessionOwnerChanged = (event: StorageEvent) => {
+      if (event.key === 'moneyquest_active_user_id' && event.newValue !== user.$id) {
+        AuthService.forgetLocalWebSession();
+        void AsyncStorage.removeItem('userId').catch(() => {});
+        dispatch(logout());
+      }
+    };
+    window.addEventListener('storage', onSessionOwnerChanged);
+    return () => window.removeEventListener('storage', onSessionOwnerChanged);
+  }, [dispatch, user?.$id]);
+
   // Re-link RevenueCat whenever the signed-in user changes (covers app restart
   // from persisted Redux state, all sign-in paths, and Google OAuth callback).
   useEffect(() => {
-    if (user?.$id) {
+    if (!isCheckingSession && !isLoading && !sessionCheckError && user?.$id) {
       revenueCatService.identifyUser(user.$id).catch(() => {});
     }
-    analyticsService.identifyUser(user?.$id || null);
-  }, [user?.$id]);
+    if (!isLoading && !sessionCheckError) analyticsService.identifyUser(user?.$id || null);
+  }, [user?.$id, isLoading, isCheckingSession, sessionCheckError]);
 
   // Bootstrap gamification state on auth (non-blocking, fails silently)
   useEffect(() => {
-    if (user?.$id) {
+    if (!isCheckingSession && !isLoading && !sessionCheckError && user?.$id) {
       dispatch(bootstrapGamification(user.$id)).catch(() => {});
     }
-  }, [dispatch, user?.$id]);
+  }, [dispatch, user?.$id, isLoading, isCheckingSession, sessionCheckError]);
 
   // Handle OAuth callbacks
   useEffect(() => {
@@ -272,14 +284,12 @@ const AppNavigator: React.FC = () => {
         const url = event.url;
         // Handle OAuth callback
         if (url.includes('oauth/success') || url.includes('oauth/failure')) {
-          const result = await googleAuthService.handleOAuthCallback(url);
+          const result = await dispatch(handleOAuthCallback(url));
 
-          if (result.success && result.user) {
+          if (handleOAuthCallback.fulfilled.match(result)) {
+            const oauthUser = result.payload;
             // Check if user needs onboarding
-            const needsOnboarding = !result.user.avatar || result.user.age === 0;
-
-            // Update user in Redux store
-            dispatch(updateUser(result.user));
+            const needsOnboarding = !oauthUser.avatar || oauthUser.age === 0;
 
             if (needsOnboarding) {
               Alert.alert('Welcome!', 'Let\'s complete your profile to get started.');
@@ -288,7 +298,7 @@ const AppNavigator: React.FC = () => {
               Alert.alert('Success', 'Successfully signed in with Google!');
             }
           } else {
-            Alert.alert('Error', result.error || 'Google sign-in failed');
+            Alert.alert('Error', String(result.payload || 'Google sign-in failed'));
           }
         }
       } catch (error) {
@@ -324,10 +334,25 @@ const AppNavigator: React.FC = () => {
   }
 
   // Show loading screen while auth state is being determined or during login/signup
-  if (isLoading) {
+  if (isCheckingSession) {
     return (
       <SafeAreaProvider>
         <LoadingScreen />
+      </SafeAreaProvider>
+    );
+  }
+
+  if (sessionCheckError) {
+    return (
+      <SafeAreaProvider>
+        <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center', padding: 24, backgroundColor: '#fff' }}>
+          <Text style={{ fontSize: 20, fontWeight: 'bold', textAlign: 'center' }}>Connection problem</Text>
+          <Text style={{ textAlign: 'center', marginVertical: 16 }}>{sessionCheckError}</Text>
+          <Text style={{ textAlign: 'center', marginBottom: 12 }}>Support code: {getSupportCode()} · session check</Text>
+          <TouchableOpacity accessibilityRole="button" onPress={() => dispatch(checkAuthStatus())} style={{ backgroundColor: '#FF5722', padding: 14, borderRadius: 8 }}>
+            <Text style={{ color: '#fff', fontWeight: 'bold' }}>Retry session check</Text>
+          </TouchableOpacity>
+        </View>
       </SafeAreaProvider>
     );
   }
@@ -336,6 +361,7 @@ const AppNavigator: React.FC = () => {
   if (showWelcomeScreen && user) {
     return (
       <SafeAreaProvider>
+        <React.Suspense fallback={<SimpleFallback />}>
         <NavigationContainer linking={linking}>
           <Stack.Navigator screenOptions={{ headerShown: false }}>
             <Stack.Screen
@@ -343,6 +369,24 @@ const AppNavigator: React.FC = () => {
               component={WelcomeSuccessScreen}
               initialParams={{ userName: user.name?.split(' ')[0] || user.name }}
             />
+          </Stack.Navigator>
+        </NavigationContainer>
+        </React.Suspense>
+      </SafeAreaProvider>
+    );
+  }
+
+  const profileIncomplete = isAuthenticated && user && (
+    !user.age || !user.avatar || user.avatar === 'needs_onboarding' ||
+    !user.learningLimit || user.learningLimit === 'needs_onboarding' ||
+    !user.mainGoal || user.mainGoal === 'needs_onboarding'
+  );
+  if (profileIncomplete) {
+    return (
+      <SafeAreaProvider>
+        <NavigationContainer>
+          <Stack.Navigator screenOptions={{ headerShown: false }}>
+            <Stack.Screen name="ProfileSetup" component={ProfileSetupScreen} />
           </Stack.Navigator>
         </NavigationContainer>
       </SafeAreaProvider>
@@ -359,12 +403,14 @@ const AppNavigator: React.FC = () => {
   if (appTourMode || showAppTour) {
     return (
       <SafeAreaProvider>
+        <React.Suspense fallback={<SimpleFallback />}>
         <AppTourScreen
           mode={appTourMode ?? 'first-run'}
           onComplete={() => {
             setShowAppTour(false);
           }}
         />
+        </React.Suspense>
       </SafeAreaProvider>
     );
   }
@@ -373,6 +419,7 @@ const AppNavigator: React.FC = () => {
   if (showOnboarding) {
     return (
       <SafeAreaProvider>
+        <React.Suspense fallback={<SimpleFallback />}>
         <NavigationContainer>
           <Stack.Navigator screenOptions={{ headerShown: false }}>
             <Stack.Screen name="Onboarding">
@@ -380,32 +427,27 @@ const AppNavigator: React.FC = () => {
             </Stack.Screen>
           </Stack.Navigator>
         </NavigationContainer>
+        </React.Suspense>
       </SafeAreaProvider>
     );
   }
 
-  // Check if OAuth user needs onboarding
-  const oauthUserNeedsOnboarding = isAuthenticated && user && (
-    user.avatar === 'needs_onboarding' ||
-    user.learningLimit === 'needs_onboarding' ||
-    user.mainGoal === 'needs_onboarding'
-  );
-
   return (
     <SafeAreaProvider>
+      <React.Suspense fallback={<SimpleFallback />}>
       <NavigationContainer
         linking={linking}
-        onReady={async () => {
+        onReady={() => {
           analyticsService.identifyUser(user?.$id || null);
-          await analyticsService.trackScreenView(
+          void analyticsService.trackScreenView(
             isAuthenticated ? 'MainApp' : 'Welcome',
-          );
+          ).catch(() => {});
         }}
-        onStateChange={async (state) => {
+        onStateChange={(state) => {
           const routeName = getActiveRouteName(state);
           if (routeName) {
             analyticsService.identifyUser(user?.$id || null);
-            await analyticsService.trackScreenView(routeName);
+            void analyticsService.trackScreenView(routeName).catch(() => {});
           }
         }}
       >
@@ -419,17 +461,6 @@ const AppNavigator: React.FC = () => {
               <Stack.Screen name="ForgotPassword" component={ForgotPasswordScreen} />
               <Stack.Screen name="ProfileSetup" component={ProfileSetupScreen} />
                 {/* Onboarding screens for new user registration */}
-                <Stack.Screen name="AgeSelection" component={AgeSelectionScreen} />
-                <Stack.Screen name="LearningLimitSelection" component={LearningLimitScreen} />
-                <Stack.Screen name="LearningLimit" component={LearningLimitScreen} />
-                <Stack.Screen name="GoalSelection" component={GoalSelectionScreen} />
-                <Stack.Screen name="ReferralSource" component={ReferralSourceScreen} />
-                <Stack.Screen name="AvatarSelection" component={AvatarSelectionScreen} />
-                <Stack.Screen name="WelcomeSuccess" component={WelcomeSuccessScreen} />
-              </>
-            ) : oauthUserNeedsOnboarding ? (
-              // OAuth user needs onboarding
-              <>
                 <Stack.Screen name="AgeSelection" component={AgeSelectionScreen} />
                 <Stack.Screen name="LearningLimitSelection" component={LearningLimitScreen} />
                 <Stack.Screen name="LearningLimit" component={LearningLimitScreen} />
@@ -488,6 +519,7 @@ const AppNavigator: React.FC = () => {
             )}
           </Stack.Navigator>
       </NavigationContainer>
+      </React.Suspense>
     </SafeAreaProvider>
   );
 };

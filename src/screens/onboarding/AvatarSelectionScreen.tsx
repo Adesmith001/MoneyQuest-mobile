@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import {
   View,
   Text,
@@ -14,6 +14,7 @@ import { signUpWithOnboarding } from '../../store/slices/authSlice';
 import { RootState, AppDispatch } from '../../store';
 import { avatars, getAvatarById } from '../../utils/avatarUtils'; // Import from the new utility file
 import analyticsService from '../../services/analytics';
+import { getSupportCode } from '../../utils/supportCode';
 
 interface Props {
   navigation: any;
@@ -24,6 +25,12 @@ const AvatarSelectionScreen: React.FC<Props> = ({ navigation, route }) => {
   const [selectedAvatar, setSelectedAvatar] = useState<string>('');
   const dispatch = useDispatch<AppDispatch>();
   const { isLoading } = useSelector((state: RootState) => state.auth);
+  const [takingLong, setTakingLong] = useState(false);
+  useEffect(() => {
+    if (!isLoading) { setTakingLong(false); return; }
+    const timer = setTimeout(() => setTakingLong(true), 12000);
+    return () => clearTimeout(timer);
+  }, [isLoading]);
 
   const handleContinue = async () => {
     if (!selectedAvatar) return;
@@ -118,6 +125,7 @@ const AvatarSelectionScreen: React.FC<Props> = ({ navigation, route }) => {
               {isLoading ? 'Creating Account...' : 'Continue'}
             </Text>
           </TouchableOpacity>
+          {takingLong && <Text style={{ color: '#555', textAlign: 'center', marginTop: 12 }}>Signup is taking longer than expected. If it does not finish, reload and sign in with the same email. Avoid submitting signup again. Support code: {getSupportCode()}</Text>}
         </View>
       </ScrollView>
     </SafeAreaView>
