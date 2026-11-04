@@ -3,8 +3,8 @@
  * Strategy (deploy-safe):
  * - Navigation HTML is network-first and bundles are content-hashed, so app
  *   deploys do not require a manual cache bump. Change CACHE_VERSION only
- *   when the worker's cache policy changes. One previous static cache stays
- *   available so an already-open tab can finish loading its hashed chunks.
+ *   when the worker's cache policy changes. Old MoneyQuest caches are removed
+ *   on activation so stale or incorrect asset responses cannot survive.
  * - The JS/CSS bundles are content-hashed by Expo, so once fetched they are
  *   immutable — cache-first is safe for them.
  * - Navigation requests use the current network shell, with cached HTML only
@@ -13,7 +13,7 @@
  *   network-only, so the app never serves stale server data.
  */
 
-const CACHE_VERSION = 'v3';
+const CACHE_VERSION = 'v4';
 const SHELL_CACHE = `moneyquest-shell-${CACHE_VERSION}`;
 const STATIC_CACHE = `moneyquest-static-${CACHE_VERSION}`;
 
@@ -33,12 +33,11 @@ self.addEventListener('activate', (event) => {
   event.waitUntil(
     caches
       .keys()
-      .then((keys) => {
-        const olderStatic = keys.filter(key => key.startsWith('moneyquest-static-') && key !== STATIC_CACHE).sort();
-        const obsolete = keys.filter(key => key.startsWith('moneyquest-shell-') && key !== SHELL_CACHE)
-          .concat(olderStatic.slice(0, -1));
-        return Promise.all(obsolete.map(key => caches.delete(key)));
-      })
+      .then((keys) => Promise.all(
+        keys
+          .filter(key => key.startsWith('moneyquest-') && key !== SHELL_CACHE && key !== STATIC_CACHE)
+          .map(key => caches.delete(key))
+      ))
       .then(() => self.clients.claim())
   );
 });
@@ -54,10 +53,11 @@ self.addEventListener('fetch', (event) => {
   if (sameOrigin && /^\/(?:_expo\/static\/(?:js|css)\/|assets\/)/.test(url.pathname)) {
     event.respondWith(
       caches.open(STATIC_CACHE).then((cache) =>
-        caches.match(request).then((cached) => {
-          if (cached) return cached;
+        cache.match(request).then((cached) => {
+          if (cached && isValidStaticResponse(request, cached)) return cached;
+          if (cached) cache.delete(request);
           return fetch(request).then((response) => {
-            if (response.ok) cache.put(request, response.clone());
+            if (response.ok && isValidStaticResponse(request, response)) cache.put(request, response.clone());
             return response;
           });
         })
@@ -104,3 +104,15 @@ self.addEventListener('fetch', (event) => {
 
   // Everything else (API calls, cross-origin resources): network only.
 });
+
+function isValidStaticResponse(request, response) {
+  const pathname = new URL(request.url).pathname.toLowerCase();
+  const contentType = (response.headers.get('content-type') || '').toLowerCase();
+  if (pathname.endsWith('.png')) return contentType.includes('image/png');
+  if (pathname.endsWith('.jpg') || pathname.endsWith('.jpeg')) return contentType.includes('image/jpeg');
+  if (pathname.endsWith('.gif')) return contentType.includes('image/gif');
+  if (pathname.endsWith('.svg')) return contentType.includes('image/svg');
+  if (pathname.endsWith('.js')) return contentType.includes('javascript') || contentType.includes('ecmascript');
+  if (pathname.endsWith('.css')) return contentType.includes('text/css');
+  return true;
+}
