@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import { 
   View, 
   Text, 
@@ -17,6 +17,7 @@ import { signIn, signInWithGoogle, reactivateAccount } from '../../store/slices/
 import AuthService from '../../services/auth';
 import { RootState, AppDispatch } from '../../store';
 import { Ionicons } from '@expo/vector-icons';
+import { getSupportCode } from '../../utils/supportCode';
 
 interface Props {
   navigation: any;
@@ -28,6 +29,12 @@ const LoginScreen: React.FC<Props> = ({ navigation }) => {
   const [showPassword, setShowPassword] = useState(false);
   const dispatch = useDispatch<AppDispatch>();
   const { isLoading, error } = useSelector((state: RootState) => state.auth);
+  const [takingLong, setTakingLong] = useState(false);
+  useEffect(() => {
+    if (!isLoading) { setTakingLong(false); return; }
+    const timer = setTimeout(() => setTakingLong(true), 12000);
+    return () => clearTimeout(timer);
+  }, [isLoading]);
 
   const handleLogin = async () => {
     if (!email || !password) {
@@ -166,7 +173,6 @@ const LoginScreen: React.FC<Props> = ({ navigation }) => {
             >
               <Text style={styles.forgotPasswordText}>Forgot password?</Text>
             </TouchableOpacity>
-
             <TouchableOpacity
               style={[styles.loginButton, isLoading && styles.disabledButton]}
               onPress={handleLogin}
@@ -176,6 +182,7 @@ const LoginScreen: React.FC<Props> = ({ navigation }) => {
                 {isLoading ? 'Logging in...' : 'Log in'}
               </Text>
             </TouchableOpacity>
+            {takingLong && <Text style={{ color: '#555', textAlign: 'center', marginBottom: 12 }}>Login is taking longer than expected. Check your connection. If it does not finish, reload and try again. Support code: {getSupportCode()}</Text>}
 
             {/* <View style={styles.divider}>
               <Text style={styles.dividerText}>OR LOGIN WITH</Text>

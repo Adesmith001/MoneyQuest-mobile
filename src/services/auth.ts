@@ -19,6 +19,7 @@ import { getCurrentMonthKey, shouldResetMonthlyXP } from "../utils";
 import { buildUserDocumentData, findOrCreateUserDocument } from "./authProfile";
 import schoolEntitlementService from './schoolEntitlementService';
 import { getPasswordValidationError } from '../utils/passwordValidation';
+import { isMissingSessionError } from '../utils/authCheckPolicy';
 import {
   getDefaultWebSessionMarkerStore,
   isWebSessionMarked,
@@ -53,6 +54,16 @@ class AuthService {
     if (this.isWeb()) {
       clearWebSessionMarker(getDefaultWebSessionMarkerStore());
     }
+  }
+
+  private publishWebSessionOwner(userId: string): void {
+    if (!this.isWeb()) return;
+    try { window.localStorage.setItem('moneyquest_active_user_id', userId); } catch {}
+  }
+
+  forgetLocalWebSession(): void {
+    this.clearSessionActiveMarker();
+    this.clearWebSessionRemnants();
   }
 
   /** Best-effort removal of any locally stored web session remnants. */
@@ -217,6 +228,7 @@ class AuthService {
 
       // Check if account is disabled before proceeding
       const accountInfo = await account.get();
+      this.publishWebSessionOwner(accountInfo.$id);
       const userDoc = await this.ensureUserDocument(accountInfo);
       if (userDoc?.accountStatus === 'disabled') {
         // Keep session alive so the user can reactivate from the login screen
@@ -233,9 +245,19 @@ class AuthService {
   }
 
   // Sign out
-  async signOut(): Promise<void> {
+  async signOut(expectedUserId?: string): Promise<void> {
     // Always end this tab's session ownership, even if the server call fails.
     this.clearSessionActiveMarker();
+    if (this.isWeb()) {
+      try {
+        const owner = window.localStorage.getItem('moneyquest_active_user_id');
+        if (expectedUserId && owner && owner !== expectedUserId) {
+          this.clearWebSessionRemnants();
+          return; // Another tab has already signed in; never delete its session.
+        }
+        window.localStorage.removeItem('moneyquest_active_user_id');
+      } catch {}
+    }
 
     try {
       await account.deleteSession("current");
@@ -252,7 +274,7 @@ class AuthService {
   }
 
   // Get current user
-  async getCurrentUser(): Promise<any> {
+  async getCurrentUser(strict = false): Promise<any> {
     // On web (shared school devices), never restore a session this tab did
     // not create. A new visit must start at the login screen so each student
     // signs into their own account.
@@ -266,6 +288,7 @@ class AuthService {
       try {
         session = await account.getSession('current');
       } catch (error) {
+        if (strict && !isMissingSessionError(error)) throw error;
         return null;
       }
 
@@ -312,6 +335,7 @@ class AuthService {
 
     } catch (error) {
       console.error('Get current user error:', error);
+      if (strict) throw error;
       return null;
     }
   }
@@ -499,20 +523,7 @@ class AuthService {
     }
   ): Promise<void> {
     try {
-      // First find the user document by userId
-      const response = await databases.listDocuments(
-        DB_ID,
-        COLLECTIONS.USERS,
-        [Query.equal('userId', userId)]
-      );
-
-      if (response.documents.length === 0) {
-        throw new Error('User document not found');
-      }
-
-      const userDoc = response.documents[0];
-
-      await databases.updateDocument(DB_ID, COLLECTIONS.USERS, userDoc.$id, {
+      await databases.updateDocument(DB_ID, COLLECTIONS.USERS, userId, {
         age: onboardingData.age,
         learningLimit: onboardingData.learningLimit,
         mainGoal: onboardingData.mainGoal,
@@ -576,6 +587,7 @@ class AuthService {
 
       // Step 3: Now get the current user (session is established)
       const user = await account.get();
+      this.publishWebSessionOwner(user.$id);
 
       // Step 4: Create or repair the user document with all onboarding data
       const seededPayload = buildUserDocumentData(user, {
@@ -596,39 +608,34 @@ class AuthService {
         profileSeed: seededPayload as any,
       });
 
-      await schoolEntitlementService.claimByEmail();
+      // Account, session, and profile are sufficient to enter the app.
+      // School entitlement and initial lesson progress can finish later.
+      schoolEntitlementService.claimByEmail().catch(error =>
+        console.warn('School entitlement claim will retry later:', error)
+      );
 
-      // Initialize progress with first level from backend
-      try {
-        const sections = await backendApi.getSections();
-        if (sections.length > 0) {
-          const firstSection = sections[0];
-          
-          if (firstSection.section_id) {
-            const levels = await backendApi.getSectionLevels(firstSection.section_id);
-            
-            if (levels.length > 0) {
-              const firstLevel = levels[0];
-              await databases.updateDocument(
-                DB_ID,
-                COLLECTIONS.USERS,
-                user.$id,
-                {
+      void (async () => {
+        try {
+          const sections = await backendApi.getSections();
+          if (sections.length > 0) {
+            const firstSection = sections[0];
+            if (firstSection.section_id) {
+              const levels = await backendApi.getSectionLevels(firstSection.section_id);
+              if (levels.length > 0) {
+                const firstLevel = levels[0];
+                await databases.updateDocument(DB_ID, COLLECTIONS.USERS, user.$id, {
                   currentSectionId: firstSection.section_id,
-                  currentLevelId: firstLevel.level_id
-                }
-              );
-              
-              // Update the returned user document object
-              userDocument.currentSectionId = firstSection.section_id;
-              userDocument.currentLevelId = firstLevel.level_id;
+                  currentLevelId: firstLevel.level_id,
+                });
+                userDocument.currentSectionId = firstSection.section_id;
+                userDocument.currentLevelId = firstLevel.level_id;
+              }
             }
           }
+        } catch (progressError) {
+          console.error('Failed to initialize user progress:', progressError);
         }
-      } catch (progressError) {
-        console.error('Failed to initialize user progress:', progressError);
-        // Don't fail the whole sign-up process if this fails, user can retry or we can fix it later
-      }
+      })();
 
       // Step 5: Return the combined user data
       return {
@@ -663,18 +670,9 @@ class AuthService {
     } catch (error: any) {
       console.error('Create account with onboarding error:', error);
 
-      // Clean up any created session if document creation failed
-      if (newAccount && newAccount.$id) {
-        try {
-          // Only delete the session, not the account (account deletion requires different permissions)
-          await account.deleteSession('current').catch(() => {
-            // Ignore session deletion errors - session might not exist
-          });
-        } catch (cleanupError) {
-          console.error('Session cleanup failed:', cleanupError);
-        }
+      if (newAccount?.$id) {
+        throw new Error('Your account was created, but setup was interrupted. Please sign in to finish setup.');
       }
-
       throw new Error(`Account creation failed: ${error.message}`);
     }
   }

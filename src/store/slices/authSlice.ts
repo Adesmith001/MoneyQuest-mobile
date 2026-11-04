@@ -7,14 +7,20 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 import revenueCatService from '../../services/revenueCatService';
 import analyticsService from '../../services/analytics';
 import schoolEntitlementService from '../../services/schoolEntitlementService';
+import { shouldApplyAuthCheck } from '../../utils/authCheckPolicy';
+import { getSupportCode } from '../../utils/supportCode';
+import { getDefaultWebSessionMarkerStore, isWebSessionMarked } from '../../utils/webSessionMarker';
 
 const initialState: AuthState = {
   user: null,
   isAuthenticated: false,
-  isLoading: false,
+  isLoading: true,
+  isCheckingSession: true,
   isLoggingOut: false,
   error: null,
   showWelcomeScreen: false,
+  activeCheckRequestId: null,
+  sessionCheckError: null,
 };
 
 // Async thunks
@@ -28,12 +34,13 @@ export const signIn = createAsyncThunk(
         throw new Error('Your account exists, but your profile could not be loaded. Please try again.');
       }
       const userDocument = await AuthService.getUserDocument(currentUser.$id);
+      if (!userDocument) throw new Error('Your profile could not be loaded. Please retry.');
       analyticsService.identifyUser(currentUser.$id);
-      await analyticsService.trackEvent('login_succeeded', {
+      void analyticsService.trackEvent('login_succeeded', {
         auth_provider: 'email',
         has_onboarding: Boolean(userDocument?.avatar && userDocument?.learningLimit && userDocument?.mainGoal),
         ...analyticsService.buildUserProperties(userDocument),
-      });
+      }).catch(() => {});
       
       // Update streak on login (silently fail if there are permission issues)
       if (userDocument?.$id) {
@@ -47,10 +54,10 @@ export const signIn = createAsyncThunk(
       revenueCatService.identifyUser(currentUser.$id).catch(() => {});
       return { currentUser, userDocument };
     } catch (error: any) {
-      await analyticsService.trackEvent('login_failed', {
+      void analyticsService.trackEvent('login_failed', {
         auth_provider: 'email',
-        reason: error?.message || 'unknown',
-      });
+        reason: String(error?.code || error?.type || 'unknown'),
+      }).catch(() => {});
       return rejectWithValue(error.message);
     }
   }
@@ -66,12 +73,12 @@ export const signUp = createAsyncThunk(
     username?: string;
   }, { rejectWithValue }) => {
     try {
-      await analyticsService.trackEvent('sign_up_started', {
+      void analyticsService.trackEvent('sign_up_started', {
         auth_provider: 'email',
         source: 'basic_sign_up',
         has_phone_number: Boolean(phoneNumber),
         has_username: Boolean(username),
-      });
+      }).catch(() => {});
       // Step 1: Create the account
       await AuthService.createAccount(email, password, name, phoneNumber, username);
       
@@ -84,21 +91,22 @@ export const signUp = createAsyncThunk(
         throw new Error('Your account was created, but your profile could not be loaded. Please try signing in again.');
       }
       const userDocument = await AuthService.getUserDocument(currentUser.$id);
+      if (!userDocument) throw new Error('Your profile could not be loaded. Please retry.');
       analyticsService.identifyUser(currentUser.$id);
-      await analyticsService.trackEvent('sign_up_completed', {
+      void analyticsService.trackEvent('sign_up_completed', {
         auth_provider: 'email',
         source: 'basic_sign_up',
         ...analyticsService.buildUserProperties(userDocument),
-      });
+      }).catch(() => {});
       // Identify the new user with RevenueCat (non-blocking)
       revenueCatService.identifyUser(currentUser.$id).catch(() => {});
       return { currentUser, userDocument };
     } catch (error: any) {
-      await analyticsService.trackEvent('sign_up_failed', {
+      void analyticsService.trackEvent('sign_up_failed', {
         auth_provider: 'email',
         source: 'basic_sign_up',
-        reason: error?.message || 'unknown',
-      });
+        reason: String(error?.code || error?.type || 'unknown'),
+      }).catch(() => {});
       return rejectWithValue(error.message);
     }
   }
@@ -106,15 +114,15 @@ export const signUp = createAsyncThunk(
 
 export const signOut = createAsyncThunk(
   'auth/signOut',
-  async (_, { rejectWithValue, dispatch }) => {
+  async (_, { rejectWithValue, dispatch, getState }) => {
     try {
-      try {
-        await analyticsService.endSession('logout');
-        analyticsService.identifyUser(null);
-      } catch (analyticsError) {
-        // Non-fatal - analytics must never block signing out
-      }
-      await AuthService.signOut();
+      analyticsService.identifyUser(null);
+      void analyticsService.endSession('logout').catch(() => {});
+      const expectedUserId = (getState() as { auth?: { user?: { $id?: string } } }).auth?.user?.$id;
+      // The marker is cleared synchronously by signOut. Never hold the next
+      // student on the previous student's screen while the server is slow.
+      void AuthService.signOut(expectedUserId).catch(() => {});
+      void AsyncStorage.removeItem('userId').catch(() => {});
       // Reset streak state on sign out
       dispatch(resetStreakState());
       // Unlink RevenueCat user (non-blocking)
@@ -158,8 +166,8 @@ export const signInWithGoogle = createAsyncThunk(
       // This will open the browser and return user data
       const result = await googleAuthService.signInWithGoogle();
       
-      // Return a pending state - actual login will complete via deep link
-      return { pending: true };
+      if (!result.success || !result.user) throw new Error(result.error || 'Google sign-in failed');
+      return result.user;
     } catch (error: any) {
       return rejectWithValue(error.message || "Google sign-in failed");
     }
@@ -176,25 +184,25 @@ export const handleOAuthCallback = createAsyncThunk(
       if (result.success && result.user) {
         await AsyncStorage.setItem("userId", result.user.$id);
         analyticsService.identifyUser(result.user.$id);
-        await analyticsService.trackEvent('oauth_login_succeeded', {
+        void analyticsService.trackEvent('oauth_login_succeeded', {
           auth_provider: 'google',
           ...analyticsService.buildUserProperties(result.user),
-        });
+        }).catch(() => {});
         // Link the Appwrite user ID to RevenueCat so store purchases are accessible
         revenueCatService.identifyUser(result.user.$id).catch(() => {});
         return result.user;
       } else {
-        await analyticsService.trackEvent('oauth_login_failed', {
+        void analyticsService.trackEvent('oauth_login_failed', {
           auth_provider: 'google',
-          reason: result.error || 'OAuth callback failed',
-        });
+          reason: 'oauth_callback_failed',
+        }).catch(() => {});
         return rejectWithValue(result.error || "OAuth callback failed");
       }
     } catch (error: any) {
-      await analyticsService.trackEvent('oauth_login_failed', {
+      void analyticsService.trackEvent('oauth_login_failed', {
         auth_provider: 'google',
-        reason: error?.message || 'OAuth callback failed',
-      });
+        reason: String(error?.code || error?.type || 'oauth_callback_failed'),
+      }).catch(() => {});
       return rejectWithValue(error.message || "OAuth callback failed");
     }
   }
@@ -207,7 +215,7 @@ export const getCurrentUser = createAsyncThunk(
       const currentUser = await AuthService.getCurrentUser();
       if (currentUser) {
         const userDocument = await AuthService.getUserDocument(currentUser.$id);
-        await schoolEntitlementService.claimByEmail();
+        void schoolEntitlementService.claimByEmail().catch(() => {});
         
         // Update streak on app startup if user is already logged in (silently fail if there are permission issues)
         if (userDocument?.$id) {
@@ -234,16 +242,22 @@ export const checkAuthStatus = createAsyncThunk(
     try {
       // Never hang on a slow network: the app always renders after this
       // resolves, so cap the session check with a hard timeout.
-      const currentUser = await Promise.race([
-        AuthService.getCurrentUser(),
-        new Promise<null>((resolve) =>
-          setTimeout(() => resolve(null), 10000)
+      const verified = await Promise.race([
+        (async () => {
+          const currentUser = await AuthService.getCurrentUser(true);
+          if (!currentUser) return null;
+          const userDocument = await AuthService.getUserDocument(currentUser.$id);
+          if (!userDocument) throw new Error('Profile unavailable');
+          return { currentUser, userDocument };
+        })(),
+        new Promise<never>((_, reject) =>
+          setTimeout(() => reject(new Error('Session check timed out. Please retry.')), 10000)
         ),
       ]);
 
-      if (currentUser) {
-        const userDocument = await AuthService.getUserDocument(currentUser.$id);
-        await schoolEntitlementService.claimByEmail();
+      if (verified) {
+        const { currentUser, userDocument } = verified;
+        void schoolEntitlementService.claimByEmail().catch(() => {});
 
         // Block disabled accounts on session restore
         if (userDocument?.accountStatus === 'disabled') {
@@ -264,10 +278,20 @@ export const checkAuthStatus = createAsyncThunk(
         return { currentUser, userDocument };
       }
 
+      if (isWebSessionMarked(getDefaultWebSessionMarkerStore())) {
+        void analyticsService.trackEvent('app_error', {
+          stage: 'session_missing_after_refresh',
+          support_code: getSupportCode(),
+        }).catch(() => {});
+      }
       return null;
     } catch (error: any) {
-      // Don't reject for auth check - just return null
-      return null;
+      void analyticsService.trackEvent('app_error', {
+        stage: 'session_check',
+        support_code: getSupportCode(),
+        error_code: String(error?.code ?? error?.status ?? 'network'),
+      }).catch(() => {});
+      return rejectWithValue('Could not verify your session. Check your connection and retry.');
     }
   }
 );
@@ -277,6 +301,7 @@ export const refreshUserData = createAsyncThunk(
   async (userId: string, { rejectWithValue }) => {
     try {
       const userDocument = await AuthService.getUserDocument(userId);
+      if (!userDocument) throw new Error('Profile could not be loaded. Please retry.');
       return userDocument;
     } catch (error: any) {
       return rejectWithValue(error.message);
@@ -323,6 +348,7 @@ export const updateUserOnboarding = createAsyncThunk(
         avatar
       });
       const userDocument = await AuthService.getUserDocument(userId);
+      if (!userDocument) throw new Error('Profile could not be loaded. Please retry.');
       return userDocument;
     } catch (error: any) {
       return rejectWithValue(error.message);
@@ -354,13 +380,14 @@ export const signUpWithOnboarding = createAsyncThunk(
     };
   }, { rejectWithValue }) => {
     try {
+      const signupStartedAt = Date.now();
       const fullName = `${registrationData.firstName} ${registrationData.lastName}`;
-      await analyticsService.trackEvent('sign_up_started', {
+      void analyticsService.trackEvent('sign_up_started', {
         auth_provider: 'email',
         source: 'onboarding_registration',
         has_phone_number: Boolean(registrationData.phoneNumber),
         has_username: Boolean(registrationData.username),
-      });
+      }).catch(() => {});
       
       // Create account with all data including onboarding
       const result = await AuthService.createAccountWithOnboarding({
@@ -380,26 +407,27 @@ export const signUpWithOnboarding = createAsyncThunk(
         learningLimit: onboardingData.learningLimit,
         avatar: onboardingData.avatar,
       });
-      await analyticsService.trackEvent('sign_up_completed', {
+      void analyticsService.trackEvent('sign_up_completed', {
         auth_provider: 'email',
         source: 'onboarding_registration',
+        duration_ms: Date.now() - signupStartedAt,
         ...analyticsProperties,
-      });
-      await analyticsService.trackEvent('onboarding_completed', {
+      }).catch(() => {});
+      void analyticsService.trackEvent('onboarding_completed', {
         source: 'email_sign_up',
         ...analyticsProperties,
         main_goal_count: onboardingData.mainGoal
           ? onboardingData.mainGoal.split(',').filter(Boolean).length
           : 0,
-      });
+      }).catch(() => {});
       
       return result;
     } catch (error: any) {
-      await analyticsService.trackEvent('sign_up_failed', {
+      void analyticsService.trackEvent('sign_up_failed', {
         auth_provider: 'email',
         source: 'onboarding_registration',
-        reason: error?.message || 'unknown',
-      });
+        reason: String(error?.code || error?.type || 'unknown'),
+      }).catch(() => {});
       return rejectWithValue(error.message);
     }
   }
@@ -464,8 +492,11 @@ const authSlice = createSlice({
       state.user = null;
       state.error = null;
       state.isLoading = false;
+      state.isCheckingSession = false;
       state.isLoggingOut = false;
       state.showWelcomeScreen = false;
+      state.activeCheckRequestId = null;
+      state.sessionCheckError = null;
     },
     completeWelcomeScreen: (state) => {
       state.showWelcomeScreen = false;
@@ -476,6 +507,9 @@ const authSlice = createSlice({
     builder
       // Sign In
       .addCase(signIn.pending, (state) => {
+        state.isCheckingSession = false;
+        state.activeCheckRequestId = null;
+        state.sessionCheckError = null;
         state.isLoading = true;
         state.error = null;
       })
@@ -493,6 +527,9 @@ const authSlice = createSlice({
       })
       // Sign Up
       .addCase(signUp.pending, (state) => {
+        state.isCheckingSession = false;
+        state.activeCheckRequestId = null;
+        state.sessionCheckError = null;
         state.isLoading = true;
         state.error = null;
       })
@@ -510,6 +547,9 @@ const authSlice = createSlice({
       })
       // Sign Out
       .addCase(signOut.pending, (state) => {
+        state.isCheckingSession = false;
+        state.activeCheckRequestId = null;
+        state.sessionCheckError = null;
         state.isLoggingOut = true;
         state.error = null;
       })
@@ -525,12 +565,16 @@ const authSlice = createSlice({
       })
       // Google Sign In
       .addCase(signInWithGoogle.pending, (state) => {
+        state.isCheckingSession = false;
+        state.activeCheckRequestId = null;
+        state.sessionCheckError = null;
         state.isLoading = true;
         state.error = null;
       })
       .addCase(signInWithGoogle.fulfilled, (state, action) => {
-        // Keep loading state until OAuth callback completes
-        state.isLoading = true;
+        state.isLoading = false;
+        state.isAuthenticated = true;
+        state.user = action.payload;
         state.error = null;
       })
       .addCase(signInWithGoogle.rejected, (state, action) => {
@@ -539,6 +583,9 @@ const authSlice = createSlice({
       })
       // Handle OAuth callback
       .addCase(handleOAuthCallback.pending, (state) => {
+        state.isCheckingSession = false;
+        state.activeCheckRequestId = null;
+        state.sessionCheckError = null;
         state.isLoading = true;
         state.error = null;
       })
@@ -564,10 +611,17 @@ const authSlice = createSlice({
         state.isLoading = false;
       })
       // Check Auth Status
-      .addCase(checkAuthStatus.pending, (state) => {
+      .addCase(checkAuthStatus.pending, (state, action) => {
+        state.activeCheckRequestId = action.meta.requestId;
+        state.sessionCheckError = null;
+        state.isCheckingSession = true;
         state.isLoading = true;
       })
       .addCase(checkAuthStatus.fulfilled, (state, action) => {
+        if (!shouldApplyAuthCheck(action.meta.requestId, state.activeCheckRequestId)) return;
+        state.activeCheckRequestId = null;
+        state.sessionCheckError = null;
+        state.isCheckingSession = false;
         if (action.payload) {
           state.isAuthenticated = true;
           state.user = action.payload.userDocument;
@@ -577,9 +631,11 @@ const authSlice = createSlice({
         }
         state.isLoading = false;
       })
-      .addCase(checkAuthStatus.rejected, (state) => {
-        state.isAuthenticated = false;
-        state.user = null;
+      .addCase(checkAuthStatus.rejected, (state, action) => {
+        if (!shouldApplyAuthCheck(action.meta.requestId, state.activeCheckRequestId)) return;
+        state.activeCheckRequestId = null;
+        state.sessionCheckError = String(action.payload || 'Could not verify your session.');
+        state.isCheckingSession = false;
         state.isLoading = false;
       })
       // Update Profile Picture
@@ -596,12 +652,15 @@ const authSlice = createSlice({
       })
       // Sign Up With Onboarding
       .addCase(signUpWithOnboarding.pending, (state) => {
+        state.isCheckingSession = false;
+        state.activeCheckRequestId = null;
+        state.sessionCheckError = null;
         state.isLoading = true;
         state.error = null;
       })
       .addCase(signUpWithOnboarding.fulfilled, (state, action) => {
         state.isLoading = false;
-        state.isAuthenticated = false; // Don't authenticate yet, show welcome screen first
+        state.isAuthenticated = true;
         state.user = action.payload.userDocument;
         state.error = null;
         state.showWelcomeScreen = true; // Flag to show welcome screen

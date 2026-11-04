@@ -413,9 +413,12 @@ export interface AuthState {
   user: User | null;
   isAuthenticated: boolean;
   isLoading: boolean;
+  isCheckingSession: boolean;
   isLoggingOut: boolean;
   error: string | null;
   showWelcomeScreen: boolean;
+  activeCheckRequestId: string | null;
+  sessionCheckError: string | null;
 }
 
 export interface GameState {

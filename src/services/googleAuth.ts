@@ -6,6 +6,8 @@ import { User } from '../types';
 import Constants from 'expo-constants';
 import { URL } from 'react-native-url-polyfill';
 import { findOrCreateUserDocument } from './authProfile';
+import { Platform } from 'react-native';
+import { getDefaultWebSessionMarkerStore, markWebSession } from '../utils/webSessionMarker';
 
 WebBrowser.maybeCompleteAuthSession();
 
@@ -97,8 +99,12 @@ class GoogleAuthService {
       }
       // 4. Create the session in the App Client
       await account.createSession(userId, secret);
+      if (Platform.OS === 'web') markWebSession(getDefaultWebSessionMarkerStore());
       // 5. Get User and Sync with Database
       const userAccount = await account.get();
+      if (Platform.OS === 'web') {
+        try { window.localStorage.setItem('moneyquest_active_user_id', userAccount.$id); } catch {}
+      }
       const userDoc = await this.findOrCreateUserDocument(userAccount);
       const user = this.formatUserData(userDoc, userAccount);
 

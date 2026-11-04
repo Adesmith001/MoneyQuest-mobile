@@ -41,7 +41,7 @@ const rootReducer = (
   const previousUserId = state?.auth?.user?.$id ?? null;
   const reducedState = appReducer(state, action);
 
-  if (action.type === 'auth/signOut/fulfilled') {
+  if (action.type === 'auth/signOut/fulfilled' || action.type === 'auth/signOut/rejected' || action.type === 'auth/logout') {
     return {
       ...reducedState,
       ...getInitialUserScopedState(),
@@ -67,14 +67,20 @@ const authStateTransform = createTransform<AuthState, AuthState, RootReducerStat
     // student; the navigator must wait for checkAuthStatus to resolve before
     // rendering anything, otherwise the previous student's dashboard flashes.
     isLoading: true,
+    isCheckingSession: true,
     isLoggingOut: false,
     error: null,
+    activeCheckRequestId: null,
+    sessionCheckError: null,
   }),
   (outboundState) => ({
     ...outboundState,
-    isLoading: false,
+    isLoading: true,
+    isCheckingSession: true,
     isLoggingOut: false,
     error: null,
+    activeCheckRequestId: null,
+    sessionCheckError: null,
   }),
   { whitelist: ['auth'] }
 );

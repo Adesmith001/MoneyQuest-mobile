@@ -1,12 +1,14 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect } from 'react';
 import { StatusBar } from 'expo-status-bar';
 import { Provider } from 'react-redux';
 import { PersistGate } from 'redux-persist/integration/react';
 import { store, persistor } from './src/store';
 import AppNavigator from './src/navigation/AppNavigator';
 import * as Linking from 'expo-linking';
-import { Alert, Platform, ErrorUtils, View, Text, StyleSheet, LogBox, AppState } from 'react-native';
+import { Alert, Platform, ErrorUtils, View, Text, StyleSheet, LogBox, AppState, TouchableOpacity } from 'react-native';
+import { getSupportCode } from './src/utils/supportCode';
 import * as Font from 'expo-font';
+import { Ionicons } from '@expo/vector-icons';
 import * as NavigationBar from 'expo-navigation-bar';
 import LoadingScreen from './src/components/LoadingScreen';
 import AppFrame from './src/components/AppFrame';
@@ -26,15 +28,12 @@ LogBox.ignoreLogs([
 if (ErrorUtils) {
   ErrorUtils.setGlobalHandler((error, isFatal) => {
     console.error('Global error handler:', error);
-    analyticsService
-      .trackError(isFatal ? 'fatal_error' : 'app_error', error, {
-        source: 'global_error_handler',
-        fatal: isFatal,
-      })
-      .catch(() => {});
-    notificationService
-      .sendAppErrorNotification(error?.message || 'Unknown app error')
-      .catch(() => {});
+    void analyticsService.trackEvent(isFatal ? 'fatal_error' : 'app_error', {
+      stage: 'global_error',
+      fatal: isFatal,
+      support_code: getSupportCode(),
+    }).catch(() => {});
+    notificationService.sendAppErrorNotification(error?.message || 'Unknown app error').catch(() => {});
     if (isFatal) {
       console.error('FATAL ERROR:', error);
       Alert.alert(
@@ -50,8 +49,13 @@ if (ErrorUtils) {
 const ErrorFallback = ({ error }: { error: Error }) => (
   <View style={errorStyles.container}>
     <Text style={errorStyles.title}>Something went wrong</Text>
-    <Text style={errorStyles.message}>{error?.message || 'Unknown error'}</Text>
-    <Text style={errorStyles.hint}>Please restart the app</Text>
+    <Text style={errorStyles.message}>MoneyQuest could not finish loading. Please retry.</Text>
+    <Text style={errorStyles.hint}>Support code: {getSupportCode()} · app startup</Text>
+    {Platform.OS === 'web' && (
+      <TouchableOpacity accessibilityRole="button" onPress={() => window.location.reload()} style={{ backgroundColor: '#FF5722', padding: 14, borderRadius: 8, marginTop: 20 }}>
+        <Text style={{ color: '#fff', fontWeight: 'bold' }}>Reload app</Text>
+      </TouchableOpacity>
+    )}
   </View>
 );
 
@@ -98,9 +102,11 @@ class ErrorBoundary extends React.Component<
 
   componentDidCatch(error: Error, errorInfo: React.ErrorInfo) {
     console.error('🔴 ErrorBoundary details:', error, errorInfo);
-    notificationService
-      .sendAppErrorNotification(error?.message || 'Rendering error')
-      .catch(() => {});
+    void analyticsService.trackEvent('app_error', {
+      stage: 'render_error',
+      support_code: getSupportCode(),
+    }).catch(() => {});
+    notificationService.sendAppErrorNotification(error?.message || 'Rendering error').catch(() => {});
   }
 
   render() {
@@ -112,79 +118,24 @@ class ErrorBoundary extends React.Component<
 }
 
 function AppContent() {
-  const [isAppReady, setIsAppReady] = useState(false);
-  const [initError, setInitError] = useState<Error | null>(null);
-
   useEffect(() => {
-    async function prepare() {
-      try {
-        await analyticsService.initialize();
-        await analyticsService.startSession('app_open');
-
-        if (Platform.OS === 'android') {
-          try {
-            await NavigationBar.setVisibilityAsync('hidden');
-          } catch (navErr) {
-            console.warn('⚠️ Could not hide navigation bar:', navErr);
-          }
-        }
-
-        // Only load fonts - skip other services that might cause issues on iOS
-        // Initialize sound service (non-blocking)
-        soundService.initialize().catch(err => {
-          console.warn('⚠️ Sound service init failed (non-blocking):', err);
-        });
-
-        // Initialize RevenueCat (non-blocking — no userId yet; user is identified on sign-in)
-        try {
-          revenueCatService.configure();
-        } catch (rcErr) {
-          console.warn('⚠️ RevenueCat init failed (non-blocking):', rcErr);
-        }
-
-        try {
-          const fontPromise = Font.loadAsync({
-            'Arial-Rounded-MT-Bold': require('./assets/fonts/ArialRoundedMTBold.ttf'),
-          });
-          // 5 second timeout for fonts
-          const timeoutPromise = new Promise<void>((resolve) => 
-            setTimeout(() => {
-              resolve();
-            }, 5000)
-          );
-          await Promise.race([fontPromise, timeoutPromise]);
-        } catch (error) {
-          console.error('❌ Font loading error:', error);
-          // Continue anyway - use system fonts
-        }
-
-      } catch (error) {
-        console.error('❌ Critical initialization error:', error);
-        setInitError(error instanceof Error ? error : new Error(String(error)));
-      } finally {
-        // ALWAYS set app ready after 3 seconds max
-        setIsAppReady(true);
-
-        // Setup notifications after app is ready (non-blocking)
-        notificationService.setupAllNotifications().catch(err => {
-          console.warn('⚠️ Notification setup failed (non-blocking):', err);
-        });
-
-        // Check for Play Store updates in the background (Android only)
-        appUpdateService.checkForStoreUpdate(true).catch(() => {});
+    const optionalTimer = setTimeout(() => {
+      void analyticsService.initialize()
+        .then(() => analyticsService.startSession('app_open'))
+        .catch(() => {});
+      if (Platform.OS === 'android') {
+        NavigationBar.setVisibilityAsync('hidden').catch(() => {});
       }
-    }
-
-    prepare();
-    
-    // Failsafe: Force app ready after 5 seconds no matter what
-    const failsafe = setTimeout(() => {
-      if (!isAppReady) {
-        setIsAppReady(true);
-      }
-    }, 5000);
-    
-    return () => clearTimeout(failsafe);
+      soundService.initialize().catch(() => {});
+      try { revenueCatService.configure(); } catch {}
+      Font.loadAsync({
+        ...Ionicons.font,
+        'Arial-Rounded-MT-Bold': require('./assets/fonts/ArialRoundedMTBold.ttf'),
+      }).catch(error => console.warn('Font loading failed:', error));
+      notificationService.setupAllNotifications().catch(() => {});
+      appUpdateService.checkForStoreUpdate(true).catch(() => {});
+    }, Platform.OS === 'web' ? 1500 : 0);
+    return () => clearTimeout(optionalTimer);
   }, []);
 
   useEffect(() => {
@@ -230,16 +181,6 @@ function AppContent() {
       subscription.remove();
     };
   }, []);
-
-  // Show error screen if initialization failed critically
-  if (initError) {
-    return <ErrorFallback error={initError} />;
-  }
-
-  // Wait for app to be ready before rendering
-  if (!isAppReady) {
-    return <LoadingScreen />;
-  }
 
   return (
     <Provider store={store}>
