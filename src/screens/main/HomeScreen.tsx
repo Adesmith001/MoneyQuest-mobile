@@ -84,7 +84,9 @@ const NOTIFIED_SECTION_IDS_CACHE_KEY = '@moneyquest_notified_section_ids';
 const LAST_SECTIONS_VERSION_CHECK_KEY = '@moneyquest_last_sections_version_check_at';
 const LAST_KNOWN_SECTIONS_VERSION_KEY = '@moneyquest_last_known_sections_version';
 const NEXT_ALLOWED_SECTIONS_VERSION_CHECK_KEY = '@moneyquest_next_allowed_sections_version_check_at';
-const SECTIONS_VERSION_CHECK_INTERVAL_MS = 60 * 60 * 1000;
+const SECTIONS_VERSION_CHECK_INTERVAL_MS = Platform.OS === 'web'
+  ? 5 * 60 * 1000
+  : 60 * 60 * 1000;
 const SECTIONS_VERSION_CHECK_BACKOFF_MS = 6 * 60 * 60 * 1000;
 const WEB_DRAG_AXIS_THRESHOLD_PX = 6;
 
@@ -238,13 +240,6 @@ const HomeScreen: React.FC<Props> = ({ navigation }) => {
     await AsyncStorage.setItem(LAST_SECTIONS_VERSION_CHECK_KEY, timestamp.toString());
   }, []);
 
-  const ensureSectionsVersionCheckWindowStarted = React.useCallback(async () => {
-    const existing = await AsyncStorage.getItem(LAST_SECTIONS_VERSION_CHECK_KEY);
-    if (!existing) {
-      await markSectionsVersionCheckAt(Date.now());
-    }
-  }, [markSectionsVersionCheckAt]);
-
   const persistKnownSectionsVersion = React.useCallback(async (version: string) => {
     await Promise.all([
       AsyncStorage.setItem(LAST_KNOWN_SECTIONS_VERSION_KEY, version),
@@ -297,9 +292,9 @@ const HomeScreen: React.FC<Props> = ({ navigation }) => {
     []
   );
 
-  const checkForNewSectionsAvailability = React.useCallback(async () => {
-    if (!user?.$id || !hasInitiallyLoadedRef.current) {
-      return;
+  const checkForNewSectionsAvailability = React.useCallback(async (): Promise<string | null> => {
+    if (!user?.$id) {
+      return null;
     }
 
     try {
@@ -318,7 +313,7 @@ const HomeScreen: React.FC<Props> = ({ navigation }) => {
         Number.isFinite(nextAllowedCheckAt) &&
         nextAllowedCheckAt > now
       ) {
-        return;
+        return null;
       }
 
       const lastCheckedAt = lastCheckedAtRaw ? Number.parseInt(lastCheckedAtRaw, 10) : 0;
@@ -328,18 +323,22 @@ const HomeScreen: React.FC<Props> = ({ navigation }) => {
         lastCheckedAt > 0 &&
         now - lastCheckedAt < SECTIONS_VERSION_CHECK_INTERVAL_MS
       ) {
-        return;
+        return null;
       }
 
       const contentVersion = await backendApi.getSectionsContentVersion();
 
       if (!lastKnownVersion) {
         await persistKnownSectionsVersion(contentVersion.version);
-        return;
+        return null;
       }
 
       await markSectionsVersionCheckAt(now);
-      setHasNewSectionsAvailable(contentVersion.version !== lastKnownVersion);
+      const changedVersion = contentVersion.version !== lastKnownVersion
+        ? contentVersion.version
+        : null;
+      setHasNewSectionsAvailable(Boolean(changedVersion));
+      return changedVersion;
     } catch (error) {
       if (error instanceof ApiHttpError && error.status === 429) {
         const retryAt = Date.now() + SECTIONS_VERSION_CHECK_BACKOFF_MS;
@@ -350,10 +349,11 @@ const HomeScreen: React.FC<Props> = ({ navigation }) => {
           ),
           markSectionsVersionCheckAt(Date.now()),
         ]);
-        return;
+        return null;
       }
       await markSectionsVersionCheckAt(Date.now());
       console.warn('Failed to check for new sections:', error);
+      return null;
     }
   }, [markSectionsVersionCheckAt, persistKnownSectionsVersion, user?.$id]);
 
@@ -371,6 +371,20 @@ const HomeScreen: React.FC<Props> = ({ navigation }) => {
     const fetchStartedAt = Date.now();
 
     try {
+        const contentChanged = await checkForNewSectionsAvailability();
+        if (contentChanged) {
+          try {
+            await cachedBackendApi.forceRefreshLearningPath();
+            cachedBackendApi.resetSessionTracking();
+            await persistKnownSectionsVersion(contentChanged);
+            setHasNewSectionsAvailable(false);
+          } catch (error) {
+            // Keep the old cache as an offline fallback and leave the refresh
+            // affordance visible for a later retry.
+            console.warn('Automatic content refresh failed:', error);
+          }
+        }
+
         // Show loading spinner only on first-ever load
         if (!hasInitiallyLoadedRef.current) {
           setIsLoading(true);
@@ -446,7 +460,6 @@ const HomeScreen: React.FC<Props> = ({ navigation }) => {
             new Promise<never>((_, reject) => setTimeout(() => reject(new Error('Sections request timed out')), 8000)),
           ]);
           void notifyOnNewSections(backendSections).catch(() => {});
-          void ensureSectionsVersionCheckWindowStarted().catch(() => {});
 
           if (user?.$id) {
             notificationService.syncAdminBroadcasts(user.$id).catch(() => {});
@@ -641,7 +654,7 @@ const HomeScreen: React.FC<Props> = ({ navigation }) => {
           void refreshStaleState().catch(() => {});
           isFetchingRef.current = false;
         }
-  }, [activeSectionIndex, ensureSectionsVersionCheckWindowStarted, user?.$id, user?.currentLevelId, user?.currentSectionId, dispatch, notifyOnNewSections, refreshStaleState]);
+  }, [activeSectionIndex, checkForNewSectionsAvailability, dispatch, notifyOnNewSections, persistKnownSectionsVersion, refreshStaleState, user?.$id, user?.currentLevelId, user?.currentSectionId]);
 
   const handleManualRefresh = React.useCallback(async () => {
     if (isRefreshingContent || !user?.$id) {
@@ -886,8 +899,7 @@ const HomeScreen: React.FC<Props> = ({ navigation }) => {
   useFocusEffect(
     React.useCallback(() => {
       fetchLearningPath();
-      checkForNewSectionsAvailability();
-    }, [checkForNewSectionsAvailability, fetchLearningPath])
+    }, [fetchLearningPath])
   );
 
   useEffect(() => {

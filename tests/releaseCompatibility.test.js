@@ -6,6 +6,8 @@ const root = path.resolve(__dirname, '..');
 const packageJson = require(path.join(root, 'package.json'));
 const publicIndex = fs.readFileSync(path.join(root, 'public', 'index.html'), 'utf8');
 const serviceWorker = fs.readFileSync(path.join(root, 'public', 'sw.js'), 'utf8');
+const homeScreen = fs.readFileSync(path.join(root, 'src', 'screens', 'main', 'HomeScreen.tsx'), 'utf8');
+const vercelConfig = JSON.parse(fs.readFileSync(path.join(root, 'vercel.json'), 'utf8'));
 
 assert.equal(
   packageJson.dependencies['@react-navigation/stack'],
@@ -33,5 +35,23 @@ assert.doesNotMatch(
   'the retirement worker must never intercept image, font, or bundle requests'
 );
 assert.match(serviceWorker, /registration\.unregister\(\)/);
+
+assert.match(
+  homeScreen,
+  /await checkForNewSectionsAvailability\(\);\s*\n\s*if \(contentChanged\)/,
+  'the home screen checks content versions before rendering cached learning data'
+);
+assert.match(
+  homeScreen,
+  /await cachedBackendApi\.forceRefreshLearningPath\(\);/,
+  'a changed backend content version refreshes persisted learning data automatically'
+);
+assert.ok(
+  vercelConfig.headers.some(
+    (rule) => rule.source === '/' &&
+      rule.headers.some((header) => header.key === 'Cache-Control' && header.value.includes('no-cache'))
+  ),
+  'the deployed web shell must not be cached at the root URL'
+);
 
 console.log('Release compatibility checks passed');
