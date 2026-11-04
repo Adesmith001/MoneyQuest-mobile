@@ -8,6 +8,7 @@ import * as Linking from 'expo-linking';
 import { Alert, Platform, ErrorUtils, View, Text, StyleSheet, LogBox, AppState, TouchableOpacity } from 'react-native';
 import { getSupportCode } from './src/utils/supportCode';
 import * as Font from 'expo-font';
+import { Ionicons } from '@expo/vector-icons';
 import * as NavigationBar from 'expo-navigation-bar';
 import LoadingScreen from './src/components/LoadingScreen';
 import AppFrame from './src/components/AppFrame';
@@ -128,6 +129,7 @@ function AppContent() {
       soundService.initialize().catch(() => {});
       try { revenueCatService.configure(); } catch {}
       Font.loadAsync({
+        ...Ionicons.font,
         'Arial-Rounded-MT-Bold': require('./assets/fonts/ArialRoundedMTBold.ttf'),
       }).catch(error => console.warn('Font loading failed:', error));
       notificationService.setupAllNotifications().catch(() => {});
