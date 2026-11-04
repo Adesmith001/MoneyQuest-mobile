@@ -1,6 +1,5 @@
 import { createSlice, createAsyncThunk, PayloadAction } from '@reduxjs/toolkit';
 import { AuthState, User } from '../../types';
-import { Platform } from 'react-native';
 import AuthService from '../../services/auth';
 import googleAuthService from '../../services/googleAuth';
 import { updateStreakOnLogin, resetStreakState } from './streakSlice';
@@ -263,17 +262,6 @@ export const checkAuthStatus = createAsyncThunk(
         // Re-identify with RevenueCat on session restore (non-blocking)
         revenueCatService.identifyUser(currentUser.$id).catch(() => {});
         return { currentUser, userDocument };
-      }
-
-      // No session to restore. On shared web devices, end any leftover
-      // session from a previous student so the next login is always clean
-      // and the login screen is reachable. Capped so a dead network cannot
-      // block the login screen either.
-      if (Platform.OS === 'web') {
-        await Promise.race([
-          AuthService.signOut(),
-          new Promise<void>((resolve) => setTimeout(resolve, 5000)),
-        ]);
       }
 
       return null;
