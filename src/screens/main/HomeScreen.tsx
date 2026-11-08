@@ -581,7 +581,7 @@ const HomeScreen: React.FC<Props> = ({ navigation }) => {
             }
           }
 
-            if (sectionsData.length > 0) {
+            if (!hasInitiallyLoadedRef.current && sectionsData.length > 0) {
               setSections([...sectionsData]);
               if (!hasInitiallyLoadedRef.current) {
                 void analyticsService.trackEvent('feature_used', {
@@ -615,8 +615,7 @@ const HomeScreen: React.FC<Props> = ({ navigation }) => {
           if (!hasInitializedSectionPositionRef.current && sectionsData.length > 0) {
             const initialIndex = getInitialSectionIndex(
               sectionsData,
-              user?.currentSectionId,
-              activeSectionIndex
+              user?.currentSectionId
             );
 
             setActiveSectionIndex(initialIndex);
@@ -655,7 +654,7 @@ const HomeScreen: React.FC<Props> = ({ navigation }) => {
             }
           });
         }
-  }, [activeSectionIndex, checkForNewSectionsAvailability, dispatch, notifyOnNewSections, persistKnownSectionsVersion, refreshStaleState, user?.$id, user?.currentLevelId, user?.currentSectionId]);
+  }, [checkForNewSectionsAvailability, dispatch, notifyOnNewSections, persistKnownSectionsVersion, refreshStaleState, user?.$id, user?.currentLevelId, user?.currentSectionId]);
 
   const handleManualRefresh = React.useCallback(async () => {
     if (isRefreshingContent || !user?.$id) {

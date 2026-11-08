@@ -51,6 +51,16 @@ assert.match(
   /await cachedBackendApi\.forceRefreshLearningPath\(\);/,
   'a changed backend content version refreshes persisted learning data automatically'
 );
+assert.doesNotMatch(
+  homeScreen,
+  /\}, \[activeSectionIndex, checkForNewSectionsAvailability,/,
+  'viewing another section must not reload the learning path'
+);
+assert.match(
+  homeScreen,
+  /if \(!hasInitiallyLoadedRef\.current && sectionsData\.length > 0\) \{\s+setSections\(\[\.\.\.sectionsData\]\);/,
+  'background refreshes must retain the complete visible section list until replacement data is ready'
+);
 assert.ok(
   vercelConfig.headers.some(
     (rule) => rule.source === '/' &&
