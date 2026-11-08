@@ -44,6 +44,9 @@ yarn-error.*
 MoneyQuestProject-demo/
 crash logs/
 Question-generator-BE/
+.planning/
+planning/
+docs/
 
 # secrets
 secrets/*.p8

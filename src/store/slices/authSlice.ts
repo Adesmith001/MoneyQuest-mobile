@@ -27,6 +27,8 @@ const initialState: AuthState = {
 export const signIn = createAsyncThunk(
   'auth/signIn',
   async ({ email, password }: { email: string; password: string }, { rejectWithValue, dispatch }) => {
+    const startedAt = Date.now();
+    const attemptId = `${startedAt.toString(36)}-${Math.random().toString(36).slice(2, 8)}`;
     try {
       const { currentUser, userDocument } = await AuthService.signIn(email, password);
       if (!currentUser?.$id) {
@@ -55,8 +57,20 @@ export const signIn = createAsyncThunk(
       void analyticsService.trackEvent('login_failed', {
         auth_provider: 'email',
         reason: String(error?.code || error?.type || 'unknown'),
+        error_type: String(error?.type || ''),
+        auth_stage: String(error?.authStage || 'unknown'),
+        support_code: getSupportCode(),
+        attempt_id: attemptId,
+        status_code: Number(error?.code) || 0,
+        duration_ms: Date.now() - startedAt,
       }).catch(() => {});
-      return rejectWithValue(error.message);
+      return rejectWithValue(Number(error?.code) === 429
+        ? 'Too many login attempts. Wait a few minutes before trying again.'
+        : error?.code === 'timeout'
+          ? 'Sign-in timed out. Check your connection and try again.'
+            : Number(error?.code) === 401
+            ? 'Email or password is incorrect.'
+            : error?.message || 'Sign-in failed. Please try again.');
     }
   }
 );
