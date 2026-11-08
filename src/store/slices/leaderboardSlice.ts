@@ -1,5 +1,4 @@
 import { createSlice, createAsyncThunk, PayloadAction } from '@reduxjs/toolkit';
-import { ID } from 'react-native-appwrite';
 import { LeaderboardEntry } from '../../types';
 import { databases, DB_ID, COLLECTIONS, Query } from '../../services/appwrite';
 import { shouldResetMonthlyXP } from '../../utils';
@@ -121,81 +120,6 @@ const buildLeaderboardEntriesFromTable = (
     };
   });
 
-const syncLeaderboardSnapshot = async (entries: LeaderboardEntry[]) => {
-  if (entries.length === 0) {
-    return;
-  }
-
-  const currentMonth = entries[0].month;
-  const currentYear = entries[0].year;
-
-  const existingResponse = await databases.listDocuments(
-    DB_ID,
-    COLLECTIONS.LEADERBOARD,
-    [
-      Query.equal('month', currentMonth),
-      Query.equal('year', currentYear),
-      Query.limit(200),
-    ]
-  );
-
-  const existingByUserId = new Map(
-    existingResponse.documents.map((doc: any) => [doc.userId, doc])
-  );
-
-  const writes: Promise<any>[] = [];
-
-  for (const entry of entries) {
-    const existing = existingByUserId.get(entry.userId);
-    const payload = {
-      userId: entry.userId,
-      userName: entry.userName,
-      profilePicture: entry.profilePicture || '',
-      monthlyXP: entry.monthlyXP,
-      streak: entry.streak ?? 0,
-      month: entry.month,
-      year: entry.year,
-      rank: entry.rank,
-    };
-
-    if (!existing) {
-      writes.push(
-        databases.createDocument(
-          DB_ID,
-          COLLECTIONS.LEADERBOARD,
-          ID.unique(),
-          payload
-        )
-      );
-      continue;
-    }
-
-    const hasChanged =
-      existing.userName !== payload.userName ||
-      (existing.profilePicture || '') !== payload.profilePicture ||
-      (existing.monthlyXP || 0) !== payload.monthlyXP ||
-      (existing.streak || 0) !== payload.streak ||
-      `${existing.month}` !== payload.month ||
-      Number(existing.year || 0) !== payload.year ||
-      Number(existing.rank || 0) !== payload.rank;
-
-    if (hasChanged) {
-      writes.push(
-        databases.updateDocument(
-          DB_ID,
-          COLLECTIONS.LEADERBOARD,
-          existing.$id,
-          payload
-        )
-      );
-    }
-  }
-
-  if (writes.length > 0) {
-    await Promise.all(writes);
-  }
-};
-
 // Async thunks
 export const fetchLeaderboard = createAsyncThunk(
   'leaderboard/fetchLeaderboard',
@@ -224,15 +148,6 @@ export const fetchLeaderboard = createAsyncThunk(
         currentYear,
         streakMap
       );
-
-      try {
-        await syncLeaderboardSnapshot(leaderboardEntries);
-      } catch (syncError) {
-        console.warn(
-          'Leaderboard snapshot sync failed; showing live user data instead:',
-          syncError
-        );
-      }
 
       return leaderboardEntries;
     } catch (usersError: any) {
@@ -268,67 +183,6 @@ export const fetchLeaderboard = createAsyncThunk(
   }
 );
 
-export const updateUserRank = createAsyncThunk(
-  'leaderboard/updateUserRank',
-  async ({ userId, xp }: { userId: string; xp: number }, { rejectWithValue }) => {
-    try {
-      const currentDate = new Date();
-      const currentMonth = currentDate.getMonth() + 1;
-      const currentYear = currentDate.getFullYear();
-      const monthKey = `${currentMonth}`;
-      const user = await databases.getDocument(DB_ID, COLLECTIONS.USERS, userId);
-      const streakMap = await buildStreakMapForUserIds([userId]);
-      const currentStreak = streakMap.get(userId) ?? 0;
-
-      // Check if user already has a leaderboard entry for this month
-      const existingEntry = await databases.listDocuments(
-        DB_ID,
-        COLLECTIONS.LEADERBOARD,
-        [
-          Query.equal('userId', userId),
-          Query.equal('month', monthKey),
-          Query.equal('year', currentYear)
-        ]
-      );
-
-      if (existingEntry.documents.length > 0) {
-        // Update existing entry
-        const entryId = existingEntry.documents[0].$id;
-        await databases.updateDocument(
-          DB_ID,
-          COLLECTIONS.LEADERBOARD,
-          entryId,
-          {
-            monthlyXP: xp,
-            streak: currentStreak,
-          }
-        );
-      } else {
-        // Create new entry
-        await databases.createDocument(
-          DB_ID,
-          COLLECTIONS.LEADERBOARD,
-          ID.unique(),
-          {
-            userId,
-            userName: user.username || user.name || 'Anonymous',
-            profilePicture: user.profilePicture || '',
-            monthlyXP: xp,
-            streak: currentStreak,
-            month: monthKey,
-            year: currentYear,
-            rank: 1, // Appwrite column enforces a minimum rank of 1
-          }
-        );
-      }
-
-      return xp;
-    } catch (error: any) {
-      return rejectWithValue(error.message);
-    }
-  }
-);
-
 const leaderboardSlice = createSlice({
   name: 'leaderboard',
   initialState,
@@ -357,13 +211,6 @@ const leaderboardSlice = createSlice({
       })
       .addCase(fetchLeaderboard.rejected, (state, action) => {
         state.isLoading = false;
-        state.error = action.payload as string;
-      })
-      .addCase(updateUserRank.fulfilled, (state) => {
-        // Refetch leaderboard after updating user rank
-        state.error = null;
-      })
-      .addCase(updateUserRank.rejected, (state, action) => {
         state.error = action.payload as string;
       });
   },
