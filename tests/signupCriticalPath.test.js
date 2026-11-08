@@ -13,11 +13,14 @@ let claimed = 0;
 let initializedLessons = 0;
 let profileFailure = false;
 let sessionError = null;
+let getSessionCalls = 0;
+let accountGetCalls = 0;
+let profileCalls = 0;
 const account = {
   create: async () => ({ $id: 'student-a' }),
   createEmailPasswordSession: async () => ({}),
-  get: async () => ({ $id: 'student-a', email: 'student@example.test', name: 'Student A' }),
-  getSession: async () => { if (sessionError) throw sessionError; return { $id: 'session-a' }; },
+  get: async () => { accountGetCalls++; return { $id: 'student-a', email: 'student@example.test', name: 'Student A' }; },
+  getSession: async () => { getSessionCalls++; if (sessionError) throw sessionError; return { $id: 'session-a' }; },
   deleteSession: async () => { deletedSessions++; },
 };
 const pending = new Promise(() => {});
@@ -27,12 +30,16 @@ const mocks = {
   'react-native': { Platform: { OS: 'web' } },
   'expo-web-browser': {},
   'expo-linking': {},
-  './backendApi': { backendApi: { getSections: () => { initializedLessons++; return pending; } } },
+  './backendApi': { backendApi: {
+    getSections: () => { initializedLessons++; return pending; },
+    clearAuthCache: () => {},
+  } },
   './levelProgress': { levelProgressService: {} },
   '../utils': { getCurrentMonthKey: () => '', shouldResetMonthlyXP: () => false },
   './authProfile': {
     buildUserDocumentData: (_account, seed) => seed,
     findOrCreateUserDocument: async () => {
+      profileCalls++;
       if (profileFailure) throw new Error('Profile store unavailable');
       return { $id: 'student-a', name: 'Student A', avatar: 'avatar1', age: 12, learningLimit: 'casual', mainGoal: 'save' };
     },
@@ -68,6 +75,17 @@ const registration = {
   assert.equal(claimed, 1);
   assert.equal(initializedLessons, 1);
   assert.equal(deletedSessions, 0);
+
+  getSessionCalls = 0;
+  accountGetCalls = 0;
+  profileCalls = 0;
+  const signedIn = await auth.signIn('student@example.test', 'password123');
+  assert.equal(signedIn.currentUser.$id, 'student-a');
+  assert.equal(signedIn.userDocument.$id, 'student-a');
+  assert.equal(getSessionCalls, 1, 'sign-in checks the prior session once');
+  assert.equal(accountGetCalls, 1, 'sign-in reads the Appwrite account once');
+  assert.equal(profileCalls, 1, 'sign-in hydrates the profile once');
+  deletedSessions = 0;
 
   profileFailure = true;
   await assert.rejects(auth.createAccountWithOnboarding(registration), /account was created.*sign in/i);

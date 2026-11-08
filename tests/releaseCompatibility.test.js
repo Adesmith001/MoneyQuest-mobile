@@ -36,10 +36,15 @@ assert.doesNotMatch(
 );
 assert.match(serviceWorker, /registration\.unregister\(\)/);
 
-assert.match(
+assert.doesNotMatch(
   homeScreen,
-  /await checkForNewSectionsAvailability\(\);\s*\n\s*if \(contentChanged\)/,
-  'the home screen checks content versions before rendering cached learning data'
+  /await checkForNewSectionsAvailability\(\)/,
+  'content-version compatibility checks must never block cached startup content'
+);
+assert.ok(
+  homeScreen.indexOf('cachedBackendApi.getSections()') <
+    homeScreen.indexOf('void checkForNewSectionsAvailability()'),
+  'the home screen renders cached learning data before checking versions in the background'
 );
 assert.match(
   homeScreen,

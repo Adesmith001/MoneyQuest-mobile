@@ -77,7 +77,8 @@ class LevelProgressService {
         userId,
         levelId,
         score,
-        timeSpentMinutes
+        timeSpentMinutes,
+        `lesson-${userId}-${levelId}-${Date.now()}`
       );
 
       // Use caller-provided XP (accumulated per-question) or fallback formula

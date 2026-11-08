@@ -311,6 +311,41 @@ class CacheService {
     }
   }
 
+  /** Persist a complete learning path before pruning the previous fallback. */
+  async replaceLearningPathCache(
+    sections: BackendSection[],
+    levelsBySection: Array<{ sectionId: string; levels: BackendLevel[] }>,
+  ): Promise<void> {
+    const timestamp = Date.now().toString();
+    const entries: [string, string][] = [
+      [CACHE_KEYS.SECTIONS, JSON.stringify(sections)],
+      [CACHE_KEYS.SECTIONS_TIMESTAMP, timestamp],
+    ];
+
+    for (const replacement of levelsBySection) {
+      entries.push(
+        [CACHE_KEYS.LEVELS_PREFIX + replacement.sectionId, JSON.stringify(replacement.levels)],
+        [CACHE_KEYS.LEVELS_TIMESTAMP_PREFIX + replacement.sectionId, timestamp],
+      );
+    }
+
+    await AsyncStorage.multiSet(entries);
+
+    const retainedKeys = new Set(entries.map(([key]) => key));
+    const allKeys = await AsyncStorage.getAllKeys();
+    const obsoleteKeys = allKeys.filter(key =>
+      !retainedKeys.has(key) && (
+        key.startsWith(CACHE_KEYS.LEVELS_PREFIX) ||
+        key.startsWith(CACHE_KEYS.LEVELS_TIMESTAMP_PREFIX) ||
+        key.startsWith(CACHE_KEYS.QUESTIONS_PREFIX) ||
+        key.startsWith(CACHE_KEYS.QUESTIONS_TIMESTAMP_PREFIX)
+      )
+    );
+    if (obsoleteKeys.length > 0) {
+      await AsyncStorage.multiRemove(obsoleteKeys);
+    }
+  }
+
   // ===== BACKGROUND REFRESH TRACKING =====
 
   /**

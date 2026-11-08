@@ -16,9 +16,10 @@ import { SafeAreaView } from "react-native-safe-area-context";
 import { useNavigation } from "@react-navigation/native";
 import { StackNavigationProp } from "@react-navigation/stack";
 import { Ionicons } from "@expo/vector-icons";
-import { useSelector } from "react-redux";
+import { useDispatch, useSelector } from "react-redux";
 import { PurchasesPackage } from "react-native-purchases";
-import { RootState } from "../../store";
+import { AppDispatch, RootState } from "../../store";
+import { signOut } from "../../store/slices/authSlice";
 import { subscriptionService } from "../../services/subscriptionService";
 import paymentService from "../../services/paymentService";
 import revenueCatService, {
@@ -42,7 +43,8 @@ type NavigationProp = StackNavigationProp<RootStackParamList>;
 
 const PremiumScreen: React.FC = () => {
   const navigation = useNavigation<NavigationProp>();
-  const { user } = useSelector((state: RootState) => state.auth);
+  const dispatch = useDispatch<AppDispatch>();
+  const { user, isLoggingOut } = useSelector((state: RootState) => state.auth);
 
   const { refreshCustomerInfo } = useRevenueCat();
 
@@ -310,6 +312,25 @@ const PremiumScreen: React.FC = () => {
     navigation.navigate("SchoolCodeEntry");
   };
 
+  const confirmSignOut = async () => {
+    try {
+      await dispatch(signOut()).unwrap();
+    } catch (error: any) {
+      Alert.alert("Sign Out Failed", error?.message || "Please try again.");
+    }
+  };
+
+  const handleSignOut = () => {
+    Alert.alert(
+      "Switch account?",
+      "Sign out so you can use a different MoneyQuest account.",
+      [
+        { text: "Cancel", style: "cancel" },
+        { text: "Sign Out", style: "destructive", onPress: confirmSignOut },
+      ],
+    );
+  };
+
   const selectedPlanPriceLabel = rcPackages[selectedPlan]?.product.priceString
     || `NGN ${selectedPlanConfig.price.toLocaleString()}`;
   const trialDisclosure = `14-day free trial, then ${selectedPlanPriceLabel}/${selectedPlanConfig.billingCycle} unless canceled before renewal.`;
@@ -535,6 +556,24 @@ const PremiumScreen: React.FC = () => {
               </Text>
             </Text>
           </View>
+
+          <TouchableOpacity
+            accessibilityRole="button"
+            accessibilityLabel="Sign out to use another account"
+            style={styles.signOutButton}
+            onPress={handleSignOut}
+            disabled={isLoggingOut}
+            activeOpacity={0.75}
+          >
+            {isLoggingOut ? (
+              <ActivityIndicator color="#FFF" size="small" />
+            ) : (
+              <>
+                <Ionicons name="log-out-outline" size={18} color="#FFF" />
+                <Text style={styles.signOutButtonText}>Sign out to use another account</Text>
+              </>
+            )}
+          </TouchableOpacity>
         </ScrollView>
       </KeyboardAvoidingView>
     </SafeAreaView>
@@ -778,6 +817,23 @@ const styles = StyleSheet.create({
     color: "#FFD93D",
     fontWeight: "600",
     textDecorationLine: "underline",
+  },
+  signOutButton: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    gap: 8,
+    minHeight: 48,
+    borderWidth: 1,
+    borderColor: "rgba(255, 255, 255, 0.65)",
+    borderRadius: 12,
+    paddingHorizontal: 16,
+    marginTop: 4,
+  },
+  signOutButtonText: {
+    color: "#FFF",
+    fontSize: 15,
+    fontWeight: "600",
   },
 });
 

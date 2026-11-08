@@ -20,7 +20,7 @@ import { Ionicons } from '@expo/vector-icons';
 import { useSelector, useDispatch } from "react-redux";
 import { RootState } from "../../store";
 import { getAvatarById } from "../../utils/avatarUtils";
-import { ApiHttpError, backendApi } from "../../services/backendApi";
+import { ApiHttpError, backendApi, getApiRecoveryMessage } from "../../services/backendApi";
 import cachedBackendApi from "../../services/cachedBackendApi";
 import { databases, DB_ID, COLLECTIONS } from "../../services/appwrite";
 import { useFocusEffect } from "@react-navigation/native";
@@ -111,6 +111,7 @@ const HomeScreen: React.FC<Props> = ({ navigation }) => {
   const [isContentStale, setIsContentStale] = useState(false);
   const [isRefreshingContent, setIsRefreshingContent] = useState(false);
   const [hasNewSectionsAvailable, setHasNewSectionsAvailable] = useState(false);
+  const [startupError, setStartupError] = useState<string | null>(null);
   const [isSectionDropdownOpen, setIsSectionDropdownOpen] = useState(false);
   const [activeSectionIndex, setActiveSectionIndex] = useState(0);
   const [isWebPagerMouseDown, setIsWebPagerMouseDown] = useState(false);
@@ -368,23 +369,10 @@ const HomeScreen: React.FC<Props> = ({ navigation }) => {
     // Prevent concurrent invocations (useEffect + useFocusEffect can fire together)
     if (isFetchingRef.current) return;
     isFetchingRef.current = true;
+    setStartupError(null);
     const fetchStartedAt = Date.now();
 
     try {
-        const contentChanged = await checkForNewSectionsAvailability();
-        if (contentChanged) {
-          try {
-            await cachedBackendApi.forceRefreshLearningPath();
-            cachedBackendApi.resetSessionTracking();
-            await persistKnownSectionsVersion(contentChanged);
-            setHasNewSectionsAvailable(false);
-          } catch (error) {
-            // Keep the old cache as an offline fallback and leave the refresh
-            // affordance visible for a later retry.
-            console.warn('Automatic content refresh failed:', error);
-          }
-        }
-
         // Show loading spinner only on first-ever load
         if (!hasInitiallyLoadedRef.current) {
           setIsLoading(true);
@@ -646,13 +634,26 @@ const HomeScreen: React.FC<Props> = ({ navigation }) => {
             stage: 'home_content',
             support_code: getSupportCode(),
             error_code: String((error as any)?.code ?? (error as any)?.status ?? 'network'),
+            request_id: error instanceof ApiHttpError ? error.requestId : null,
           }).catch(() => {});
+          setStartupError(getApiRecoveryMessage(error));
           hasInitiallyLoadedRef.current = true;
           setHasInitiallyLoaded(true);
         } finally {
           setIsLoading(false);
           void refreshStaleState().catch(() => {});
           isFetchingRef.current = false;
+          void checkForNewSectionsAvailability().then(async contentChanged => {
+            if (!contentChanged) return;
+            try {
+              await cachedBackendApi.forceRefreshLearningPath();
+              cachedBackendApi.resetSessionTracking();
+              await persistKnownSectionsVersion(contentChanged);
+              setHasNewSectionsAvailable(false);
+            } catch (error) {
+              console.warn('Automatic content refresh failed:', error);
+            }
+          });
         }
   }, [activeSectionIndex, checkForNewSectionsAvailability, dispatch, notifyOnNewSections, persistKnownSectionsVersion, refreshStaleState, user?.$id, user?.currentLevelId, user?.currentSectionId]);
 
@@ -1430,8 +1431,7 @@ const HomeScreen: React.FC<Props> = ({ navigation }) => {
           />
           <Text style={styles.emptyStateTitle}>No Learning Content Available</Text>
           <Text style={styles.emptyStateMessage}>
-            We couldn't load the learning content.{'\n\n'}
-            Check your internet connection and try again.
+            {startupError || 'We could not load the learning content. Check your connection and retry.'}
           </Text>
           <Text style={{ textAlign: 'center', marginBottom: 12 }}>Support code: {getSupportCode()} · lessons</Text>
           <TouchableOpacity

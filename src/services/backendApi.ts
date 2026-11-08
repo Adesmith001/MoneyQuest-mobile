@@ -18,32 +18,130 @@ import {
   RecapSectionResponse,
   BackendContentVersionResponse,
 } from '../types';
+import { account } from './appwrite';
+
+const REQUEST_TIMEOUT_MS = 15000;
+const JWT_TIMEOUT_MS = 2000;
+const JWT_CACHE_MS = 10 * 60 * 1000;
 
 export class ApiHttpError extends Error {
   status: number;
   endpoint: string;
   responseBody: unknown;
+  retryAfterSeconds: number | null;
+  requestId: string | null;
 
   constructor(params: {
     message: string;
     status: number;
     endpoint: string;
     responseBody?: unknown;
+    retryAfterSeconds?: number | null;
+    requestId?: string | null;
   }) {
     super(params.message);
     this.name = 'ApiHttpError';
     this.status = params.status;
     this.endpoint = params.endpoint;
     this.responseBody = params.responseBody;
+    this.retryAfterSeconds = params.retryAfterSeconds ?? null;
+    this.requestId = params.requestId ?? null;
+  }
+}
+
+export const getApiRecoveryMessage = (error: unknown): string => {
+  if (error instanceof ApiRequestError) {
+    return error.code === 'timeout'
+      ? 'The request timed out. Please retry.'
+      : 'You appear to be offline. Check your connection and retry.';
+  }
+  if (error instanceof ApiHttpError) {
+    if (error.status === 429) {
+      return error.retryAfterSeconds
+        ? `Too many requests. Please wait ${error.retryAfterSeconds} seconds and retry.`
+        : 'Too many requests. Please wait a moment and retry.';
+    }
+    if (error.status === 403) {
+      return 'This network is temporarily blocked. Contact support with the support code below.';
+    }
+    if (error.status === 404) {
+      return 'Learning content is not available in this release. Please update the app or contact support.';
+    }
+    if (error.status >= 500) {
+      return 'The learning service is temporarily unavailable. Please retry.';
+    }
+  }
+  return 'We could not load the learning content. Check your connection and retry.';
+};
+
+export class ApiRequestError extends Error {
+  code: 'timeout' | 'offline';
+  endpoint: string;
+
+  constructor(code: 'timeout' | 'offline', endpoint: string) {
+    super(code === 'timeout' ? 'The request timed out. Please try again.' : 'You appear to be offline. Check your connection and retry.');
+    this.name = 'ApiRequestError';
+    this.code = code;
+    this.endpoint = endpoint;
   }
 }
 
 class BackendApiService {
   private baseUrl: string;
   private pendingRequests: Map<string, Promise<any>> = new Map();
+  private cachedJwt: { value: string; expiresAt: number } | null = null;
+  private pendingJwt: Promise<string | null> | null = null;
+  private authGeneration = 0;
 
   constructor() {
     this.baseUrl = ENV.MONEYQUEST_API_BASE_URL;
+  }
+
+  private async getAppwriteJwt(): Promise<string | null> {
+    if (this.cachedJwt && this.cachedJwt.expiresAt > Date.now()) {
+      return this.cachedJwt.value;
+    }
+    if (this.pendingJwt) return this.pendingJwt;
+
+    const generation = this.authGeneration;
+    const request = account.createJWT()
+      .then(({ jwt }) => {
+        if (generation === this.authGeneration) {
+          this.cachedJwt = { value: jwt, expiresAt: Date.now() + JWT_CACHE_MS };
+        }
+        return jwt;
+      })
+      .catch(() => null)
+      .finally(() => {
+        if (this.pendingJwt === request) this.pendingJwt = null;
+      });
+    this.pendingJwt = request;
+    return request;
+  }
+
+  clearAuthCache(): void {
+    this.authGeneration += 1;
+    this.cachedJwt = null;
+    this.pendingJwt = null;
+  }
+
+  private async getRequestJwt(): Promise<string | null> {
+    let timeout: ReturnType<typeof setTimeout> | undefined;
+    let jwtTimedOut = false;
+    try {
+      return await Promise.race([
+        this.getAppwriteJwt(),
+        new Promise<null>(resolve => {
+          timeout = setTimeout(() => {
+            jwtTimedOut = true;
+            resolve(null);
+          }, JWT_TIMEOUT_MS);
+        }),
+      ]);
+    } finally {
+      if (timeout) clearTimeout(timeout);
+      if (jwtTimedOut) this.clearAuthCache();
+    }
   }
 
   /**
@@ -53,14 +151,29 @@ class BackendApiService {
     endpoint: string,
     options?: RequestInit
   ): Promise<T> {
+    const controller = new AbortController();
+    let timedOut = false;
+    const timeout = setTimeout(() => {
+      timedOut = true;
+      controller.abort();
+    }, REQUEST_TIMEOUT_MS);
+
     try {
       const url = `${this.baseUrl}${endpoint}`;
+      const jwt = await this.getRequestJwt();
+      const headers: Record<string, string> = {
+        ...((options?.headers || {}) as Record<string, string>),
+      };
+      if (options?.body && !headers['Content-Type']) {
+        headers['Content-Type'] = 'application/json';
+      }
+      if (jwt && !headers.Authorization) {
+        headers.Authorization = `Bearer ${jwt}`;
+      }
       const response = await fetch(url, {
         ...options,
-        headers: {
-          'Content-Type': 'application/json',
-          ...options?.headers,
-        },
+        headers,
+        signal: controller.signal,
       });
 
       if (!response.ok) {
@@ -75,17 +188,20 @@ class BackendApiService {
           status: response.status,
           endpoint,
           responseBody: errorData,
+          retryAfterSeconds: Number.parseInt(response.headers.get('Retry-After') || '', 10) || null,
+          requestId: response.headers.get('X-Railway-Request-Id'),
         });
       }
 
       const data = await response.json();
       return data as T;
     } catch (error) {
-      console.error(`API Error [${endpoint}]:`, error);
       if (error instanceof ApiHttpError) {
         throw error;
       }
-      throw error;
+      throw new ApiRequestError(timedOut ? 'timeout' : 'offline', endpoint);
+    } finally {
+      clearTimeout(timeout);
     }
   }
 

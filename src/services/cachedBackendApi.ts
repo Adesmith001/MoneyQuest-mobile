@@ -81,17 +81,11 @@ class CachedBackendApiService {
         return reduxCached;
       }
 
-      try {
-        const freshSections = await backendApi.getSections();
-        if (freshSections && freshSections.length > 0) {
-          store.dispatch(setSections(freshSections));
-          await cacheService.saveSections(freshSections);
-          return freshSections;
-        }
-      } catch (error) {
-        console.warn('Sections refresh failed, using stale Redux cache:', error);
-      }
-
+      void backendApi.getSections().then(async freshSections => {
+        if (!freshSections?.length) return;
+        store.dispatch(setSections(freshSections));
+        await cacheService.saveSections(freshSections);
+      }).catch(error => console.warn('Sections refresh failed, using stale Redux cache:', error));
       return reduxCached;
     }
 
@@ -104,17 +98,11 @@ class CachedBackendApiService {
         return asyncCached;
       }
 
-      try {
-        const freshSections = await backendApi.getSections();
-        if (freshSections && freshSections.length > 0) {
-          store.dispatch(setSections(freshSections));
-          await cacheService.saveSections(freshSections);
-          return freshSections;
-        }
-      } catch (error) {
-        console.warn('Sections refresh failed, using stale storage cache:', error);
-      }
-
+      void backendApi.getSections().then(async freshSections => {
+        if (!freshSections?.length) return;
+        store.dispatch(setSections(freshSections));
+        await cacheService.saveSections(freshSections);
+      }).catch(error => console.warn('Sections refresh failed, using stale storage cache:', error));
       store.dispatch(setSections(asyncCached));
       return asyncCached;
     }
@@ -160,20 +148,14 @@ class CachedBackendApiService {
         return reduxCached;
       }
 
-      try {
-        const freshLevels = await backendApi.getSectionLevels(sectionId);
-        if (freshLevels && freshLevels.length > 0) {
-          store.dispatch(setLevels({ sectionId, levels: freshLevels }));
-          await cacheService.saveLevels(sectionId, freshLevels);
-          return freshLevels;
-        }
-      } catch (error) {
-        console.warn(
-          `Levels refresh failed for section ${sectionId}, using stale Redux cache:`,
-          error
-        );
-      }
-
+      void backendApi.getSectionLevels(sectionId).then(async freshLevels => {
+        if (!freshLevels?.length) return;
+        store.dispatch(setLevels({ sectionId, levels: freshLevels }));
+        await cacheService.saveLevels(sectionId, freshLevels);
+      }).catch(error => console.warn(
+        `Levels refresh failed for section ${sectionId}, using stale Redux cache:`,
+        error
+      ));
       return reduxCached;
     }
 
@@ -186,20 +168,14 @@ class CachedBackendApiService {
         return asyncCached;
       }
 
-      try {
-        const freshLevels = await backendApi.getSectionLevels(sectionId);
-        if (freshLevels && freshLevels.length > 0) {
-          store.dispatch(setLevels({ sectionId, levels: freshLevels }));
-          await cacheService.saveLevels(sectionId, freshLevels);
-          return freshLevels;
-        }
-      } catch (error) {
-        console.warn(
-          `Levels refresh failed for section ${sectionId}, using stale storage cache:`,
-          error
-        );
-      }
-
+      void backendApi.getSectionLevels(sectionId).then(async freshLevels => {
+        if (!freshLevels?.length) return;
+        store.dispatch(setLevels({ sectionId, levels: freshLevels }));
+        await cacheService.saveLevels(sectionId, freshLevels);
+      }).catch(error => console.warn(
+        `Levels refresh failed for section ${sectionId}, using stale storage cache:`,
+        error
+      ));
       store.dispatch(setLevels({ sectionId, levels: asyncCached }));
       return asyncCached;
     }
@@ -293,29 +269,24 @@ class CachedBackendApiService {
         return [];
       }
 
-      await cacheService.clearLearningPathCache();
+      const replacementLevels = await Promise.all(
+        freshSections.map(async section => {
+          if (!section.section_id) return null;
+          const levels = await backendApi.getSectionLevels(section.section_id);
+          return { sectionId: section.section_id, levels: levels || [] };
+        })
+      );
+
+      const completeReplacement = replacementLevels.filter(
+        (replacement): replacement is { sectionId: string; levels: BackendLevel[] } => !!replacement,
+      );
+      await cacheService.replaceLearningPathCache(freshSections, completeReplacement);
       store.dispatch(clearLearningCache());
 
       store.dispatch(setSections(freshSections));
-      await cacheService.saveSections(freshSections);
 
-      for (const section of freshSections) {
-        if (!section.section_id) {
-          continue;
-        }
-
-        try {
-          const freshLevels = await backendApi.getSectionLevels(section.section_id);
-          if (freshLevels && freshLevels.length > 0) {
-            store.dispatch(setLevels({ sectionId: section.section_id, levels: freshLevels }));
-            await cacheService.saveLevels(section.section_id, freshLevels);
-          }
-        } catch (error) {
-          console.warn(
-            `Failed to refresh levels for section ${section.section_id}:`,
-            error
-          );
-        }
+      for (const replacement of completeReplacement) {
+        store.dispatch(setLevels(replacement));
       }
 
       this.resetSessionTracking();

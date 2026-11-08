@@ -28,12 +28,10 @@ export const signIn = createAsyncThunk(
   'auth/signIn',
   async ({ email, password }: { email: string; password: string }, { rejectWithValue, dispatch }) => {
     try {
-      await AuthService.signIn(email, password);
-      const currentUser = await AuthService.getCurrentUser();
+      const { currentUser, userDocument } = await AuthService.signIn(email, password);
       if (!currentUser?.$id) {
         throw new Error('Your account exists, but your profile could not be loaded. Please try again.');
       }
-      const userDocument = await AuthService.getUserDocument(currentUser.$id);
       if (!userDocument) throw new Error('Your profile could not be loaded. Please retry.');
       analyticsService.identifyUser(currentUser.$id);
       void analyticsService.trackEvent('login_succeeded', {
@@ -83,14 +81,11 @@ export const signUp = createAsyncThunk(
       await AuthService.createAccount(email, password, name, phoneNumber, username);
       
       // Step 2: Immediately sign in the user after account creation
-      await AuthService.signIn(email, password);
-      
-      // Step 3: Get the current user (session is now established)
-      const currentUser = await AuthService.getCurrentUser();
+      const { currentUser, userDocument } = await AuthService.signIn(email, password);
+
       if (!currentUser?.$id) {
         throw new Error('Your account was created, but your profile could not be loaded. Please try signing in again.');
       }
-      const userDocument = await AuthService.getUserDocument(currentUser.$id);
       if (!userDocument) throw new Error('Your profile could not be loaded. Please retry.');
       analyticsService.identifyUser(currentUser.$id);
       void analyticsService.trackEvent('sign_up_completed', {
