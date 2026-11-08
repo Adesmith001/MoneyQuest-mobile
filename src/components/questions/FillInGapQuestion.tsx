@@ -57,10 +57,10 @@ const FillInGapQuestion: React.FC<Props> = ({
       </View>
 
       <View style={styles.optionsContainer}>
-        {blanksWithOptions.map((blank) => (
+        {blanksWithOptions.map((blank, blankIndex) => (
           <View key={blank.id} style={styles.blankOptionsGroup}>
             {question.blanks.length > 1 && (
-              <Text style={styles.blankGroupLabel}>Blank {blank.id.replace(/\D/g, '') || blank.id}</Text>
+              <Text style={styles.blankGroupLabel}>Blank {blankIndex + 1}</Text>
             )}
             {blank.options?.map((option, idx) => {
               const isSelected = userAnswers[blank.id] === option;

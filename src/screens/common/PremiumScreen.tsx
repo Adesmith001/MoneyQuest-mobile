@@ -335,6 +335,11 @@ const PremiumScreen: React.FC = () => {
     || `NGN ${selectedPlanConfig.price.toLocaleString()}`;
   const trialDisclosure = `14-day free trial, then ${selectedPlanPriceLabel}/${selectedPlanConfig.billingCycle} unless canceled before renewal.`;
 
+  const handleClose = () => {
+    if (navigation.canGoBack()) navigation.goBack();
+    else navigation.navigate("MainTabs");
+  };
+
   return (
     <SafeAreaView style={styles.container}>
       <KeyboardAvoidingView
@@ -342,14 +347,18 @@ const PremiumScreen: React.FC = () => {
         style={{ flex: 1 }}
       >
         <ScrollView
-          contentContainerStyle={styles.scrollContent}
+          contentContainerStyle={[
+            styles.scrollContent,
+            Platform.OS === "web" && styles.webScrollContent,
+          ]}
           keyboardShouldPersistTaps="handled"
         >
           {/* Close Button */}
           <TouchableOpacity
             style={styles.closeButton}
-            onPress={handleStartTrial}
-            disabled={isStartingTrial}
+            onPress={handleClose}
+            accessibilityRole="button"
+            accessibilityLabel="Close premium screen"
           >
             <Ionicons name="close" size={28} color="#FFF" />
           </TouchableOpacity>
@@ -589,6 +598,11 @@ const styles = StyleSheet.create({
     paddingHorizontal: 20,
     paddingBottom: 40,
   },
+  webScrollContent: {
+    width: "100%",
+    maxWidth: 560,
+    alignSelf: "center",
+  },
   closeButton: {
     alignSelf: "flex-start",
     marginTop: 10,
@@ -596,10 +610,10 @@ const styles = StyleSheet.create({
   },
   header: {
     alignItems: "center",
-    marginBottom: 30,
+    marginBottom: 18,
   },
   title: {
-    fontSize: 42,
+    fontSize: 32,
     fontWeight: "bold",
     color: "#FFF",
     marginBottom: 10,
@@ -612,9 +626,11 @@ const styles = StyleSheet.create({
     lineHeight: 22,
   },
   foxImage: {
-    width: 341,
-    height: 342,
-    left: 35,
+    width: 220,
+    height: 220,
+    alignSelf: "center",
+    resizeMode: "contain",
+    marginBottom: 8,
   },
   featuresContainer: {
     backgroundColor: "rgba(68, 68, 68, 0.9)",

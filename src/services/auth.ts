@@ -28,6 +28,26 @@ import {
 } from '../utils/webSessionMarker';
 
 class AuthService {
+  private pendingEmailSession: Promise<unknown> | null = null;
+
+  private async withAuthTimeout<T>(request: Promise<T>, stage: string): Promise<T> {
+    let timer: ReturnType<typeof setTimeout> | undefined;
+    try {
+      return await Promise.race([
+        request,
+        new Promise<T>((_, reject) => {
+          timer = setTimeout(() => {
+            reject(Object.assign(new Error('Sign-in timed out. Check your connection and try again.'), {
+              code: 'timeout', authStage: stage,
+            }));
+          }, 15000);
+        }),
+      ]);
+    } finally {
+      if (timer) clearTimeout(timer);
+    }
+  }
+
   private isWeb(): boolean {
     return Platform.OS === 'web';
   }
@@ -207,20 +227,42 @@ class AuthService {
 
   // Sign in with email and password
   async signIn(email: string, password: string): Promise<any> {
+    let authStage = 'session_create';
+    let emailSessionCreated = false;
     try {
-      // Check if there's already an active session
-      try {
-        const currentSession = await account.getSession('current');
-        if (currentSession) {
-          // If there's already a session, delete it first
-          await account.deleteSession('current');
-        }
-      } catch (error) {
-        // No active session, which is fine
+      // A timed-out Appwrite request cannot be aborted by the SDK. Do not
+      // allow a retry to race a still-running session-create request.
+      if (this.pendingEmailSession) {
+        const pendingError = Object.assign(
+          new Error('A sign-in request is still processing. Refresh this page before trying again.'),
+          { code: 'auth_in_progress', authStage: 'session_create' },
+        );
+        throw pendingError;
       }
 
-      // Create email session
-      await account.createEmailPasswordSession(email, password);
+      // Create email session. Keep ownership of the underlying request until
+      // it settles even if the UI deadline expires.
+      authStage = 'session_create';
+      const sessionRequest = account.createEmailPasswordSession(email.trim(), password);
+      this.pendingEmailSession = sessionRequest;
+      let sessionCreateTimedOut = false;
+      void sessionRequest.then(async () => {
+        if (sessionCreateTimedOut) {
+          // The user was already told this attempt timed out. Remove its late
+          // session so it cannot silently authenticate a later page state.
+          await account.deleteSession('current').catch(() => {});
+        }
+        if (this.pendingEmailSession === sessionRequest) this.pendingEmailSession = null;
+      }, () => {
+        if (this.pendingEmailSession === sessionRequest) this.pendingEmailSession = null;
+      });
+      try {
+        await this.withAuthTimeout(sessionRequest, authStage);
+      } catch (error) {
+        if ((error as { code?: unknown })?.code === 'timeout') sessionCreateTimedOut = true;
+        throw error;
+      }
+      emailSessionCreated = true;
 
       // This tab now owns the session: a refresh restores THIS student while
       // a new visit on a shared device still starts logged out. Mark before
@@ -228,9 +270,11 @@ class AuthService {
       this.markSessionActive();
 
       // Check if account is disabled before proceeding
-      const accountInfo = await account.get();
+      authStage = 'account_read';
+      const accountInfo = await this.withAuthTimeout(account.get(), authStage);
       this.publishWebSessionOwner(accountInfo.$id);
-      const userDoc = await this.ensureUserDocument(accountInfo);
+      authStage = 'profile_read';
+      const userDoc = await this.withAuthTimeout(this.ensureUserDocument(accountInfo), authStage);
       if (userDoc?.accountStatus === 'disabled') {
         // Keep session alive so the user can reactivate from the login screen
         throw new Error('ACCOUNT_DISABLED:' + accountInfo.$id);
@@ -246,6 +290,13 @@ class AuthService {
         userDocument: userDoc,
       };
     } catch (error) {
+      const errorMessage = error instanceof Error ? error.message : '';
+      if (emailSessionCreated && !errorMessage.startsWith('ACCOUNT_DISABLED:')) {
+        await account.deleteSession('current').catch(() => {});
+        this.clearSessionActiveMarker();
+        backendApi.clearAuthCache();
+      }
+      if (error && typeof error === 'object') Object.assign(error, { authStage });
       console.error('Sign in error:', error);
       throw error;
     }

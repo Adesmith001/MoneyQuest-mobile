@@ -9,8 +9,8 @@ import {
   KeyboardAvoidingView,
   ScrollView,
   Platform,
+  Image,
   Alert,
-  Image 
 } from 'react-native';
 import { useDispatch, useSelector } from 'react-redux';
 import { signIn, signInWithGoogle, reactivateAccount } from '../../store/slices/authSlice';
@@ -18,6 +18,18 @@ import AuthService from '../../services/auth';
 import { RootState, AppDispatch } from '../../store';
 import { Ionicons } from '@expo/vector-icons';
 import { getSupportCode } from '../../utils/supportCode';
+
+const LOGIN_COOLDOWN_STORAGE_KEY = 'moneyquest_login_rate_limit_until';
+const LOGIN_RATE_LIMIT_COOLDOWN_MS = 5 * 60 * 1000;
+
+const readLoginCooldown = () => {
+  try {
+    const until = Number(window.sessionStorage.getItem(LOGIN_COOLDOWN_STORAGE_KEY));
+    return Number.isFinite(until) && until > Date.now() ? until : 0;
+  } catch {
+    return 0;
+  }
+};
 
 interface Props {
   navigation: any;
@@ -28,63 +40,77 @@ const LoginScreen: React.FC<Props> = ({ navigation }) => {
   const [password, setPassword] = useState('');
   const [showPassword, setShowPassword] = useState(false);
   const dispatch = useDispatch<AppDispatch>();
-  const { isLoading, error } = useSelector((state: RootState) => state.auth);
+  const { isLoading } = useSelector((state: RootState) => state.auth);
   const [takingLong, setTakingLong] = useState(false);
+  const [formError, setFormError] = useState('');
+  const [disabledAccountId, setDisabledAccountId] = useState<string | null>(null);
+  const [rateLimitUntil, setRateLimitUntil] = useState(readLoginCooldown);
+  const [cooldownSeconds, setCooldownSeconds] = useState(0);
   useEffect(() => {
     if (!isLoading) { setTakingLong(false); return; }
     const timer = setTimeout(() => setTakingLong(true), 12000);
     return () => clearTimeout(timer);
   }, [isLoading]);
 
+  useEffect(() => {
+    const updateCooldown = () => {
+      const seconds = Math.max(0, Math.ceil((rateLimitUntil - Date.now()) / 1000));
+      setCooldownSeconds(seconds);
+      if (!seconds && rateLimitUntil) {
+        setRateLimitUntil(0);
+        try { window.sessionStorage.removeItem(LOGIN_COOLDOWN_STORAGE_KEY); } catch {}
+      }
+    };
+    updateCooldown();
+    if (!rateLimitUntil) return;
+    const timer = setInterval(updateCooldown, 1000);
+    return () => clearInterval(timer);
+  }, [rateLimitUntil]);
+
   const handleLogin = async () => {
+    if (rateLimitUntil > Date.now()) return;
+    setDisabledAccountId(null);
     if (!email || !password) {
-      Alert.alert('Error', 'Please fill in all fields');
+      setFormError('Please enter your email and password.');
       return;
     }
 
     if (!email.includes('@')) {
-      Alert.alert('Error', 'Please enter a valid email address');
+      setFormError('Please enter a valid email address.');
       return;
     }
 
     try {
-      const result = await dispatch(signIn({ email, password }));
-      if (signIn.fulfilled.match(result)) {
-        // Login successful, navigation will be handled by AppNavigator
-        Alert.alert('Success', 'Login successful!');
-      } else {
+      setFormError('');
+      const result = await dispatch(signIn({ email: email.trim(), password }));
+      if (!signIn.fulfilled.match(result)) {
         const errorMessage = result.payload as string;
         if (errorMessage?.startsWith('ACCOUNT_DISABLED:')) {
-          const userId = errorMessage.split(':')[1];
-          Alert.alert(
-            'Account Disabled',
-            'Your account is currently disabled. Would you like to reactivate it?',
-            [
-              {
-                text: 'Cancel',
-                style: 'cancel',
-                onPress: () => AuthService.signOut(),
-              },
-              {
-                text: 'Reactivate',
-                onPress: async () => {
-                  const reactivateResult = await dispatch(reactivateAccount({ userId }));
-                  if (reactivateAccount.fulfilled.match(reactivateResult)) {
-                    Alert.alert('Account Reactivated', 'Welcome back! Your account is now active.');
-                  } else {
-                    Alert.alert('Error', 'Failed to reactivate account. Please try again.');
-                    AuthService.signOut();
-                  }
-                },
-              },
-            ]
-          );
+          setDisabledAccountId(errorMessage.split(':')[1] || null);
+          setFormError('Your account is disabled. Reactivate it to continue.');
         } else {
-          Alert.alert('Login Failed', errorMessage || 'Invalid email or password');
+          setFormError(errorMessage || 'Sign-in failed. Please try again.');
+          if (errorMessage?.toLowerCase().includes('too many login attempts')) {
+            const until = Date.now() + LOGIN_RATE_LIMIT_COOLDOWN_MS;
+            setRateLimitUntil(until);
+            try { window.sessionStorage.setItem(LOGIN_COOLDOWN_STORAGE_KEY, String(until)); } catch {}
+          }
         }
       }
-    } catch (error) {
-      Alert.alert('Error', 'An unexpected error occurred');
+    } catch {
+      setFormError('Sign-in failed. Check your connection and try again.');
+    }
+  };
+
+  const handleReactivate = async () => {
+    if (!disabledAccountId) return;
+    const result = await dispatch(reactivateAccount({ userId: disabledAccountId }));
+    if (reactivateAccount.fulfilled.match(result)) {
+      setFormError('Your account has been reactivated.');
+      setDisabledAccountId(null);
+    } else {
+      setFormError('We could not reactivate the account. Please contact support.');
+      await AuthService.signOut().catch(() => {});
     }
   };
 
@@ -173,13 +199,31 @@ const LoginScreen: React.FC<Props> = ({ navigation }) => {
             >
               <Text style={styles.forgotPasswordText}>Forgot password?</Text>
             </TouchableOpacity>
+            {!!formError && (
+              <Text accessibilityRole="alert" style={{ color: '#B3261E', marginBottom: 16 }}>
+                {formError} Support code: {getSupportCode()}
+              </Text>
+            )}
+            {disabledAccountId && (
+              <TouchableOpacity
+                onPress={handleReactivate}
+                disabled={isLoading}
+                style={{ marginBottom: 16 }}
+              >
+                <Text style={{ color: '#FF5722', fontWeight: '700' }}>Reactivate account</Text>
+              </TouchableOpacity>
+            )}
             <TouchableOpacity
-              style={[styles.loginButton, isLoading && styles.disabledButton]}
+              style={[styles.loginButton, (isLoading || cooldownSeconds > 0) && styles.disabledButton]}
               onPress={handleLogin}
-              disabled={isLoading}
+              disabled={isLoading || cooldownSeconds > 0}
             >
               <Text style={styles.loginButtonText}>
-                {isLoading ? 'Logging in...' : 'Log in'}
+                {isLoading
+                  ? 'Logging in...'
+                  : cooldownSeconds > 0
+                    ? `Try again in ${Math.floor(cooldownSeconds / 60)}:${String(cooldownSeconds % 60).padStart(2, '0')}`
+                    : 'Log in'}
               </Text>
             </TouchableOpacity>
             {takingLong && <Text style={{ color: '#555', textAlign: 'center', marginBottom: 12 }}>Login is taking longer than expected. Check your connection. If it does not finish, reload and try again. Support code: {getSupportCode()}</Text>}
