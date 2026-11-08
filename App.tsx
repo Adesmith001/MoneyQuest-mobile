@@ -17,6 +17,10 @@ import soundService from './src/services/soundService';
 import revenueCatService from './src/services/revenueCatService';
 import analyticsService from './src/services/analytics';
 import appUpdateService from './src/services/appUpdateService';
+import Constants from 'expo-constants';
+import { buildErrorDiagnostics } from './src/utils/errorDiagnostics';
+
+const RELEASE_ID = Constants.expoConfig?.version || 'unknown';
 
 // Ignore specific warnings that don't affect functionality
 LogBox.ignoreLogs([
@@ -32,6 +36,7 @@ if (ErrorUtils) {
       stage: 'global_error',
       fatal: isFatal,
       support_code: getSupportCode(),
+      ...buildErrorDiagnostics(error, '', RELEASE_ID),
     }).catch(() => {});
     notificationService.sendAppErrorNotification(error?.message || 'Unknown app error').catch(() => {});
     if (isFatal) {
@@ -105,6 +110,7 @@ class ErrorBoundary extends React.Component<
     void analyticsService.trackEvent('app_error', {
       stage: 'render_error',
       support_code: getSupportCode(),
+      ...buildErrorDiagnostics(error, errorInfo.componentStack || '', RELEASE_ID),
     }).catch(() => {});
     notificationService.sendAppErrorNotification(error?.message || 'Rendering error').catch(() => {});
   }

@@ -63,6 +63,7 @@ class AuthService {
 
   forgetLocalWebSession(): void {
     this.clearSessionActiveMarker();
+    backendApi.clearAuthCache();
     this.clearWebSessionRemnants();
   }
 
@@ -235,9 +236,15 @@ class AuthService {
         throw new Error('ACCOUNT_DISABLED:' + accountInfo.$id);
       }
 
-      // Get current user after session is created
-      const user = await this.getCurrentUser();
-      return user;
+      return {
+        currentUser: {
+          ...userDoc,
+          $id: userDoc.$id,
+          email: accountInfo.email,
+          name: accountInfo.name,
+        },
+        userDocument: userDoc,
+      };
     } catch (error) {
       console.error('Sign in error:', error);
       throw error;
@@ -248,6 +255,7 @@ class AuthService {
   async signOut(expectedUserId?: string): Promise<void> {
     // Always end this tab's session ownership, even if the server call fails.
     this.clearSessionActiveMarker();
+    backendApi.clearAuthCache();
     if (this.isWeb()) {
       try {
         const owner = window.localStorage.getItem('moneyquest_active_user_id');
@@ -1010,6 +1018,7 @@ class AuthService {
    */
   async disableAccount(userId: string): Promise<void> {
     try {
+      backendApi.clearAuthCache();
       // Set accountStatus to disabled on user document
       await databases.updateDocument(DB_ID, COLLECTIONS.USERS, userId, {
         accountStatus: 'disabled',
@@ -1038,6 +1047,7 @@ class AuthService {
    */
   async deleteAccount(userId: string): Promise<void> {
     try {
+      backendApi.clearAuthCache();
       // 1. Delete user progress documents
       try {
         const progressDocs = await databases.listDocuments(
