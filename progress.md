@@ -1,5 +1,22 @@
 # Progress Log
 
+## Session: 2026-11-09 Web Startup Timeout
+
+### Investigation
+- **Status:** in progress
+- Reviewed the tester screenshot and identified the message as MoneyQuest's startup watchdog.
+- Reopened the completed shared-device login plan as Phase 4 because the failure occurs at the auth/bootstrap boundary changed by that work.
+- Next: correlate 10:26 AM WAT production logs, then trace the watchdog and web-session cleanup code before changing anything.
+- Production correlation: the 10:24–10:31 AM WAT window contains no Railway requests, while Appwrite still received lifecycle analytics. This places the stall before MoneyQuest's Railway content bootstrap and proves the browser had working network access to Appwrite.
+- Traced the screenshot copy to the static Expo HTML watchdog. This rules out the auth/session code as the direct cause; React never mounted.
+- Identified the recovery gap: the visible Retry button performs an ordinary reload even though the page's own comments acknowledge legacy service-worker/cache poisoning.
+- Web lookup of the two known frontend domains returned a tool accessibility error; no claim about their live asset headers is being made from that failed attempt.
+- Verified `moneyquest.nurtureehaven.com` directly: HTML and all three bundle URLs return 200. The 2.89 MB main bundle took about 5 seconds on this connection, and live static responses use `Cache-Control: public, must-revalidate, max-age=0` rather than the intended immutable policy.
+- Python Playwright was unavailable; switching to the repository machine's installed Node Playwright package for live browser reproduction.
+- Live Chrome mounted normally; a throttled Chrome run reproduced the tester's exact watchdog screen without any request or JavaScript failure.
+- **Root cause confirmed:** React had not mounted because the large main bundle was still downloading when the static 10-second timer declared startup failure. Cache/service-worker residue can worsen or repeat this, and the current Retry action does not perform recovery.
+- Phase 4 complete. Implementation is gated on approval of the bounded recovery design.
+
 ## Session: 2026-10-20 Shared-Device Login Isolation (Web)
 
 ### Discovery

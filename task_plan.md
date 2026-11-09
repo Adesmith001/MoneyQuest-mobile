@@ -4,10 +4,10 @@
 On shared school computers, every student must be able to log in with their own account, and one student's progress must never affect another student's account.
 
 ## Next Step
-Complete.
+Await approval for the bounded startup-recovery design, then begin Phase 5 with a failing regression test.
 
 ## Current Phase
-Phase 3 (complete)
+Phase 4 (complete); Phase 5 pending approval
 
 ## Phases
 
@@ -30,6 +30,18 @@ Phase 3 (complete)
 - [x] Export the production web bundle
 - **Status:** complete
 
+### Phase 4: Startup Timeout Investigation
+- [x] Correlate the affected tester's 10:26 AM WAT attempt with Railway and Appwrite telemetry
+- [x] Trace the loading watchdog, web-session cleanup, and initial navigation dependencies
+- [x] Decide from evidence whether this is stale client state or a code-level startup failure
+- **Status:** complete
+
+### Phase 5: Regression Fix and Verification
+- [ ] Add a failing regression test for the confirmed root cause
+- [ ] Implement the smallest code fix
+- [ ] Run focused auth/bootstrap tests, TypeScript diagnostics, and a production web export
+- **Status:** pending
+
 ## Decisions Made
 
 | Decision | Rationale |
@@ -38,6 +50,8 @@ Phase 3 (complete)
 | Delete the leftover Appwrite session at web boot | Guarantees the login screen is reachable and no progress bleeds between students on a shared computer |
 | Keep native (phone) session restore unchanged | Personal devices are not shared; no need to re-login there |
 | Cap the boot auth check with timeouts | The loading gate can never hang on a slow or dead network |
+| Treat the reported loading watchdog as a code path until logs prove otherwise | The message is rendered by MoneyQuest itself and appeared after the shared-device session changes |
+| Classify the change as bounded and require design approval before implementation | The failure is isolated to the existing static bootstrap/recovery and Vercel cache configuration |
 
 ## Errors Encountered
 
@@ -46,6 +60,10 @@ Phase 3 (complete)
 | Root Jest discovery rejects script-style TypeScript checks ("must contain at least one test") | 1 | Used the repository's intended compiled-program runner; scoped checks passed |
 | Ad-hoc test compile lacks `@types/node` for `tests/authProfile.test.ts` | 1 | Compiled with `--types node`; program exited 0 |
 | Expo export verification dir could not be deleted (Windows long paths) | 1 | Mirrored an empty dir over it with robocopy, then removed it |
+| PowerShell range-print helper had a parser error | 1 | Replaced the nested inline loop with direct `Get-Content | Select-Object` slices |
+| Web tool could not access either known frontend domain | 1 | Logged the limitation and continued with production telemetry plus local exported artifacts |
+| Python Playwright is not installed in the workspace Python 3.8 runtime | 1 | Used the already-installed Node Playwright package for equivalent live-browser diagnostics |
+| Playwright's bundled Chromium executable is absent | 1 | Reconfigured the diagnostic to use the installed Google Chrome channel |
 
 ## Original Task Plan: Mobile QA Celebrations and Badges
 

@@ -125,6 +125,12 @@ class ErrorBoundary extends React.Component<
 
 function AppContent() {
   useEffect(() => {
+    if (Platform.OS === 'web') {
+      (window as Window & { __moneyquestAppMounted?: () => void }).__moneyquestAppMounted?.();
+    }
+  }, []);
+
+  useEffect(() => {
     const optionalTimer = setTimeout(() => {
       void analyticsService.initialize()
         .then(() => analyticsService.startSession('app_open'))

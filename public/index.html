@@ -51,16 +51,44 @@
       <div id="bootstrap-status" style="margin:auto;padding:24px;text-align:center;font:16px Arial,sans-serif;color:#333">
         <strong>Loading MoneyQuest…</strong>
         <p id="bootstrap-hint">Please wait a moment.</p>
-        <button id="bootstrap-retry" type="button" style="display:none;padding:10px 18px;background:#ff5722;color:white;border:0;border-radius:8px;cursor:pointer" onclick="location.reload()">Retry</button>
+        <button id="bootstrap-retry" type="button" style="display:none;padding:10px 18px;background:#ff5722;color:white;border:0;border-radius:8px;cursor:pointer" onclick="window.__moneyquestRetryStartup()">Retry</button>
       </div>
     </div>
     <script>
-      setTimeout(function () {
+      var bootstrapTimer = setTimeout(function () {
         if (document.getElementById('bootstrap-status')) {
-          document.getElementById('bootstrap-hint').textContent = 'The app is taking too long to start. Check your connection and retry.';
+          document.getElementById('bootstrap-hint').textContent = 'The app is still loading. If it does not open soon, retry to refresh its local data.';
           document.getElementById('bootstrap-retry').style.display = 'inline-block';
         }
-      }, 10000);
+      }, 30000);
+      window.__moneyquestAppMounted = function () {
+        clearTimeout(bootstrapTimer);
+      };
+      window.__moneyquestRetryStartup = function () {
+        var button = document.getElementById('bootstrap-retry');
+        var hint = document.getElementById('bootstrap-hint');
+        button.disabled = true;
+        hint.textContent = 'Refreshing local app data…';
+
+        var cleanup = [];
+        if ('serviceWorker' in navigator) {
+          cleanup.push(navigator.serviceWorker.getRegistrations().then(function (registrations) {
+            return Promise.all(registrations.map(function (registration) {
+              return registration.unregister();
+            }));
+          }));
+        }
+        if ('caches' in window) {
+          cleanup.push(caches.keys().then(function (keys) {
+            return Promise.all(keys.filter(function (key) {
+              return key.startsWith('moneyquest-');
+            }).map(function (key) {
+              return caches.delete(key);
+            }));
+          }));
+        }
+        Promise.allSettled(cleanup).then(function () { location.reload(); });
+      };
       // Retire the old cache-first worker. It could preserve HTML fallback
       // responses under image/font URLs after a deploy, leaving blank artwork.
       if ('serviceWorker' in navigator) {
