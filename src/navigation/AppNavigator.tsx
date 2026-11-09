@@ -6,9 +6,7 @@ import { RootState, AppDispatch } from '../store';
 import * as Linking from 'expo-linking';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
 import { Alert, ActivityIndicator, View, Text, Platform, TouchableOpacity } from 'react-native';
-import { checkAuthStatus, handleOAuthCallback, logout } from '../store/slices/authSlice';
-import AuthService from '../services/auth';
-import AsyncStorage from '@react-native-async-storage/async-storage';
+import { checkAuthStatus, handleOAuthCallback } from '../store/slices/authSlice';
 import revenueCatService from '../services/revenueCatService';
 import analyticsService from '../services/analytics';
 import { bootstrapGamification } from '../store/slices/gamificationSlice';
@@ -247,19 +245,6 @@ const AppNavigator: React.FC = () => {
       }).catch(() => {});
     }
   }, [isCheckingSession, sessionCheckError]);
-
-  useEffect(() => {
-    if (Platform.OS !== 'web' || !user?.$id) return;
-    const onSessionOwnerChanged = (event: StorageEvent) => {
-      if (event.key === 'moneyquest_active_user_id' && event.newValue !== user.$id) {
-        AuthService.forgetLocalWebSession();
-        void AsyncStorage.removeItem('userId').catch(() => {});
-        dispatch(logout());
-      }
-    };
-    window.addEventListener('storage', onSessionOwnerChanged);
-    return () => window.removeEventListener('storage', onSessionOwnerChanged);
-  }, [dispatch, user?.$id]);
 
   // Re-link RevenueCat whenever the signed-in user changes (covers app restart
   // from persisted Redux state, all sign-in paths, and Google OAuth callback).

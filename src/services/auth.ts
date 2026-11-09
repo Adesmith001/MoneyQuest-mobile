@@ -20,12 +20,6 @@ import { buildUserDocumentData, findOrCreateUserDocument } from "./authProfile";
 import schoolEntitlementService from './schoolEntitlementService';
 import { getPasswordValidationError } from '../utils/passwordValidation';
 import { isMissingSessionError } from '../utils/authCheckPolicy';
-import {
-  getDefaultWebSessionMarkerStore,
-  isWebSessionMarked,
-  markWebSession,
-  clearWebSessionMarker,
-} from '../utils/webSessionMarker';
 
 class AuthService {
   private pendingEmailSession: Promise<unknown> | null = null;
@@ -50,41 +44,6 @@ class AuthService {
 
   private isWeb(): boolean {
     return Platform.OS === 'web';
-  }
-
-  /**
-   * On web (shared school devices) a session may only be restored when this
-   * same tab created it (sessionStorage marker). A fresh visit must never
-   * inherit the previous student's account.
-   */
-  private hasActiveWebSession(): boolean {
-    if (!this.isWeb()) {
-      return true; // native apps restore sessions normally
-    }
-    return isWebSessionMarked(getDefaultWebSessionMarkerStore());
-  }
-
-  private markSessionActive(): void {
-    if (this.isWeb()) {
-      markWebSession(getDefaultWebSessionMarkerStore());
-    }
-  }
-
-  private clearSessionActiveMarker(): void {
-    if (this.isWeb()) {
-      clearWebSessionMarker(getDefaultWebSessionMarkerStore());
-    }
-  }
-
-  private publishWebSessionOwner(userId: string): void {
-    if (!this.isWeb()) return;
-    try { window.localStorage.setItem('moneyquest_active_user_id', userId); } catch {}
-  }
-
-  forgetLocalWebSession(): void {
-    this.clearSessionActiveMarker();
-    backendApi.clearAuthCache();
-    this.clearWebSessionRemnants();
   }
 
   /** Best-effort removal of any locally stored web session remnants. */
@@ -264,15 +223,9 @@ class AuthService {
       }
       emailSessionCreated = true;
 
-      // This tab now owns the session: a refresh restores THIS student while
-      // a new visit on a shared device still starts logged out. Mark before
-      // the disabled check so the reactivate flow can also read the session.
-      this.markSessionActive();
-
       // Check if account is disabled before proceeding
       authStage = 'account_read';
       const accountInfo = await this.withAuthTimeout(account.get(), authStage);
-      this.publishWebSessionOwner(accountInfo.$id);
       authStage = 'profile_read';
       const userDoc = await this.withAuthTimeout(this.ensureUserDocument(accountInfo), authStage);
       if (userDoc?.accountStatus === 'disabled') {
@@ -293,7 +246,6 @@ class AuthService {
       const errorMessage = error instanceof Error ? error.message : '';
       if (emailSessionCreated && !errorMessage.startsWith('ACCOUNT_DISABLED:')) {
         await account.deleteSession('current').catch(() => {});
-        this.clearSessionActiveMarker();
         backendApi.clearAuthCache();
       }
       if (error && typeof error === 'object') Object.assign(error, { authStage });
@@ -303,44 +255,25 @@ class AuthService {
   }
 
   // Sign out
-  async signOut(expectedUserId?: string): Promise<void> {
-    // Always end this tab's session ownership, even if the server call fails.
-    this.clearSessionActiveMarker();
+  async signOut(): Promise<void> {
     backendApi.clearAuthCache();
-    if (this.isWeb()) {
-      try {
-        const owner = window.localStorage.getItem('moneyquest_active_user_id');
-        if (expectedUserId && owner && owner !== expectedUserId) {
-          this.clearWebSessionRemnants();
-          return; // Another tab has already signed in; never delete its session.
-        }
-        window.localStorage.removeItem('moneyquest_active_user_id');
-      } catch {}
-    }
-
     try {
       await account.deleteSession("current");
     } catch (error) {
-      // The session may already be expired/deleted or the network may be
-      // down. Logging out locally must still succeed so the next student on
-      // a shared device starts from the login screen.
-      console.error("Sign out error:", error);
+      // Expired or missing sessions are already signed out; other failures
+      // must reach the caller so it does not offer another login too early.
+      if (!isMissingSessionError(error)) {
+        console.error("Sign out error:", error);
+        throw error;
+      }
     }
 
-    // Remove any localStorage-stored session fallback so the next visitor
-    // cannot pick up this student's session.
+    // Remove any SDK localStorage fallback after ending the Appwrite session.
     this.clearWebSessionRemnants();
   }
 
   // Get current user
   async getCurrentUser(strict = false): Promise<any> {
-    // On web (shared school devices), never restore a session this tab did
-    // not create. A new visit must start at the login screen so each student
-    // signs into their own account.
-    if (this.isWeb() && !this.hasActiveWebSession()) {
-      return null;
-    }
-
     try {
       // First check if there's an active session
       let session;
@@ -641,12 +574,8 @@ class AuthService {
       // Step 2: Immediately sign in the user after account creation
       await account.createEmailPasswordSession(email, password);
 
-      // This tab now owns the session (web refresh restores this student).
-      this.markSessionActive();
-
       // Step 3: Now get the current user (session is established)
       const user = await account.get();
-      this.publishWebSessionOwner(user.$id);
 
       // Step 4: Create or repair the user document with all onboarding data
       const seededPayload = buildUserDocumentData(user, {
@@ -985,9 +914,6 @@ class AuthService {
 
       // Step 2: Immediately sign in the user after account creation
       await account.createSession(email, password);
-
-      // This tab now owns the session (web refresh restores this student).
-      this.markSessionActive();
 
       // Step 3: Now get the current user (session is established)
       const user = await account.get();
