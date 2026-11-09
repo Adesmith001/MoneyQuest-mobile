@@ -9,7 +9,6 @@ import analyticsService from '../../services/analytics';
 import schoolEntitlementService from '../../services/schoolEntitlementService';
 import { shouldApplyAuthCheck } from '../../utils/authCheckPolicy';
 import { getSupportCode } from '../../utils/supportCode';
-import { getDefaultWebSessionMarkerStore, isWebSessionMarked } from '../../utils/webSessionMarker';
 
 const initialState: AuthState = {
   user: null,
@@ -68,8 +67,10 @@ export const signIn = createAsyncThunk(
         ? 'Too many login attempts. Wait a few minutes before trying again.'
         : error?.code === 'timeout'
           ? 'Sign-in timed out. Check your connection and try again.'
-            : Number(error?.code) === 401
-            ? 'Email or password is incorrect.'
+            : error?.type === 'user_session_already_exists'
+              ? 'This browser already has an active account. Sign out before signing in with another account.'
+              : error?.type === 'user_invalid_credentials'
+                ? 'Email or password is incorrect.'
             : error?.message || 'Sign-in failed. Please try again.');
     }
   }
@@ -123,27 +124,20 @@ export const signUp = createAsyncThunk(
 
 export const signOut = createAsyncThunk(
   'auth/signOut',
-  async (_, { rejectWithValue, dispatch, getState }) => {
+  async (_, { rejectWithValue, dispatch }) => {
     try {
+      // Do not expose the login screen until Appwrite has ended this session.
+      await AuthService.signOut();
       analyticsService.identifyUser(null);
       void analyticsService.endSession('logout').catch(() => {});
-      const expectedUserId = (getState() as { auth?: { user?: { $id?: string } } }).auth?.user?.$id;
-      // The marker is cleared synchronously by signOut. Never hold the next
-      // student on the previous student's screen while the server is slow.
-      void AuthService.signOut(expectedUserId).catch(() => {});
       void AsyncStorage.removeItem('userId').catch(() => {});
       // Reset streak state on sign out
       dispatch(resetStreakState());
       // Unlink RevenueCat user (non-blocking)
       revenueCatService.logOut().catch(() => {});
-      // Guarantee the local state is cleared so the next student on a shared
-      // device always starts from the login screen.
       dispatch(logout());
     } catch (error: any) {
-      // Even if the server sign-out failed, never leave the previous
-      // student signed in locally on a shared device.
-      dispatch(logout());
-      return rejectWithValue(error.message);
+      return rejectWithValue(error?.message || 'Could not sign out. Check your connection and try again.');
     }
   }
 );
@@ -287,12 +281,6 @@ export const checkAuthStatus = createAsyncThunk(
         return { currentUser, userDocument };
       }
 
-      if (isWebSessionMarked(getDefaultWebSessionMarkerStore())) {
-        void analyticsService.trackEvent('app_error', {
-          stage: 'session_missing_after_refresh',
-          support_code: getSupportCode(),
-        }).catch(() => {});
-      }
       return null;
     } catch (error: any) {
       void analyticsService.trackEvent('app_error', {
