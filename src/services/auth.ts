@@ -20,7 +20,7 @@ import { buildUserDocumentData, findOrCreateUserDocument } from "./authProfile";
 import schoolEntitlementService from './schoolEntitlementService';
 import { getPasswordValidationError } from '../utils/passwordValidation';
 import { isMissingSessionError } from '../utils/authCheckPolicy';
-import type { LoginStage } from './loginDiagnostics';
+import type { LoginStep } from './loginDiagnostics';
 
 class AuthService {
   private pendingEmailSession: Promise<unknown> | null = null;
@@ -186,7 +186,7 @@ class AuthService {
   }
 
   // Sign in with email and password
-  async signIn(email: string, password: string, onStage?: (stage: LoginStage) => void): Promise<any> {
+  async signIn(email: string, password: string, onStep?: (step: LoginStep) => void): Promise<any> {
     let authStage = 'session_create';
     let emailSessionCreated = false;
     try {
@@ -203,6 +203,7 @@ class AuthService {
       // Create email session. Keep ownership of the underlying request until
       // it settles even if the UI deadline expires.
       authStage = 'session_create';
+      onStep?.('session_request_sent');
       const sessionRequest = account.createEmailPasswordSession({ email: email.trim(), password });
       this.pendingEmailSession = sessionRequest;
       let sessionCreateTimedOut = false;
@@ -223,15 +224,17 @@ class AuthService {
         throw error;
       }
       emailSessionCreated = true;
-      onStage?.('session_created');
+      onStep?.('session_created');
 
       // Check if account is disabled before proceeding
       authStage = 'account_read';
+      onStep?.('account_request_sent');
       const accountInfo = await this.withAuthTimeout(account.get(), authStage);
-      onStage?.('account_read');
+      onStep?.('account_read');
       authStage = 'profile_read';
+      onStep?.('profile_request_sent');
       const userDoc = await this.withAuthTimeout(this.ensureUserDocument(accountInfo), authStage);
-      onStage?.('profile_read');
+      onStep?.('profile_read');
       if (userDoc?.accountStatus === 'disabled') {
         // Keep session alive so the user can reactivate from the login screen
         throw new Error('ACCOUNT_DISABLED:' + accountInfo.$id);
@@ -249,7 +252,9 @@ class AuthService {
     } catch (error) {
       const errorMessage = error instanceof Error ? error.message : '';
       if (emailSessionCreated && !errorMessage.startsWith('ACCOUNT_DISABLED:')) {
+        onStep?.('session_cleanup_started');
         await account.deleteSession('current').catch(() => {});
+        onStep?.('session_cleanup_finished');
         backendApi.clearAuthCache();
       }
       if (error && typeof error === 'object') Object.assign(error, { authStage });

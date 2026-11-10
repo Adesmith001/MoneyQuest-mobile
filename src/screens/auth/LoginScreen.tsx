@@ -18,6 +18,7 @@ import AuthService from '../../services/auth';
 import { RootState, AppDispatch } from '../../store';
 import { Ionicons } from '@expo/vector-icons';
 import { getSupportCode } from '../../utils/supportCode';
+import { createLoginTrace } from '../../services/loginDiagnostics';
 
 const LOGIN_COOLDOWN_STORAGE_KEY = 'moneyquest_login_rate_limit_until';
 const LOGIN_RATE_LIMIT_COOLDOWN_MS = 5 * 60 * 1000;
@@ -71,18 +72,20 @@ const LoginScreen: React.FC<Props> = ({ navigation }) => {
     if (rateLimitUntil > Date.now()) return;
     setDisabledAccountId(null);
     if (!email || !password) {
+      createLoginTrace(email, Boolean(password)).finish('failed', { authStage: 'client_validation', code: 'missing_fields' });
       setFormError('Please enter your email and password.');
       return;
     }
 
     if (!email.includes('@')) {
+      createLoginTrace(email, Boolean(password)).finish('failed', { authStage: 'client_validation', code: 'invalid_email_format' });
       setFormError('Please enter a valid email address.');
       return;
     }
 
     try {
       setFormError('');
-      const result = await dispatch(signIn({ email: email.trim(), password }));
+      const result = await dispatch(signIn({ email, password }));
       if (!signIn.fulfilled.match(result)) {
         const errorMessage = result.payload as string;
         if (errorMessage?.startsWith('ACCOUNT_DISABLED:')) {
