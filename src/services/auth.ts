@@ -20,6 +20,7 @@ import { buildUserDocumentData, findOrCreateUserDocument } from "./authProfile";
 import schoolEntitlementService from './schoolEntitlementService';
 import { getPasswordValidationError } from '../utils/passwordValidation';
 import { isMissingSessionError } from '../utils/authCheckPolicy';
+import type { LoginStage } from './loginDiagnostics';
 
 class AuthService {
   private pendingEmailSession: Promise<unknown> | null = null;
@@ -185,7 +186,7 @@ class AuthService {
   }
 
   // Sign in with email and password
-  async signIn(email: string, password: string): Promise<any> {
+  async signIn(email: string, password: string, onStage?: (stage: LoginStage) => void): Promise<any> {
     let authStage = 'session_create';
     let emailSessionCreated = false;
     try {
@@ -202,7 +203,7 @@ class AuthService {
       // Create email session. Keep ownership of the underlying request until
       // it settles even if the UI deadline expires.
       authStage = 'session_create';
-      const sessionRequest = account.createEmailPasswordSession(email.trim(), password);
+      const sessionRequest = account.createEmailPasswordSession({ email: email.trim(), password });
       this.pendingEmailSession = sessionRequest;
       let sessionCreateTimedOut = false;
       void sessionRequest.then(async () => {
@@ -222,12 +223,15 @@ class AuthService {
         throw error;
       }
       emailSessionCreated = true;
+      onStage?.('session_created');
 
       // Check if account is disabled before proceeding
       authStage = 'account_read';
       const accountInfo = await this.withAuthTimeout(account.get(), authStage);
+      onStage?.('account_read');
       authStage = 'profile_read';
       const userDoc = await this.withAuthTimeout(this.ensureUserDocument(accountInfo), authStage);
+      onStage?.('profile_read');
       if (userDoc?.accountStatus === 'disabled') {
         // Keep session alive so the user can reactivate from the login screen
         throw new Error('ACCOUNT_DISABLED:' + accountInfo.$id);
