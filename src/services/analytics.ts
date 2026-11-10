@@ -192,6 +192,15 @@ class AnalyticsService {
     this.currentUserId = userId || null;
   }
 
+  getDiagnosticIdentity() {
+    return {
+      anonymousId: this.anonymousId || '',
+      sessionId: this.currentSessionId || '',
+      userId: this.currentUserId || '',
+      screen: this.currentScreenName || '',
+    };
+  }
+
   async startSession(reason: 'app_open' | 'app_resume' = 'app_open') {
     await this.initialize();
 

@@ -10,6 +10,7 @@ import schoolEntitlementService from '../../services/schoolEntitlementService';
 import { shouldApplyAuthCheck } from '../../utils/authCheckPolicy';
 import { getSupportCode } from '../../utils/supportCode';
 import { createLoginTrace } from '../../services/loginDiagnostics';
+import { captureIncident, recordBreadcrumb } from '../../services/errorMonitor';
 
 const initialState: AuthState = {
   user: null,
@@ -29,6 +30,7 @@ export const signIn = createAsyncThunk(
   async ({ email, password }: { email: string; password: string }, { rejectWithValue, dispatch }) => {
     const startedAt = Date.now();
     const trace = createLoginTrace(email, Boolean(password));
+    recordBreadcrumb('login_submitted');
     try {
       const { currentUser, userDocument } = await AuthService.signIn(
         email, password, trace.step,
@@ -57,6 +59,12 @@ export const signIn = createAsyncThunk(
       revenueCatService.identifyUser(currentUser.$id).catch(() => {});
       return { currentUser, userDocument };
     } catch (error: any) {
+      void captureIncident(error, {
+        flow: 'login', stage: String(error?.authStage || 'session_request'),
+        action: 'login_failed', severity: error?.type === 'user_invalid_credentials' ? 'warning' : 'error',
+        statusCode: Number.isInteger(Number(error?.code)) ? Number(error.code) : undefined,
+        errorType: String(error?.type || 'sign_in_failed'),
+      });
       trace.finish('failed', error);
       void analyticsService.trackEvent('login_failed', {
         auth_provider: 'email',
@@ -90,6 +98,7 @@ export const signUp = createAsyncThunk(
     phoneNumber?: string;
     username?: string;
   }, { rejectWithValue }) => {
+    recordBreadcrumb('signup_submitted');
     try {
       void analyticsService.trackEvent('sign_up_started', {
         auth_provider: 'email',
@@ -99,6 +108,7 @@ export const signUp = createAsyncThunk(
       }).catch(() => {});
       // Step 1: Create the account
       await AuthService.createAccount(email, password, name, phoneNumber, username);
+      recordBreadcrumb('login_submitted');
       
       // Step 2: Immediately sign in the user after account creation
       const { currentUser, userDocument } = await AuthService.signIn(email, password);
@@ -117,6 +127,8 @@ export const signUp = createAsyncThunk(
       revenueCatService.identifyUser(currentUser.$id).catch(() => {});
       return { currentUser, userDocument };
     } catch (error: any) {
+      void captureIncident(error, { flow: 'signup', stage: 'account_or_session',
+        action: 'signup_failed', severity: 'error', errorType: String(error?.type || 'signup_failed') });
       void analyticsService.trackEvent('sign_up_failed', {
         auth_provider: 'email',
         source: 'basic_sign_up',
@@ -130,6 +142,7 @@ export const signUp = createAsyncThunk(
 export const signOut = createAsyncThunk(
   'auth/signOut',
   async (_, { rejectWithValue, dispatch }) => {
+    recordBreadcrumb('signout_started');
     try {
       // Do not expose the login screen until Appwrite has ended this session.
       await AuthService.signOut();
@@ -142,6 +155,7 @@ export const signOut = createAsyncThunk(
       revenueCatService.logOut().catch(() => {});
       dispatch(logout());
     } catch (error: any) {
+      void captureIncident(error, { flow: 'account', stage: 'signout', action: 'signout_failed', severity: 'error' });
       return rejectWithValue(error?.message || 'Could not sign out. Check your connection and try again.');
     }
   }
@@ -170,6 +184,7 @@ export const reactivateAccount = createAsyncThunk(
 export const signInWithGoogle = createAsyncThunk(
   "auth/signInWithGoogle",
   async (_, { rejectWithValue }) => {
+    recordBreadcrumb('oauth_started');
     try {
       // This will open the browser and return user data
       const result = await googleAuthService.signInWithGoogle();
@@ -177,6 +192,8 @@ export const signInWithGoogle = createAsyncThunk(
       if (!result.success || !result.user) throw new Error(result.error || 'Google sign-in failed');
       return result.user;
     } catch (error: any) {
+      void captureIncident(error, { flow: 'login', stage: 'google_oauth',
+        action: 'login_failed', severity: 'error' });
       return rejectWithValue(error.message || "Google sign-in failed");
     }
   }
@@ -186,6 +203,7 @@ export const signInWithGoogle = createAsyncThunk(
 export const handleOAuthCallback = createAsyncThunk(
   "auth/handleOAuthCallback",
   async (url: string, { rejectWithValue }) => {
+    recordBreadcrumb('oauth_callback');
     try {
       const result = await googleAuthService.handleOAuthCallback(url);
       
@@ -200,6 +218,9 @@ export const handleOAuthCallback = createAsyncThunk(
         revenueCatService.identifyUser(result.user.$id).catch(() => {});
         return result.user;
       } else {
+        void captureIncident(new Error(result.error || 'OAuth callback failed'), {
+          flow: 'login', stage: 'oauth_callback', action: 'login_failed', severity: 'error',
+        });
         void analyticsService.trackEvent('oauth_login_failed', {
           auth_provider: 'google',
           reason: 'oauth_callback_failed',
@@ -207,6 +228,8 @@ export const handleOAuthCallback = createAsyncThunk(
         return rejectWithValue(result.error || "OAuth callback failed");
       }
     } catch (error: any) {
+      void captureIncident(error, { flow: 'login', stage: 'oauth_callback',
+        action: 'login_failed', severity: 'error' });
       void analyticsService.trackEvent('oauth_login_failed', {
         auth_provider: 'google',
         reason: String(error?.code || error?.type || 'oauth_callback_failed'),
@@ -247,6 +270,7 @@ export const getCurrentUser = createAsyncThunk(
 export const checkAuthStatus = createAsyncThunk(
   'auth/checkAuthStatus',
   async (_, { rejectWithValue, dispatch }) => {
+    recordBreadcrumb('session_restore_started');
     try {
       // Never hang on a slow network: the app always renders after this
       // resolves, so cap the session check with a hard timeout.
@@ -288,6 +312,8 @@ export const checkAuthStatus = createAsyncThunk(
 
       return null;
     } catch (error: any) {
+      void captureIncident(error, { flow: 'startup', stage: 'session_check',
+        action: 'session_restore_failed', severity: 'error' });
       void analyticsService.trackEvent('app_error', {
         stage: 'session_check',
         support_code: getSupportCode(),
@@ -381,6 +407,7 @@ export const signUpWithOnboarding = createAsyncThunk(
       avatar: string;
     };
   }, { rejectWithValue }) => {
+    recordBreadcrumb('signup_submitted');
     try {
       const signupStartedAt = Date.now();
       const fullName = `${registrationData.firstName} ${registrationData.lastName}`;
@@ -422,9 +449,12 @@ export const signUpWithOnboarding = createAsyncThunk(
           ? onboardingData.mainGoal.split(',').filter(Boolean).length
           : 0,
       }).catch(() => {});
+      recordBreadcrumb('onboarding_step_completed');
       
       return result;
     } catch (error: any) {
+      void captureIncident(error, { flow: 'signup', stage: 'onboarding_registration',
+        action: 'signup_failed', severity: 'error', errorType: String(error?.type || 'signup_failed') });
       void analyticsService.trackEvent('sign_up_failed', {
         auth_provider: 'email',
         source: 'onboarding_registration',
@@ -472,6 +502,8 @@ export const completeOAuthOnboarding = createAsyncThunk(
       });
       return updatedUser;
     } catch (error: any) {
+      void captureIncident(error, { flow: 'onboarding', stage: 'complete_oauth_onboarding',
+        action: 'signup_failed', severity: 'error' });
       return rejectWithValue(error.message);
     }
   }

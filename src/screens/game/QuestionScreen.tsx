@@ -76,6 +76,7 @@ import { QUESTION_COACH_STEPS } from "../../config/coachMarkSteps";
 import { markQuestionGuideSeen } from "../../store/slices/tutorialSlice";
 import { getStreakMessage } from "../../utils/gamificationPresentation";
 import { shouldRecoverLevelFromEmptyQuestions } from "../../services/questionFetchPolicy";
+import { captureIncident, recordBreadcrumb } from "../../services/errorMonitor";
 
 interface Props {
   navigation: any;
@@ -733,6 +734,8 @@ const QuestionScreen: React.FC<Props> = ({ navigation, route }) => {
         }
 
         console.error("Failed to load level:", error);
+        void captureIncident(error, { flow: 'lesson', stage: 'level_load',
+          action: 'request_failed', severity: 'error', screen: 'Question' });
         Alert.alert("Error", "Failed to load content. Please try again.", [
           { text: "Go Back", onPress: () => navigation.goBack() },
         ]);
@@ -757,6 +760,7 @@ const QuestionScreen: React.FC<Props> = ({ navigation, route }) => {
     async function saveProgress() {
       if (!user?.$id || viewMode !== "quiz" || isLoading) return;
 
+      recordBreadcrumb('progress_save_started');
       try {
         const attemptsStorageKey = getQuizAttemptsStorageKey(user.$id, levelId);
         await AsyncStorage.setItem(attemptsStorageKey, String(totalAttempts));
@@ -833,6 +837,8 @@ const QuestionScreen: React.FC<Props> = ({ navigation, route }) => {
         }
       } catch (error) {
         console.error("Failed to save progress:", error);
+        void captureIncident(error, { flow: 'progress', stage: 'save_question_progress',
+          action: 'progress_save_failed', severity: 'error', screen: 'Question' });
       }
     }
 
@@ -867,6 +873,7 @@ const QuestionScreen: React.FC<Props> = ({ navigation, route }) => {
   const handleStartQuiz = () => {
     setStartTime(Date.now());
     setViewMode("quiz");
+    recordBreadcrumb('lesson_started');
     analyticsService
       .trackLessonStarted(levelId, sectionId, {
         question_count: questions.length,
@@ -1133,6 +1140,7 @@ const QuestionScreen: React.FC<Props> = ({ navigation, route }) => {
           xpGained            // <-- actual per-question XP accumulated this session
         );
 
+        recordBreadcrumb('lesson_completed');
         await analyticsService.trackLessonCompleted(levelId, sectionId, {
           passed: result.passed,
           accuracy,
@@ -1421,6 +1429,8 @@ const QuestionScreen: React.FC<Props> = ({ navigation, route }) => {
         });
       } catch (error) {
         console.error("Error submitting level:", error);
+        void captureIncident(error, { flow: 'progress', stage: 'level_submission',
+          action: 'progress_save_failed', severity: 'error', screen: 'Question' });
         await AsyncStorage.removeItem(getQuizAttemptsStorageKey(user.$id, levelId));
         // Still navigate to completion screen even if submission fails
         navigation.replace("LevelCompletion", {

@@ -32,6 +32,7 @@ import {
 } from "../../types/subscription";
 import { useRevenueCat } from "../../hooks/useRevenueCat";
 import analyticsService from "../../services/analytics";
+import { captureIncident, recordBreadcrumb } from "../../services/errorMonitor";
 
 type RootStackParamList = {
   Premium: undefined;
@@ -100,6 +101,7 @@ const PremiumScreen: React.FC = () => {
   }, [user?.$id]);
 
   const handleStartTrial = async () => {
+    recordBreadcrumb('checkout_started');
     if (!user) {
       Alert.alert("Error", "User not found. Please log in again.");
       return;
@@ -121,6 +123,8 @@ const PremiumScreen: React.FC = () => {
       }
       navigation.reset({ index: 0, routes: [{ name: "MainTabs" }] });
     } catch (err: any) {
+      void captureIncident(err, { flow: 'purchase', stage: 'trial_start',
+        action: 'checkout_failed', severity: 'error', screen: 'Premium' });
       Alert.alert("Error", err.message || "Could not start free trial. Please try again.");
     } finally {
       setIsStartingTrial(false);
@@ -132,6 +136,7 @@ const PremiumScreen: React.FC = () => {
    * Play flow while keeping this custom screen as the checkout UI.
    */
   const handleStoreSubscription = async () => {
+    recordBreadcrumb('checkout_started');
     if (!user) {
       Alert.alert("Error", "User not found. Please log in again.");
       return;
@@ -196,6 +201,8 @@ const PremiumScreen: React.FC = () => {
       } catch (syncErr) {
         // Non-blocking — RevenueCat is the source of truth for store purchases
         console.warn("Store purchase → Appwrite sync failed:", syncErr);
+        void captureIncident(syncErr, { flow: 'purchase', stage: 'entitlement_sync',
+          action: 'entitlement_sync_failed', severity: 'warning', screen: 'Premium' });
       }
 
       navigation.reset({ index: 0, routes: [{ name: "MainTabs" }] });
@@ -203,6 +210,8 @@ const PremiumScreen: React.FC = () => {
       if (err?.userCancelled) {
         return;
       }
+      void captureIncident(err, { flow: 'purchase', stage: 'store_checkout',
+        action: 'checkout_failed', severity: 'error', screen: 'Premium' });
       Alert.alert("Purchase Error", err.message || "Unable to complete purchase.");
     } finally {
       setIsRCLoading(false);
@@ -210,6 +219,7 @@ const PremiumScreen: React.FC = () => {
   };
 
   const handleRestoreStorePurchases = async () => {
+    recordBreadcrumb('purchase_restore_started');
     setIsRestoring(true);
     try {
       const customerInfo = await revenueCatService.restorePurchases();
@@ -233,6 +243,8 @@ const PremiumScreen: React.FC = () => {
           });
         } catch (syncErr) {
           console.warn("Store restore → Appwrite sync failed:", syncErr);
+          void captureIncident(syncErr, { flow: 'purchase', stage: 'restore_entitlement_sync',
+            action: 'entitlement_sync_failed', severity: 'warning', screen: 'Premium' });
         }
         await analyticsService.trackEvent('subscription_restore_succeeded', {
           payment_provider: Platform.OS === 'ios' ? 'apple_iap' : 'google_play',
@@ -245,6 +257,8 @@ const PremiumScreen: React.FC = () => {
       }
       Alert.alert("Restore Purchases", "No active purchases found.");
     } catch (err: any) {
+      void captureIncident(err, { flow: 'purchase', stage: 'store_restore',
+        action: 'purchase_restore_failed', severity: 'error', screen: 'Premium' });
       Alert.alert("Restore Purchases", err.message || "Failed to restore purchases.");
     } finally {
       setIsRestoring(false);
@@ -261,6 +275,7 @@ const PremiumScreen: React.FC = () => {
    * backup. Mobile keeps store-only billing (external checkout is blocked).
    */
   const handleKorapayPayment = async () => {
+    recordBreadcrumb('checkout_started');
     if (!user) {
       setKorapayError("User not found. Please log in again.");
       return;
@@ -299,6 +314,8 @@ const PremiumScreen: React.FC = () => {
         setKorapayError(result.message || "Payment was not completed.");
       }
     } catch (err: any) {
+      void captureIncident(err, { flow: 'purchase', stage: 'web_checkout',
+        action: 'checkout_failed', severity: 'error', screen: 'Premium' });
       setKorapayError(err?.message || "Payment failed. Please try again.");
     } finally {
       setIsKorapayLoading(false);

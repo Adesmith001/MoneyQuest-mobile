@@ -19,6 +19,7 @@ import {
   BackendContentVersionResponse,
 } from '../types';
 import { account } from './appwrite';
+import { captureIncident, recordBreadcrumb } from './errorMonitor';
 
 const REQUEST_TIMEOUT_MS = 15000;
 const JWT_TIMEOUT_MS = 2000;
@@ -151,6 +152,9 @@ class BackendApiService {
     endpoint: string,
     options?: RequestInit
   ): Promise<T> {
+    recordBreadcrumb('request_started');
+    const endpointName = endpoint.split('?')[0].split('/').filter(Boolean)[0]
+      ?.replace(/[^a-z0-9_]/gi, '').slice(0, 32) || 'root';
     const controller = new AbortController();
     let timedOut = false;
     const timeout = setTimeout(() => {
@@ -197,8 +201,19 @@ class BackendApiService {
       return data as T;
     } catch (error) {
       if (error instanceof ApiHttpError) {
+        if (error.status === 403 || error.status === 429 || error.status >= 500) {
+          void captureIncident(new Error(`Learning API returned HTTP ${error.status}`), {
+            flow: 'lesson', stage: `learning_api_${endpointName}`, action: 'request_failed', severity: 'error',
+            statusCode: error.status, requestId: error.requestId || undefined,
+            errorType: 'http_error',
+          });
+        }
         throw error;
       }
+      void captureIncident(new Error(timedOut ? 'Learning API timed out' : 'Learning API unavailable'), {
+        flow: 'lesson', stage: `learning_api_${endpointName}`, action: 'request_failed', severity: 'error',
+        errorType: timedOut ? 'timeout' : 'offline',
+      });
       throw new ApiRequestError(timedOut ? 'timeout' : 'offline', endpoint);
     } finally {
       clearTimeout(timeout);

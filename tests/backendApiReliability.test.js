@@ -45,6 +45,7 @@ const mocks = {
       },
     },
   },
+  './errorMonitor': { recordBreadcrumb: () => {}, captureIncident: async () => {} },
 };
 
 const moduleForTest = { exports: {} };

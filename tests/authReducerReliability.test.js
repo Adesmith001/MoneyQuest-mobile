@@ -19,6 +19,8 @@ const mocks = {
   '../../services/schoolEntitlementService': { default: {} },
   '../../utils/authCheckPolicy': { shouldApplyAuthCheck: (id, active) => id === active },
   '../../utils/supportCode': { getSupportCode: () => 'test' },
+  '../../services/loginDiagnostics': { createLoginTrace: () => ({ step: () => {}, finish: () => {}, attemptId: 'test' }) },
+  '../../services/errorMonitor': { recordBreadcrumb: () => {}, captureIncident: async () => {} },
   '../../utils/webSessionMarker': { getDefaultWebSessionMarkerStore: () => null, isWebSessionMarked: () => false },
 };
 const moduleForTest = { exports: {} };

@@ -12,6 +12,7 @@ import analyticsService from '../services/analytics';
 import { bootstrapGamification } from '../store/slices/gamificationSlice';
 import { getAppTourMode } from '../utils/tutorialBehavior';
 import { getSupportCode } from '../utils/supportCode';
+import { recordBreadcrumb } from '../services/errorMonitor';
 
 // ⚡ Import ALL screens directly - lazy loading causes white screen on iOS production
 import LoadingScreen from '../screens/common/LoadingScreen';
@@ -423,6 +424,7 @@ const AppNavigator: React.FC = () => {
       <NavigationContainer
         linking={linking}
         onReady={() => {
+          recordBreadcrumb('screen_opened', isAuthenticated ? 'MainApp' : 'Welcome');
           analyticsService.identifyUser(user?.$id || null);
           void analyticsService.trackScreenView(
             isAuthenticated ? 'MainApp' : 'Welcome',
@@ -431,6 +433,11 @@ const AppNavigator: React.FC = () => {
         onStateChange={(state) => {
           const routeName = getActiveRouteName(state);
           if (routeName) {
+            recordBreadcrumb('screen_opened', routeName);
+            if (['AgeSelection', 'LearningLimitSelection', 'LearningLimit', 'GoalSelection',
+              'ReferralSource', 'AvatarSelection', 'WelcomeSuccess'].includes(routeName)) {
+              recordBreadcrumb('onboarding_step_started', routeName);
+            }
             analyticsService.identifyUser(user?.$id || null);
             void analyticsService.trackScreenView(routeName).catch(() => {});
           }

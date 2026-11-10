@@ -19,6 +19,7 @@ import analyticsService from './src/services/analytics';
 import appUpdateService from './src/services/appUpdateService';
 import Constants from 'expo-constants';
 import { buildErrorDiagnostics } from './src/utils/errorDiagnostics';
+import { captureIncident, flushIncidents, recordBreadcrumb } from './src/services/errorMonitor';
 
 const RELEASE_ID = Constants.expoConfig?.version || 'unknown';
 
@@ -32,6 +33,10 @@ LogBox.ignoreLogs([
 if (ErrorUtils) {
   ErrorUtils.setGlobalHandler((error, isFatal) => {
     console.error('Global error handler:', error);
+    void captureIncident(error, {
+      flow: 'startup', stage: 'global_error', action: 'unhandled_error',
+      severity: isFatal ? 'fatal' : 'error',
+    });
     void analyticsService.trackEvent(isFatal ? 'fatal_error' : 'app_error', {
       stage: 'global_error',
       fatal: isFatal,
@@ -107,6 +112,9 @@ class ErrorBoundary extends React.Component<
 
   componentDidCatch(error: Error, errorInfo: React.ErrorInfo) {
     console.error('🔴 ErrorBoundary details:', error, errorInfo);
+    void captureIncident(error, {
+      flow: 'startup', stage: 'render_error', action: 'render_failed', severity: 'fatal',
+    });
     void analyticsService.trackEvent('app_error', {
       stage: 'render_error',
       support_code: getSupportCode(),
@@ -124,6 +132,30 @@ class ErrorBoundary extends React.Component<
 }
 
 function AppContent() {
+  useEffect(() => {
+    recordBreadcrumb('app_started');
+    void flushIncidents();
+    if (Platform.OS !== 'web') return;
+    const onError = (event: ErrorEvent) => {
+      void captureIncident(event.error || event.message, {
+        flow: 'startup', stage: 'window_error', action: 'unhandled_error', severity: 'error',
+      });
+    };
+    const onRejection = (event: PromiseRejectionEvent) => {
+      void captureIncident(event.reason, {
+        flow: 'startup', stage: 'unhandled_rejection', action: 'unhandled_error', severity: 'error',
+      });
+    };
+    window.addEventListener('error', onError);
+    window.addEventListener('unhandledrejection', onRejection);
+    window.addEventListener('online', flushIncidents);
+    return () => {
+      window.removeEventListener('error', onError);
+      window.removeEventListener('unhandledrejection', onRejection);
+      window.removeEventListener('online', flushIncidents);
+    };
+  }, []);
+
   useEffect(() => {
     if (Platform.OS === 'web') {
       (window as Window & { __moneyquestAppMounted?: () => void }).__moneyquestAppMounted?.();
@@ -154,6 +186,7 @@ function AppContent() {
     const subscription = AppState.addEventListener('change', (nextState) => {
       analyticsService.handleAppStateChange(nextState).catch(() => {});
       if (nextState === 'active') {
+        void flushIncidents();
         appUpdateService.checkForStoreUpdate().catch(() => {});
       }
     });
