@@ -60,6 +60,11 @@ Notable backend-facing domains in the app:
 
 ## Documentation Index
 
+### Product requirements
+
+- [Software Requirements Specification](./product-requirements-srs.md)
+- [User stories and acceptance criteria](./user-stories.md)
+
 ### Core architecture
 
 1. [01-project-structure.md](./01-project-structure.md)

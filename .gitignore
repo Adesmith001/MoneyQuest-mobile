@@ -47,6 +47,8 @@ Question-generator-BE/
 .planning/
 planning/
 docs/
+output/
+documentation/
 
 # secrets
 secrets/*.p8

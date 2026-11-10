@@ -9,6 +9,7 @@ import analyticsService from '../../services/analytics';
 import schoolEntitlementService from '../../services/schoolEntitlementService';
 import { shouldApplyAuthCheck } from '../../utils/authCheckPolicy';
 import { getSupportCode } from '../../utils/supportCode';
+import { logLoginStage } from '../../services/loginDiagnostics';
 
 const initialState: AuthState = {
   user: null,
@@ -28,12 +29,16 @@ export const signIn = createAsyncThunk(
   async ({ email, password }: { email: string; password: string }, { rejectWithValue, dispatch }) => {
     const startedAt = Date.now();
     const attemptId = `${startedAt.toString(36)}-${Math.random().toString(36).slice(2, 8)}`;
+    logLoginStage(attemptId, 'started', startedAt);
     try {
-      const { currentUser, userDocument } = await AuthService.signIn(email, password);
+      const { currentUser, userDocument } = await AuthService.signIn(
+        email, password, stage => logLoginStage(attemptId, stage, startedAt),
+      );
       if (!currentUser?.$id) {
         throw new Error('Your account exists, but your profile could not be loaded. Please try again.');
       }
       if (!userDocument) throw new Error('Your profile could not be loaded. Please retry.');
+      logLoginStage(attemptId, 'succeeded', startedAt);
       analyticsService.identifyUser(currentUser.$id);
       void analyticsService.trackEvent('login_succeeded', {
         auth_provider: 'email',
@@ -53,6 +58,7 @@ export const signIn = createAsyncThunk(
       revenueCatService.identifyUser(currentUser.$id).catch(() => {});
       return { currentUser, userDocument };
     } catch (error: any) {
+      logLoginStage(attemptId, 'failed', startedAt, error);
       void analyticsService.trackEvent('login_failed', {
         auth_provider: 'email',
         reason: String(error?.code || error?.type || 'unknown'),
