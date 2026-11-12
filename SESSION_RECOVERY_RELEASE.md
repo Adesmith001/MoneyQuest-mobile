@@ -26,8 +26,12 @@ connection problem. Incognito worked because it had a separate session.
    student's account appears in the browser. If rolling back, restore the
    original required `age` constraint as well.
 
-The live `age` column was restored to **required** after staging verification;
-the schema change in step 2 is still part of the production release.
+Release completed on November 12: PR #16 was merged, the production web bundle
+was verified to contain the anonymous-session guard and recovery action, then
+`users.age` was changed to **optional**, with no default and range 7–100. A clean
+browser reached login after release. The monitor had no new executions at the
+time of the final check; a real incomplete-profile login still needs a tester
+with an account to confirm the full onboarding path.
 
 ## Existing accounts
 
