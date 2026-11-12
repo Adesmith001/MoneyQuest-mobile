@@ -9,7 +9,7 @@ const javascript = ts.transpileModule(source, {
 }).outputText;
 const moduleForTest = { exports: {} };
 new Function('module', 'exports', javascript)(moduleForTest, moduleForTest.exports);
-const { shouldApplyAuthCheck, isMissingSessionError } = moduleForTest.exports;
+const { shouldApplyAuthCheck, isMissingSessionError, getSessionCheckMessage } = moduleForTest.exports;
 
 assert.equal(shouldApplyAuthCheck('check-1', 'check-1'), true);
 assert.equal(shouldApplyAuthCheck('check-1', null), false, 'new login supersedes old check');
@@ -18,4 +18,7 @@ assert.equal(isMissingSessionError({ code: 401 }), true);
 assert.equal(isMissingSessionError({ code: 404 }), true);
 assert.equal(isMissingSessionError({ code: 503 }), false, 'outage is not logout');
 assert.equal(isMissingSessionError(new Error('Network request failed')), false);
+assert.match(getSessionCheckMessage({ type: 'document_invalid_structure', code: 400 }), /profile/i);
+assert.match(getSessionCheckMessage(new Error('Session check timed out. Please retry.')), /timed out/i);
+assert.match(getSessionCheckMessage(new TypeError('Failed to fetch')), /connection/i);
 console.log('authCheckPolicy: passed');

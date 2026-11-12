@@ -108,10 +108,27 @@ async function testFallsBackWhenSchoolNameAttributeIsUnavailable() {
   assert.equal(payloads[1].schoolName, undefined, 'omits schoolName from the fallback payload');
 }
 
+async function testDoesNotCreateProfileForAnonymousAccount() {
+  let databaseCalls = 0;
+  const databases = {
+    async getDocument() { databaseCalls++; throw new Error('unexpected read'); },
+    async createDocument() { databaseCalls++; throw new Error('unexpected write'); },
+  };
+  await assert.rejects(
+    findOrCreateUserDocument({
+      databases, dbId: 'db', usersCollectionId: 'users',
+      accountInfo: { $id: 'anonymous-user', email: '', name: '' },
+    }),
+    /anonymous|email/i,
+  );
+  assert.equal(databaseCalls, 0, 'anonymous users never enter profile recovery');
+}
+
 Promise.resolve()
   .then(testReturnsExistingUserDocument)
   .then(testCreatesMissingUserDocument)
   .then(testFallsBackWhenSchoolNameAttributeIsUnavailable)
+  .then(testDoesNotCreateProfileForAnonymousAccount)
   .catch((error) => {
     console.error(error);
     process.exit(1);

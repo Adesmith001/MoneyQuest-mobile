@@ -283,6 +283,7 @@ class AuthService {
 
   // Get current user
   async getCurrentUser(strict = false): Promise<any> {
+    let authStage = 'session_read';
     try {
       // First check if there's an active session
       let session;
@@ -297,10 +298,24 @@ class AuthService {
         return null;
       }
 
+      if (session.provider === 'anonymous') {
+        authStage = 'session_cleanup';
+        await this.signOut();
+        return null;
+      }
+
       // Get the account info
+      authStage = 'account_read';
       const account_info = await account.get();
 
+      if (!account_info.email?.trim()) {
+        authStage = 'session_cleanup';
+        await this.signOut();
+        return null;
+      }
+
       // Ensure the Appwrite auth user has a corresponding profile document.
+      authStage = 'profile_read';
       const userDoc = await this.ensureUserDocument(account_info);
 
       if (!userDoc) {
@@ -335,6 +350,7 @@ class AuthService {
       } as User;
 
     } catch (error) {
+      if (error && typeof error === 'object') Object.assign(error, { authStage });
       console.error('Get current user error:', error);
       if (strict) throw error;
       return null;

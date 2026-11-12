@@ -103,6 +103,14 @@ export async function findOrCreateUserDocument({
   accountInfo: AccountProfileInfo;
   profileSeed?: ProfileSeed;
 }): Promise<any> {
+  // A guest Appwrite session has no student identity. Never create a profile
+  // for it, even when the collection permits client-side document creation.
+  if (!accountInfo.email?.trim()) {
+    throw Object.assign(new Error('Anonymous account cannot have a profile'), {
+      type: 'profile_missing_identity',
+    });
+  }
+
   try {
     return await databases.getDocument(dbId, usersCollectionId, accountInfo.$id);
   } catch (error: any) {

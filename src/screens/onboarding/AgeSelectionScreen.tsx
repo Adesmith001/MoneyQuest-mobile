@@ -55,7 +55,7 @@ const AgeSelectionScreen: React.FC<Props> = ({ navigation, route }) => {
     const numericValue = parseInt(ageText, 10);
     const fallback = 7;
     const rawAge = isNaN(numericValue) ? fallback : numericValue;
-    const finalAge = Math.max(7, Math.min(150, rawAge));
+    const finalAge = Math.max(7, Math.min(100, rawAge));
     setAge(finalAge);
     setAgeText(String(finalAge));
     analyticsService
@@ -97,7 +97,7 @@ const AgeSelectionScreen: React.FC<Props> = ({ navigation, route }) => {
             </Text>
           </View>
           <Text style={styles.ageSubtext}>for the wise</Text>
-          <Text style={styles.ageHint}>(between 7 and 150)</Text>
+          <Text style={styles.ageHint}>(between 7 and 100)</Text>
         </View>
 
         {/* On-screen numpad */}
