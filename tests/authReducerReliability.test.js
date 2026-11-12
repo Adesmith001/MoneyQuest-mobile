@@ -28,7 +28,7 @@ new Function('module', 'exports', 'require', javascript)(moduleForTest, moduleFo
   if (!(name in mocks)) throw new Error(`Unexpected import: ${name}`);
   return mocks[name];
 });
-const { default: reducer, checkAuthStatus, signUpWithOnboarding } = moduleForTest.exports;
+const { default: reducer, checkAuthStatus, signUpWithOnboarding, signOut } = moduleForTest.exports;
 
 const student = { $id: 'student-a', name: 'Student A' };
 let state = reducer(undefined, { type: 'init' });
@@ -47,4 +47,9 @@ assert.equal(state.user.$id, 'student-a', 'network error preserves the current a
 assert.match(state.sessionCheckError, /network/);
 assert.equal(state.isLoading, false);
 assert.equal(state.isCheckingSession, false);
+
+state = reducer(state, signOut.pending('recover-session', undefined));
+assert.match(state.sessionCheckError, /network/, 'recovery keeps the error screen visible while signing out');
+state = reducer(state, signOut.rejected(null, 'recover-session', undefined, 'Sign out failed'));
+assert.match(state.sessionCheckError, /network/, 'failed sign-out keeps recovery available');
 console.log('authReducerReliability: passed');

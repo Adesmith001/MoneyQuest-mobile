@@ -7,7 +7,7 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 import revenueCatService from '../../services/revenueCatService';
 import analyticsService from '../../services/analytics';
 import schoolEntitlementService from '../../services/schoolEntitlementService';
-import { shouldApplyAuthCheck } from '../../utils/authCheckPolicy';
+import { shouldApplyAuthCheck, getSessionCheckMessage } from '../../utils/authCheckPolicy';
 import { getSupportCode } from '../../utils/supportCode';
 import { createLoginTrace } from '../../services/loginDiagnostics';
 import { captureIncident, recordBreadcrumb } from '../../services/errorMonitor';
@@ -279,7 +279,9 @@ export const checkAuthStatus = createAsyncThunk(
           const currentUser = await AuthService.getCurrentUser(true);
           if (!currentUser) return null;
           const userDocument = await AuthService.getUserDocument(currentUser.$id);
-          if (!userDocument) throw new Error('Profile unavailable');
+          if (!userDocument) throw Object.assign(new Error('Profile unavailable'), {
+            authStage: 'profile_read', type: 'profile_unavailable',
+          });
           return { currentUser, userDocument };
         })(),
         new Promise<never>((_, reject) =>
@@ -312,14 +314,16 @@ export const checkAuthStatus = createAsyncThunk(
 
       return null;
     } catch (error: any) {
-      void captureIncident(error, { flow: 'startup', stage: 'session_check',
-        action: 'session_restore_failed', severity: 'error' });
+      void captureIncident(error, { flow: 'startup', stage: String(error?.authStage || 'session_check'),
+        action: 'session_restore_failed', severity: 'error',
+        statusCode: Number.isInteger(Number(error?.code)) && Number(error.code) > 0 ? Number(error.code) : undefined,
+        errorType: String(error?.type || 'session_check_failed') });
       void analyticsService.trackEvent('app_error', {
-        stage: 'session_check',
+        stage: String(error?.authStage || 'session_check'),
         support_code: getSupportCode(),
         error_code: String(error?.code ?? error?.status ?? 'network'),
       }).catch(() => {});
-      return rejectWithValue('Could not verify your session. Check your connection and retry.');
+      return rejectWithValue(getSessionCheckMessage(error));
     }
   }
 );
@@ -583,7 +587,6 @@ const authSlice = createSlice({
       .addCase(signOut.pending, (state) => {
         state.isCheckingSession = false;
         state.activeCheckRequestId = null;
-        state.sessionCheckError = null;
         state.isLoggingOut = true;
         state.error = null;
       })

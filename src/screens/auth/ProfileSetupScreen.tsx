@@ -27,8 +27,8 @@ const ProfileSetupScreen = () => {
 
   const save = async () => {
     const numericAge = Number(age);
-    if (!user?.$id || !Number.isInteger(numericAge) || numericAge < 7 || numericAge > 150 || !learningLimit || !mainGoal.trim() || !avatar) {
-      setError('Enter your age, goal, daily limit, and avatar to continue.');
+    if (!user?.$id || !Number.isInteger(numericAge) || numericAge < 7 || numericAge > 100 || !learningLimit || !mainGoal.trim() || !avatar) {
+      setError('Enter an age from 7 to 100, your goal, daily limit, and avatar to continue.');
       return;
     }
     setSaving(true);

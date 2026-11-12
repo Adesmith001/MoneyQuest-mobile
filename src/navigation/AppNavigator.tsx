@@ -6,7 +6,7 @@ import { RootState, AppDispatch } from '../store';
 import * as Linking from 'expo-linking';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
 import { Alert, ActivityIndicator, View, Text, Platform, TouchableOpacity } from 'react-native';
-import { checkAuthStatus, handleOAuthCallback } from '../store/slices/authSlice';
+import { checkAuthStatus, handleOAuthCallback, signOut } from '../store/slices/authSlice';
 import revenueCatService from '../services/revenueCatService';
 import analyticsService from '../services/analytics';
 import { bootstrapGamification } from '../store/slices/gamificationSlice';
@@ -211,7 +211,7 @@ function getActiveRouteName(state: any): string | null {
 }
 
 const AppNavigator: React.FC = () => {
-  const { isAuthenticated, isLoading, isCheckingSession, showWelcomeScreen, user, sessionCheckError } = useSelector((state: RootState) => state.auth);
+  const { isAuthenticated, isLoading, isCheckingSession, isLoggingOut, error, showWelcomeScreen, user, sessionCheckError } = useSelector((state: RootState) => state.auth);
   const { hasCompletedAppTour, latestFeatureTourVersionSeen } = useSelector(
     (state: RootState) => state.tutorial
   );
@@ -332,11 +332,16 @@ const AppNavigator: React.FC = () => {
     return (
       <SafeAreaProvider>
         <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center', padding: 24, backgroundColor: '#fff' }}>
-          <Text style={{ fontSize: 20, fontWeight: 'bold', textAlign: 'center' }}>Connection problem</Text>
+          <Text style={{ fontSize: 20, fontWeight: 'bold', textAlign: 'center' }}>Session problem</Text>
           <Text style={{ textAlign: 'center', marginVertical: 16 }}>{sessionCheckError}</Text>
           <Text style={{ textAlign: 'center', marginBottom: 12 }}>Support code: {getSupportCode()} · session check</Text>
-          <TouchableOpacity accessibilityRole="button" onPress={() => dispatch(checkAuthStatus())} style={{ backgroundColor: '#FF5722', padding: 14, borderRadius: 8 }}>
+          {isLoggingOut && <ActivityIndicator color="#FF5722" />}
+          {!!error && <Text accessibilityRole="alert" style={{ color: '#B3261E', textAlign: 'center', marginBottom: 12 }}>{error}</Text>}
+          <TouchableOpacity accessibilityRole="button" disabled={isLoggingOut} onPress={() => dispatch(checkAuthStatus())} style={{ backgroundColor: '#FF5722', padding: 14, borderRadius: 8, opacity: isLoggingOut ? 0.5 : 1 }}>
             <Text style={{ color: '#fff', fontWeight: 'bold' }}>Retry session check</Text>
+          </TouchableOpacity>
+          <TouchableOpacity accessibilityRole="button" disabled={isLoggingOut} onPress={() => dispatch(signOut())} style={{ padding: 14, marginTop: 12 }}>
+            <Text style={{ color: '#333', fontWeight: 'bold' }}>{isLoggingOut ? 'Signing out...' : 'Sign out and log in'}</Text>
           </TouchableOpacity>
         </View>
       </SafeAreaProvider>
