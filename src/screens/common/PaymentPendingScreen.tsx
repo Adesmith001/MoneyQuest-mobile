@@ -1,4 +1,5 @@
 import React, { useEffect, useState } from 'react';
+import ErrorNotice from '../../components/ErrorNotice';
 import {
   View,
   Text,
@@ -143,7 +144,11 @@ const PaymentPendingScreen: React.FC = () => {
           <Ionicons name="close" size={40} color="#FF6B6B" />
         </View>
         <Text style={styles.title}>Payment Failed</Text>
-        <Text style={styles.subtitle}>{errorMessage || 'Unable to process payment'}</Text>
+        <ErrorNotice
+          title="Payment failed"
+          message={errorMessage || 'Unable to process payment'}
+          desktopContent={<Text style={styles.subtitle}>{errorMessage || 'Unable to process payment'}</Text>}
+        />
         <TouchableOpacity style={styles.retryButton} onPress={handleContinue}>
           <Text style={styles.buttonText}>Try Again</Text>
           <Ionicons name="refresh" size={18} color="#1A1A1A" style={styles.buttonIcon} />

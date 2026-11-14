@@ -4,11 +4,11 @@ const path = require('node:path');
 
 const source = fs.readFileSync(path.join(__dirname, '../src/screens/game/QuestionScreen.tsx'), 'utf8');
 
-assert.match(source, /usesModalErrors\s*=.+Platform\.OS.+windowWidth/,
+assert.match(source, /usesModalErrors\s*=\s*useMobileErrorModal\(/,
   'Phones and narrow web viewports use a modal');
-assert.match(source, /usesModalErrors && quizStartError && \(\s*<QuizErrorModal[\s\S]*?onRetry=\{handleStartQuiz\}/,
+assert.match(source, /usesModalErrors && quizStartError && \(\s*<ErrorModal[\s\S]*?onPress: handleStartQuiz/,
   'A quiz start error opens the modal with a retry action');
-assert.match(source, /usesModalErrors && submissionError && !submissionError\.dismissed && \(\s*<QuizErrorModal[\s\S]*?onRetry=\{handleContinue\}/,
+assert.match(source, /usesModalErrors && submissionError && !submissionError\.dismissed && \(\s*<ErrorModal[\s\S]*?onPress: handleContinue/,
   'A save error or unfinished result opens the modal with a retry action');
 assert.match(source, /canRetrySubmission\s*=\s*usesModalErrors && Boolean\(submissionError\)/,
   'Dismissing the save error leaves the pending result eligible for retry');

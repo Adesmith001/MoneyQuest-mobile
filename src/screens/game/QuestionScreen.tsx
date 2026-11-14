@@ -8,7 +8,6 @@ import {
   ScrollView,
   ActivityIndicator,
   Image,
-  Alert,
   Platform,
   useWindowDimensions,
   StyleProp,
@@ -30,7 +29,9 @@ import { fetchLeaderboard } from "../../store/slices/leaderboardSlice";
 import CorrectAnswerModal from "../../components/modals/CorrectAnswerModal";
 import IncorrectAnswerModal from "../../components/modals/IncorrectAnswerModal";
 import FlagQuestionModal from "../../components/modals/FlagQuestionModal";
-import QuizErrorModal from "../../components/modals/QuizErrorModal";
+import ErrorModal from "../../components/modals/ErrorModal";
+import ErrorNotice, { useMobileErrorModal } from "../../components/ErrorNotice";
+import { showErrorAlert } from "../../services/errorAlerts";
 import { RootState } from "../../store";
 import ProgressBar from "../../components/progressBar";
 import CustomButton from "../../components/CustomButton";
@@ -292,8 +293,8 @@ const QuestionScreen: React.FC<Props> = ({ navigation, route }) => {
   // without flex-shrink, so it grows to the screen's content height and the
   // internal ScrollView never becomes scrollable. Constrain the screen to the
   // viewport height on web (native keeps normal flex layout).
-  const { height: windowHeight, width: windowWidth } = useWindowDimensions();
-  const usesModalErrors = Platform.OS !== "web" || windowWidth < 768;
+  const { height: windowHeight } = useWindowDimensions();
+  const usesModalErrors = useMobileErrorModal();
   const screenContainerStyle: StyleProp<ViewStyle> = [
     styles.container,
     Platform.OS === 'web'
@@ -436,9 +437,10 @@ const QuestionScreen: React.FC<Props> = ({ navigation, route }) => {
           });
 
           if (!canEnterLevel) {
-            Alert.alert("Level Locked", "Finish the current level in this section before moving to the next one.", [
-              { text: "OK", onPress: () => navigation.goBack() },
-            ]);
+            showErrorAlert("Level Locked", "Finish the current level in this section before moving to the next one.", {
+              label: "OK",
+              onPress: () => navigation.goBack(),
+            });
             return;
           }
         }
@@ -731,9 +733,10 @@ const QuestionScreen: React.FC<Props> = ({ navigation, route }) => {
         console.error("Failed to load level:", error);
         void captureIncident(error, { flow: 'lesson', stage: 'level_load',
           action: 'request_failed', severity: 'error', screen: 'Question' });
-        Alert.alert("Error", "Failed to load content. Please try again.", [
-          { text: "Go Back", onPress: () => navigation.goBack() },
-        ]);
+        showErrorAlert("Couldn’t load lesson", "Failed to load content. Please try again.", {
+          label: "Go back",
+          onPress: () => navigation.goBack(),
+        });
       } finally {
         setIsLoading(false);
       }
@@ -942,18 +945,10 @@ const QuestionScreen: React.FC<Props> = ({ navigation, route }) => {
 
         // Check if lives reached zero
         if (lives === 0) {
-          Alert.alert(
+          showErrorAlert(
             "Out of Lives! ❤️",
             "You've run out of lives. Complete a level to earn another life.",
-            [
-              {
-                text: "OK",
-                onPress: () => {
-                  navigation.navigate("MainTabs", { screen: "Home" });
-                },
-              },
-            ],
-            { cancelable: false }
+            { label: "OK", onPress: () => navigation.navigate("MainTabs", { screen: "Home" }) }
           );
           return;
         }
@@ -1027,18 +1022,10 @@ const QuestionScreen: React.FC<Props> = ({ navigation, route }) => {
     
     // If lives is 0, user cannot continue
     if (currentLives <= 0 && !submissionError) {
-      Alert.alert(
+      showErrorAlert(
         "Out of Lives! ❤️",
         "You've run out of lives. Complete a level to earn another life.",
-        [
-          {
-            text: "OK",
-            onPress: () => {
-              navigation.navigate("MainTabs", { screen: "Home" });
-            },
-          },
-        ],
-        { cancelable: false }
+        { label: "OK", onPress: () => navigation.navigate("MainTabs", { screen: "Home" }) }
       );
       return;
     }
@@ -1348,11 +1335,10 @@ const QuestionScreen: React.FC<Props> = ({ navigation, route }) => {
           <CustomButton title="Start Quiz" onPress={handleStartQuiz} />
         </View>
         {usesModalErrors && quizStartError && (
-          <QuizErrorModal
+          <ErrorModal
             title="Couldn’t start quiz"
             message={quizStartError}
-            retryLabel="Try again"
-            onRetry={handleStartQuiz}
+            action={{ label: "Try again", onPress: handleStartQuiz }}
             onDismiss={() => setQuizStartError(null)}
           />
         )}
@@ -1368,9 +1354,11 @@ const QuestionScreen: React.FC<Props> = ({ navigation, route }) => {
     return (
       <SafeAreaView style={screenContainerStyle}>
         <View style={styles.content}>
-          <Text style={styles.questionText}>
-            No questions available for this level.
-          </Text>
+          <ErrorNotice
+            title="Questions unavailable"
+            message="No questions available for this level."
+            desktopContent={<Text style={styles.questionText}>No questions available for this level.</Text>}
+          />
           <CustomButton title="Go Back" onPress={() => navigation.goBack()} />
         </View>
       </SafeAreaView>
@@ -1484,6 +1472,7 @@ const QuestionScreen: React.FC<Props> = ({ navigation, route }) => {
       // Validate that we have a proper numeric ID
       if (!questionId || questionId === 'undefined' || questionId === 'null') {
         console.warn('⚠️ Question ID not found, cannot flag question');
+        showErrorAlert("Couldn’t report question", "This question is unavailable for reporting.");
         return;
       }
 
@@ -1514,8 +1503,7 @@ const QuestionScreen: React.FC<Props> = ({ navigation, route }) => {
       setIsFlagged(false);
     } catch (error) {
       console.error("Error flagging question:", error);
-      // Still mark as flagged even if API call fails
-      setIsFlagged(true);
+      showErrorAlert("Couldn’t report question", "Please try again.");
     }
   };
 
@@ -1739,11 +1727,10 @@ const QuestionScreen: React.FC<Props> = ({ navigation, route }) => {
         }}
       />
       {usesModalErrors && submissionError && !submissionError.dismissed && (
-        <QuizErrorModal
+        <ErrorModal
           title="Save quiz result"
           message={submissionError.message}
-          retryLabel="Retry saving"
-          onRetry={handleContinue}
+          action={{ label: "Retry saving", onPress: handleContinue }}
           onDismiss={() => setSubmissionError(current => current && { ...current, dismissed: true })}
         />
       )}

@@ -1,4 +1,6 @@
 import AuthService from '../services/auth';
+import ErrorNotice from '../components/ErrorNotice';
+import { showErrorAlert } from '../services/errorAlerts';
 import React, { useState, useEffect, useRef } from 'react';
 import { NavigationContainer, LinkingOptions } from '@react-navigation/native';
 import { createStackNavigator } from '@react-navigation/stack';
@@ -313,12 +315,12 @@ const AppNavigator: React.FC = () => {
               Alert.alert('Success', 'Successfully signed in with Google!');
             }
           } else {
-            Alert.alert('Error', String(result.payload || 'Google sign-in failed'));
+            showErrorAlert('Google sign-in problem', String(result.payload || 'Google sign-in failed'));
           }
         }
       } catch (error) {
         console.error('Deep link handling error:', error);
-        Alert.alert('Error', 'Failed to process deep link');
+        showErrorAlert('Sign-in link problem', 'Failed to process deep link');
       }
     };
 
@@ -379,10 +381,19 @@ const AppNavigator: React.FC = () => {
       <SafeAreaProvider>
         <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center', padding: 24, backgroundColor: '#fff' }}>
           <Text style={{ fontSize: 20, fontWeight: 'bold', textAlign: 'center' }}>Session problem</Text>
-          <Text style={{ textAlign: 'center', marginVertical: 16 }}>{authFailureMessage(sessionCheckError)}</Text>
-          <Text style={{ textAlign: 'center', marginBottom: 12 }}>Support code: {sessionCheckError.supportCode} · session check</Text>
+          <ErrorNotice
+            title="Session problem"
+            message={`${error || authFailureMessage(sessionCheckError)} Support code: ${sessionCheckError.supportCode}.`}
+            occurrence={error ? undefined : sessionCheckError}
+            desktopContent={
+              <>
+                <Text style={{ textAlign: 'center', marginVertical: 16 }}>{authFailureMessage(sessionCheckError)}</Text>
+                <Text style={{ textAlign: 'center', marginBottom: 12 }}>Support code: {sessionCheckError.supportCode} · session check</Text>
+                {!!error && <Text accessibilityRole="alert" style={{ color: '#B3261E', textAlign: 'center', marginBottom: 12 }}>{error}</Text>}
+              </>
+            }
+          />
           {isLoggingOut && <ActivityIndicator color="#FF5722" />}
-          {!!error && <Text accessibilityRole="alert" style={{ color: '#B3261E', textAlign: 'center', marginBottom: 12 }}>{error}</Text>}
           {sessionCheckError.kind !== 'expired' && <TouchableOpacity accessibilityRole="button" disabled={isLoggingOut || retrySeconds > 0} onPress={() => dispatch(checkAuthStatus())} style={{ backgroundColor: '#FF5722', padding: 14, borderRadius: 8, opacity: isLoggingOut ? 0.5 : 1 }}>
             <Text style={{ color: '#fff', fontWeight: 'bold' }}>{retrySeconds ? "Try again in " + retrySeconds + "s" : "Retry session check"}</Text>
           </TouchableOpacity>}

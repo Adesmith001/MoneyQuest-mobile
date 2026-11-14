@@ -5,7 +5,11 @@ import { PersistGate } from 'redux-persist/integration/react';
 import { store, persistor } from './src/store';
 import AppNavigator from './src/navigation/AppNavigator';
 import * as Linking from 'expo-linking';
-import { Alert, Platform, ErrorUtils, View, Text, StyleSheet, LogBox, AppState, TouchableOpacity } from 'react-native';
+import { Platform, ErrorUtils, View, Text, StyleSheet, LogBox, AppState, TouchableOpacity } from 'react-native';
+import { SafeAreaProvider, initialWindowMetrics } from 'react-native-safe-area-context';
+import ErrorAlertHost from './src/components/ErrorAlertHost';
+import ErrorNotice from './src/components/ErrorNotice';
+import { showErrorAlert } from './src/services/errorAlerts';
 import { getSupportCode } from './src/utils/supportCode';
 import * as Font from 'expo-font';
 import { Ionicons } from '@expo/vector-icons';
@@ -46,21 +50,28 @@ if (ErrorUtils) {
     notificationService.sendAppErrorNotification(error?.message || 'Unknown app error').catch(() => {});
     if (isFatal) {
       console.error('FATAL ERROR:', error);
-      Alert.alert(
+      showErrorAlert(
         'Unexpected Error',
         'The app encountered an unexpected error. Please restart the app.',
-        [{ text: 'OK' }]
       );
     }
   });
 }
 
 // Error boundary fallback component
-const ErrorFallback = ({ error }: { error: Error }) => (
+const ErrorFallback = () => (
   <View style={errorStyles.container}>
     <Text style={errorStyles.title}>Something went wrong</Text>
-    <Text style={errorStyles.message}>MoneyQuest could not finish loading. Please retry.</Text>
-    <Text style={errorStyles.hint}>Support code: {getSupportCode()} · app startup</Text>
+    <ErrorNotice
+      title="Something went wrong"
+      message={`MoneyQuest could not finish loading. Please restart the app. Support code: ${getSupportCode()}.`}
+      desktopContent={
+        <>
+          <Text style={errorStyles.message}>MoneyQuest could not finish loading. Please retry.</Text>
+          <Text style={errorStyles.hint}>Support code: {getSupportCode()} · app startup</Text>
+        </>
+      }
+    />
     {Platform.OS === 'web' && (
       <TouchableOpacity accessibilityRole="button" onPress={() => window.location.reload()} style={{ backgroundColor: '#FF5722', padding: 14, borderRadius: 8, marginTop: 20 }}>
         <Text style={{ color: '#fff', fontWeight: 'bold' }}>Reload app</Text>
@@ -125,7 +136,7 @@ class ErrorBoundary extends React.Component<
 
   render() {
     if (this.state.hasError) {
-      return <ErrorFallback error={this.state.error!} />;
+      return <ErrorFallback />;
     }
     return this.props.children;
   }
@@ -203,7 +214,7 @@ function AppContent() {
         if (event.url.includes('oauth-callback/success')) {
           // The session should already be created by Appwrite
         } else if (event.url.includes('oauth-callback/failure')) {
-          Alert.alert('Authentication Failed', 'Could not sign in with Google');
+          showErrorAlert('Authentication Failed', 'Could not sign in with Google');
         }
       } catch (error) {
         console.error('Deep link handling error:', error);
@@ -242,8 +253,11 @@ function AppContent() {
 // Main App component with Error Boundary
 export default function App() {
   return (
-    <ErrorBoundary>
-      <AppContent />
-    </ErrorBoundary>
+    <SafeAreaProvider initialMetrics={initialWindowMetrics}>
+      <ErrorBoundary>
+        <AppContent />
+      </ErrorBoundary>
+      <ErrorAlertHost />
+    </SafeAreaProvider>
   );
 }

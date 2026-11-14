@@ -21,6 +21,7 @@ import {
 } from '../../store/slices/tutorialSlice';
 import { FONT_FAMILY } from '../../constants';
 import cachedBackendApi from '../../services/cachedBackendApi';
+import { showErrorAlert } from '../../services/errorAlerts';
 import { getCompletedLevelIds } from '../../services/completedLevelService';
 import { databases, DB_ID, COLLECTIONS, Query } from '../../services/appwrite';
 import { getSectionPlayableLevelId } from '../../utils/progressBehavior';
@@ -208,6 +209,7 @@ const TutorialHubScreen: React.FC<Props> = ({ navigation }) => {
         } catch (error) {
           console.error('Failed to open question guide:', error);
           navigation.navigate('Home');
+          showErrorAlert('Couldn’t open question guide', 'Please try again.');
         }
         break;
       case 'streak-guide':

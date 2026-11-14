@@ -7,7 +7,6 @@ import {
   SafeAreaView,
   KeyboardAvoidingView,
   Platform,
-  Alert,
   Image,
   ScrollView,
   ActivityIndicator,
@@ -18,6 +17,8 @@ import { RootState, AppDispatch } from '../../store';
 import AnimatedTextInput from '../../components/AnimatedTextInput';
 import authService from '../../services/auth';
 import { getPasswordValidationError } from '../../utils/passwordValidation';
+import ErrorNotice, { useMobileErrorModal } from '../../components/ErrorNotice';
+import { showErrorAlert } from '../../services/errorAlerts';
 
 interface Props {
   navigation: any;
@@ -33,10 +34,12 @@ const RegisterScreen: React.FC<Props> = ({ navigation }) => {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const dispatch = useDispatch<AppDispatch>();
-  const { isLoading, error } = useSelector((state: RootState) => state.auth);
+  const { isLoading } = useSelector((state: RootState) => state.auth);
   const debounceTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const [formError, setFormError] = useState('');
   const passwordError = getPasswordValidationError(password);
+  const useModalErrors = useMobileErrorModal();
+  const signUpDisabled = isLoading || (!useModalErrors && Boolean(passwordError));
 
   // Debounced real-time username availability check
   useEffect(() => {
@@ -111,10 +114,10 @@ const RegisterScreen: React.FC<Props> = ({ navigation }) => {
         // The callback will be handled in AppNavigator
       } else {
         const errorMessage = result.payload as string;
-        Alert.alert('Google Signup Failed', errorMessage || 'Failed to signup with Google');
+        showErrorAlert('Google Signup Failed', errorMessage || 'Failed to signup with Google');
       }
     } catch (error) {
-      Alert.alert('Error', 'Google signup failed');
+      showErrorAlert('Google Signup Failed', 'Google signup failed');
     }
   };
 
@@ -170,7 +173,7 @@ const RegisterScreen: React.FC<Props> = ({ navigation }) => {
                   <Text style={[styles.usernameStatusText, { color: '#4CAF50' }]}>✓ Username is available</Text>
                 </View>
               )}
-              {usernameStatus === 'taken' && (
+              {!useModalErrors && usernameStatus === 'taken' && (
                 <View style={styles.usernameStatus}>
                   <Text style={[styles.usernameStatusText, { color: '#F44336' }]}>✗ Username is already taken</Text>
                 </View>
@@ -207,15 +210,20 @@ const RegisterScreen: React.FC<Props> = ({ navigation }) => {
                 autoCapitalize="none"
                 showPasswordToggle={true}
               />
-              {!!formError && <Text accessibilityRole="alert" style={styles.passwordError}>{formError}</Text>}
-              {passwordError ? (
+              <ErrorNotice
+                title="Signup problem"
+                message={formError}
+                onDismiss={() => setFormError('')}
+                desktopContent={<Text accessibilityRole="alert" style={styles.passwordError}>{formError}</Text>}
+              />
+              {!useModalErrors && passwordError ? (
                 <Text style={styles.passwordError}>{passwordError}</Text>
               ) : null}
 
               <TouchableOpacity
-                style={[styles.signUpButton, (isLoading || Boolean(passwordError)) && styles.disabledButton]}
+                style={[styles.signUpButton, signUpDisabled && styles.disabledButton]}
                 onPress={handleSignUp}
-                disabled={isLoading || Boolean(passwordError)}
+                disabled={signUpDisabled}
               >
                 <Text style={styles.signUpButtonText}>
                   {isLoading ? 'Creating Account...' : 'Sign Up'}

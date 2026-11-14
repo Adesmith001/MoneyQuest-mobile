@@ -1,4 +1,6 @@
 import React, { useState, useEffect, useCallback } from "react";
+import ErrorNotice from '../../components/ErrorNotice';
+import { showErrorAlert } from '../../services/errorAlerts';
 import {
   View,
   Text,
@@ -103,7 +105,7 @@ const PremiumScreen: React.FC = () => {
   const handleStartTrial = async () => {
     recordBreadcrumb('checkout_started');
     if (!user) {
-      Alert.alert("Error", "User not found. Please log in again.");
+      showErrorAlert("Trial unavailable", "User not found. Please log in again.");
       return;
     }
 
@@ -125,7 +127,7 @@ const PremiumScreen: React.FC = () => {
     } catch (err: any) {
       void captureIncident(err, { flow: 'purchase', stage: 'trial_start',
         action: 'checkout_failed', severity: 'error', screen: 'Premium' });
-      Alert.alert("Error", err.message || "Could not start free trial. Please try again.");
+      showErrorAlert("Couldn’t start trial", err.message || "Could not start free trial. Please try again.");
     } finally {
       setIsStartingTrial(false);
     }
@@ -138,12 +140,12 @@ const PremiumScreen: React.FC = () => {
   const handleStoreSubscription = async () => {
     recordBreadcrumb('checkout_started');
     if (!user) {
-      Alert.alert("Error", "User not found. Please log in again.");
+      showErrorAlert("Purchase unavailable", "User not found. Please log in again.");
       return;
     }
 
     if (!revenueCatService.isConfigured()) {
-      Alert.alert("Purchase Unavailable", "Store purchases are not available right now.");
+      showErrorAlert("Purchase Unavailable", "Store purchases are not available right now.");
       return;
     }
 
@@ -167,7 +169,7 @@ const PremiumScreen: React.FC = () => {
       }
 
       if (!selectedPackage) {
-        Alert.alert(
+        showErrorAlert(
           "Store Subscription Unavailable",
           packageState?.errorMessage ||
             storeErrorMessage ||
@@ -180,7 +182,7 @@ const PremiumScreen: React.FC = () => {
       await refreshCustomerInfo();
 
       if (!revenueCatService.hasActiveEntitlement(customerInfo)) {
-        Alert.alert("Purchase Pending", "Your subscription is still being confirmed. Please try again shortly.");
+        showErrorAlert("Purchase Pending", "Your subscription is still being confirmed. Please try again shortly.");
         return;
       }
 
@@ -212,7 +214,7 @@ const PremiumScreen: React.FC = () => {
       }
       void captureIncident(err, { flow: 'purchase', stage: 'store_checkout',
         action: 'checkout_failed', severity: 'error', screen: 'Premium' });
-      Alert.alert("Purchase Error", err.message || "Unable to complete purchase.");
+      showErrorAlert("Purchase Error", err.message || "Unable to complete purchase.");
     } finally {
       setIsRCLoading(false);
     }
@@ -255,11 +257,11 @@ const PremiumScreen: React.FC = () => {
         navigation.reset({ index: 0, routes: [{ name: "MainTabs" }] });
         return;
       }
-      Alert.alert("Restore Purchases", "No active purchases found.");
+      showErrorAlert("Restore Purchases", "No active purchases found.");
     } catch (err: any) {
       void captureIncident(err, { flow: 'purchase', stage: 'store_restore',
         action: 'purchase_restore_failed', severity: 'error', screen: 'Premium' });
-      Alert.alert("Restore Purchases", err.message || "Failed to restore purchases.");
+      showErrorAlert("Restore Purchases", err.message || "Failed to restore purchases.");
     } finally {
       setIsRestoring(false);
     }
@@ -333,7 +335,7 @@ const PremiumScreen: React.FC = () => {
     try {
       await dispatch(signOut()).unwrap();
     } catch (error: any) {
-      Alert.alert("Sign Out Failed", error?.message || "Please try again.");
+      showErrorAlert("Sign Out Failed", error?.message || "Please try again.");
     }
   };
 
@@ -351,6 +353,9 @@ const PremiumScreen: React.FC = () => {
   const selectedPlanPriceLabel = rcPackages[selectedPlan]?.product.priceString
     || `NGN ${selectedPlanConfig.price.toLocaleString()}`;
   const trialDisclosure = `14-day free trial, then ${selectedPlanPriceLabel}/${selectedPlanConfig.billingCycle} unless canceled before renewal.`;
+  const unavailablePlanMessage = hasLoadedStorePackages && !isSelectedPlanStoreReady
+    ? storeErrorMessage || `This ${Platform.OS === "ios" ? "App Store" : "Google Play"} plan is not available right now.`
+    : null;
 
   const handleClose = () => {
     if (navigation.canGoBack()) navigation.goBack();
@@ -493,19 +498,22 @@ const PremiumScreen: React.FC = () => {
               </TouchableOpacity>
             ) : null}
 
-            {korapayError ? (
-              <Text style={styles.korapayErrorText}>{korapayError}</Text>
-            ) : null}
+            <ErrorNotice
+              title="Card payment problem"
+              message={korapayError}
+              onDismiss={() => setKorapayError(null)}
+              desktopContent={<Text style={styles.korapayErrorText}>{korapayError}</Text>}
+            />
 
             {/* ── Restore Purchases ────────────────────────────────────────── */}
             {revenueCatService.isConfigured() ? (
               <>
-                {hasLoadedStorePackages && !isSelectedPlanStoreReady ? (
-                  <Text style={styles.storeErrorText}>
-                    {storeErrorMessage ||
-                      `This ${Platform.OS === "ios" ? "App Store" : "Google Play"} plan is not available right now.`}
-                  </Text>
-                ) : null}
+                <ErrorNotice
+                  key={selectedPlan}
+                  title="Store plan unavailable"
+                  message={unavailablePlanMessage}
+                  desktopContent={<Text style={styles.storeErrorText}>{unavailablePlanMessage}</Text>}
+                />
               <TouchableOpacity
                 style={styles.restoreButton}
                 onPress={handleRestoreStorePurchases}

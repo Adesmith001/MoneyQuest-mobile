@@ -1,4 +1,5 @@
 import React, { useState } from 'react';
+import { showErrorAlert } from '../../services/errorAlerts';
 import {
   View,
   Text,
@@ -33,7 +34,7 @@ const ChangeAvatarScreen: React.FC<Props> = ({ navigation }) => {
     }
 
     if (!user?.$id) {
-      Alert.alert('Error', 'User not found. Please log in again.');
+      showErrorAlert('Couldn’t change avatar', 'User not found. Please log in again.');
       return;
     }
 
@@ -58,7 +59,7 @@ const ChangeAvatarScreen: React.FC<Props> = ({ navigation }) => {
       navigation.goBack();
     } catch (error) {
       console.error('Failed to update avatar:', error);
-      Alert.alert('Error', 'Failed to update avatar. Please try again.');
+      showErrorAlert('Couldn’t change avatar', 'Failed to update avatar. Please try again.');
     } finally {
       setIsSaving(false);
     }

@@ -1,22 +1,23 @@
 import React from "react";
-import { Modal, Pressable, ScrollView, StyleSheet, Text, View } from "react-native";
+import { Keyboard, Modal, Pressable, ScrollView, StyleSheet, Text, View } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { BORDER_RADIUS, COLORS, FONT_SIZES, SPACING } from "../../constants";
 
 interface Props {
   title: string;
   message: string;
-  retryLabel: string;
-  onRetry: () => void;
+  dismissLabel?: string;
+  action?: { label: string; onPress: () => void };
   onDismiss: () => void;
 }
 
-export default function QuizErrorModal({ title, message, retryLabel, onRetry, onDismiss }: Props) {
+export default function ErrorModal({ title, message, dismissLabel, action, onDismiss }: Props) {
   return (
     <Modal
       transparent
       animationType="fade"
       accessibilityLabel={title}
+      onShow={Keyboard.dismiss}
       onRequestClose={onDismiss}
     >
       <SafeAreaView style={styles.overlay} accessibilityViewIsModal>
@@ -26,12 +27,14 @@ export default function QuizErrorModal({ title, message, retryLabel, onRetry, on
             <Text accessibilityRole="alert" style={styles.message}>{message}</Text>
           </ScrollView>
           <View style={styles.actions}>
-            <Pressable accessibilityRole="button" onPress={onDismiss} style={styles.action}>
-              <Text style={styles.dismissLabel}>Dismiss</Text>
+            <Pressable accessibilityRole="button" onPress={onDismiss} style={[styles.action, !action && styles.primaryAction]}>
+              <Text style={action ? styles.dismissLabel : styles.primaryLabel}>{dismissLabel ?? "Dismiss"}</Text>
             </Pressable>
-            <Pressable accessibilityRole="button" onPress={onRetry} style={[styles.action, styles.retryAction]}>
-              <Text style={styles.retryLabel}>{retryLabel}</Text>
-            </Pressable>
+            {action && (
+              <Pressable accessibilityRole="button" onPress={action.onPress} style={[styles.action, styles.primaryAction]}>
+                <Text style={styles.primaryLabel}>{action.label}</Text>
+              </Pressable>
+            )}
           </View>
         </View>
       </SafeAreaView>
@@ -82,7 +85,7 @@ const styles = StyleSheet.create({
     paddingVertical: SPACING.sm,
     borderRadius: BORDER_RADIUS.md,
   },
-  retryAction: {
+  primaryAction: {
     backgroundColor: COLORS.text,
   },
   dismissLabel: {
@@ -90,7 +93,7 @@ const styles = StyleSheet.create({
     fontWeight: "600",
     color: COLORS.text,
   },
-  retryLabel: {
+  primaryLabel: {
     fontSize: FONT_SIZES.sm,
     fontWeight: "600",
     color: COLORS.card,

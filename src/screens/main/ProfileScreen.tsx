@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from "react";
+import { showErrorAlert } from '../../services/errorAlerts';
 import {
   View,
   Text,
@@ -151,7 +152,7 @@ const ProfileScreen: React.FC<Props> = ({ navigation }) => {
           : "Your subscription will not auto-renew. You'll need to manually renew when it expires."
       );
     } catch (error: any) {
-      Alert.alert("Error", error.message || "Failed to update auto-renew preference.");
+      showErrorAlert("Couldn’t update auto-renew", error.message || "Failed to update auto-renew preference.");
     } finally {
       setIsTogglingAutoRenew(false);
     }
@@ -162,16 +163,21 @@ const ProfileScreen: React.FC<Props> = ({ navigation }) => {
     subscription?.paymentProvider === 'google_play';
 
   const handleManageStoreSubscription = async () => {
-    if (subscription?.paymentProvider === 'apple_iap') {
-      await Linking.openURL('https://apps.apple.com/account/subscriptions');
-      return;
-    }
-    if (subscription?.paymentProvider === 'google_play') {
-      await Linking.openURL('https://play.google.com/store/account/subscriptions');
+    const storeUrl = subscription?.paymentProvider === 'apple_iap'
+      ? 'https://apps.apple.com/account/subscriptions'
+      : subscription?.paymentProvider === 'google_play'
+        ? 'https://play.google.com/store/account/subscriptions'
+        : null;
+    if (!storeUrl) {
+      showErrorAlert('Unavailable', 'Manage this subscription in the store where it was purchased.');
       return;
     }
 
-    Alert.alert('Unavailable', 'Manage this subscription in the store where it was purchased.');
+    try {
+      await Linking.openURL(storeUrl);
+    } catch {
+      showErrorAlert('Couldn’t open subscription settings', 'Please try again.');
+    }
   };
 
   const handleCancelSubscription = () => {
@@ -189,7 +195,7 @@ const ProfileScreen: React.FC<Props> = ({ navigation }) => {
               setSubscription(updated);
               Alert.alert("Subscription Cancelled", "Your subscription has been cancelled. You'll still have access until the current period ends.");
             } catch (error: any) {
-              Alert.alert("Error", error.message || "Failed to cancel subscription.");
+              showErrorAlert("Couldn’t cancel subscription", error.message || "Failed to cancel subscription.");
             }
           },
         },
@@ -223,8 +229,8 @@ const ProfileScreen: React.FC<Props> = ({ navigation }) => {
               );
             } catch (error: any) {
               console.error('Disable account error:', error);
-              Alert.alert(
-                "Error",
+              showErrorAlert(
+                "Couldn’t disable account",
                 error.message || "Failed to disable account. Please try again."
               );
             } finally {
@@ -263,8 +269,8 @@ const ProfileScreen: React.FC<Props> = ({ navigation }) => {
               );
             } catch (error: any) {
               console.error('Delete account error:', error);
-              Alert.alert(
-                "Error",
+              showErrorAlert(
+                "Couldn’t delete account",
                 error.message || "Failed to delete account. Please try again or contact support."
               );
             } finally {
@@ -531,7 +537,7 @@ const ProfileScreen: React.FC<Props> = ({ navigation }) => {
 
           if (!canAdvance) {
             setIsCoachPaused(true);
-            Alert.alert('Try this first', step?.blockedMessage || 'Complete the highlighted action first.');
+            showErrorAlert('Try this first', step?.blockedMessage || 'Complete the highlighted action first.');
             return;
           }
 

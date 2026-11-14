@@ -12,6 +12,7 @@ import {
 import { COLORS, FONT_SIZES, SPACING } from '../../constants';
 import AnimatedTextInput from '../../components/AnimatedTextInput';
 import CustomButton from '../../components/CustomButton';
+import ErrorNotice from '../../components/ErrorNotice';
 import { authFailure, authFailureMessage, type AuthFailure } from '../../services/authFailure';
 import { captureIncident } from '../../services/errorMonitor';
 import authService from '../../services/auth';
@@ -30,6 +31,7 @@ const ForgotPasswordScreen: React.FC<Props> = ({ navigation, route }) => {
 
   const [failure, setFailure] = useState<AuthFailure | null>(null);
   const [inlineMessage, setInlineMessage] = useState('');
+  const [validationError, setValidationError] = useState('');
   const [slow, setSlow] = useState(false);
   const [secondsLeft, setSecondsLeft] = useState(0);
   const pending = useRef(false);
@@ -64,6 +66,7 @@ const ForgotPasswordScreen: React.FC<Props> = ({ navigation, route }) => {
     pending.current = true;
     setFailure(null);
     setInlineMessage('');
+    setValidationError('');
     setIsLoading(true);
     try {
       await action();
@@ -79,7 +82,7 @@ const ForgotPasswordScreen: React.FC<Props> = ({ navigation, route }) => {
 
   const handleSendResetLink = () => run(async () => {
     if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email.trim())) {
-      setInlineMessage('Enter a valid email address.');
+      setValidationError('Enter a valid email address.');
       return;
     }
     await authService.sendPasswordRecovery(email);
@@ -91,9 +94,12 @@ const ForgotPasswordScreen: React.FC<Props> = ({ navigation, route }) => {
     <>
       {slow && <Text accessibilityLiveRegion="polite">This is taking longer than expected.</Text>}
       {!!inlineMessage && <Text accessibilityLiveRegion="polite">{inlineMessage}</Text>}
-      {failure && <Text accessibilityRole="alert" style={{ color: '#B3261E' }}>
-        {authFailureMessage(failure)} {secondsLeft > 0 ? "Try again in " + secondsLeft + "s." : ''} Support code: {failure.supportCode}
-      </Text>}
+      <ErrorNotice title="Password reset problem" message={validationError} onDismiss={() => setValidationError('')} />
+      <ErrorNotice
+        title="Password reset problem"
+        occurrence={failure}
+        message={failure && `${authFailureMessage(failure)}${secondsLeft > 0 ? ` Try again in ${secondsLeft}s.` : ''} Support code: ${failure.supportCode}`}
+      />
     </>
   );
 
@@ -110,7 +116,7 @@ const ForgotPasswordScreen: React.FC<Props> = ({ navigation, route }) => {
               disabled={isLoading || secondsLeft > 0}
               onPress={() => run(async () => {
                 if (password.length < 8 || password !== confirmation) {
-                  setInlineMessage('Use at least 8 characters and enter the same password twice.');
+                  setValidationError('Use at least 8 characters and enter the same password twice.');
                   return;
                 }
                 await authService.completePasswordRecovery(userId, secret, password, confirmation);

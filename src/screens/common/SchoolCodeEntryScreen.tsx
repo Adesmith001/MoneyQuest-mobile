@@ -1,4 +1,5 @@
 import React, { useState, useRef } from 'react';
+import ErrorNotice from '../../components/ErrorNotice';
 import {
   View,
   Text,
@@ -250,9 +251,12 @@ const SchoolCodeEntryScreen: React.FC = () => {
             ))}
           </View>
 
-          {error ? (
-            <Text style={styles.errorText}>{error}</Text>
-          ) : null}
+          <ErrorNotice
+            title="School enrollment problem"
+            message={error}
+            onDismiss={() => setError('')}
+            desktopContent={<Text accessibilityRole="alert" style={styles.errorText}>{error}</Text>}
+          />
 
           <TouchableOpacity
             style={[styles.enrollButton, isEnrolling && styles.buttonDisabled]}
@@ -313,12 +317,17 @@ const SchoolCodeEntryScreen: React.FC = () => {
               autoCorrect={false}
               maxLength={12}
             />
-            {error ? (
-              <View style={styles.errorContainer}>
-                <Ionicons name="alert-circle" size={16} color="#FF6B6B" />
-                <Text style={styles.errorText}>{error}</Text>
-              </View>
-            ) : null}
+            <ErrorNotice
+              title="School code problem"
+              message={error}
+              onDismiss={() => setError('')}
+              desktopContent={
+                <View style={styles.errorContainer}>
+                  <Ionicons name="alert-circle" size={16} color="#FF6B6B" />
+                  <Text accessibilityRole="alert" style={styles.errorText}>{error}</Text>
+                </View>
+              }
+            />
           </Animated.View>
 
           <TouchableOpacity

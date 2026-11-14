@@ -1,4 +1,6 @@
 import React, { useState, useRef, useEffect } from "react";
+import ErrorNotice from '../../components/ErrorNotice';
+import { showErrorAlert } from '../../services/errorAlerts';
 import {
   View,
   Text,
@@ -525,12 +527,14 @@ const HomeScreen: React.FC<Props> = ({ navigation }) => {
       Alert.alert('Updated', 'Content is now up to date.');
     } catch (error) {
       console.error('Manual refresh failed:', error);
-      Alert.alert('Refresh failed', 'Could not refresh content right now. Please try again.');
+      if (sections.length > 0) {
+        showErrorAlert('Refresh failed', 'Could not refresh content right now. Please try again.');
+      }
     } finally {
       setIsRefreshingContent(false);
       await refreshStaleState();
     }
-  }, [fetchLearningPath, isRefreshingContent, refreshStaleState, user?.$id]);
+  }, [fetchLearningPath, isRefreshingContent, refreshStaleState, sections.length, user?.$id]);
 
   const handleWebHorizontalWheel = React.useCallback((event: any) => {
     if (Platform.OS !== 'web') {
@@ -767,7 +771,7 @@ const HomeScreen: React.FC<Props> = ({ navigation }) => {
         const canEnter = node.isUnlocked || node.isCurrent || node.isCompleted;
 
         if (!canEnter) {
-          Alert.alert(
+          showErrorAlert(
             'Level Locked',
             'Finish the current level in this section before moving to the next one.'
           );
@@ -781,10 +785,9 @@ const HomeScreen: React.FC<Props> = ({ navigation }) => {
         const lives = user.lives !== undefined && user.lives !== null ? user.lives : 5;
 
         if (lives === 0) {
-          Alert.alert(
+          showErrorAlert(
             'No Lives Available',
-            'You have 0 lives remaining. Complete a level to earn another life.',
-            [{ text: 'OK', style: 'default' }]
+            'You have 0 lives remaining. Complete a level to earn another life.'
           );
           return;
         }
@@ -1275,10 +1278,18 @@ const HomeScreen: React.FC<Props> = ({ navigation }) => {
             resizeMode="contain"
           />
           <Text style={styles.emptyStateTitle}>No Learning Content Available</Text>
-          <Text style={styles.emptyStateMessage}>
-            {startupError ? 'You’re signed in. We couldn’t load your lessons. ' + startupError : 'You’re signed in. We couldn’t load your lessons.'}
-          </Text>
-          <Text style={{ textAlign: 'center', marginBottom: 12 }}>Support code: {getSupportCode()} · lessons</Text>
+          <ErrorNotice
+            title="Couldn’t load lessons"
+            message={`You’re signed in. We couldn’t load your lessons.${startupError ? ' ' + startupError : ''} Support code: ${getSupportCode()}.`}
+            desktopContent={
+              <>
+                <Text style={styles.emptyStateMessage}>
+                  {startupError ? 'You’re signed in. We couldn’t load your lessons. ' + startupError : 'You’re signed in. We couldn’t load your lessons.'}
+                </Text>
+                <Text style={{ textAlign: 'center', marginBottom: 12 }}>Support code: {getSupportCode()} · lessons</Text>
+              </>
+            }
+          />
           <TouchableOpacity
             style={styles.emptyStateButton}
             onPress={() => {

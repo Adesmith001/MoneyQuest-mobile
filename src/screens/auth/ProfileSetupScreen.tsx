@@ -1,4 +1,6 @@
 import React, { useState } from 'react';
+import ErrorNotice from '../../components/ErrorNotice';
+import { showErrorAlert } from '../../services/errorAlerts';
 import { SafeAreaView, ScrollView, View, Text, TextInput, TouchableOpacity, Image, StyleSheet } from 'react-native';
 import { useDispatch, useSelector } from 'react-redux';
 import { AppDispatch, RootState } from '../../store';
@@ -24,6 +26,13 @@ const ProfileSetupScreen = () => {
   const [avatar, setAvatar] = useState(user?.avatar === 'needs_onboarding' ? '' : user?.avatar || '');
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState('');
+
+  const handleSignOut = async () => {
+    const result = await dispatch(signOut());
+    if (signOut.rejected.match(result)) {
+      showErrorAlert('Sign out failed', String(result.payload || 'Please try again.'));
+    }
+  };
 
   const save = async () => {
     const numericAge = Number(age);
@@ -76,11 +85,16 @@ const ProfileSetupScreen = () => {
             </TouchableOpacity>
           ))}
         </View>
-        {!!error && <Text style={styles.error}>{error}</Text>}
+        <ErrorNotice
+          title="Profile setup problem"
+          message={error}
+          onDismiss={() => setError('')}
+          desktopContent={<Text accessibilityRole="alert" style={styles.error}>{error}</Text>}
+        />
         <TouchableOpacity accessibilityRole="button" onPress={save} disabled={saving} style={styles.button}>
           <Text style={styles.buttonText}>{saving ? 'Saving…' : 'Continue'}</Text>
         </TouchableOpacity>
-        <TouchableOpacity accessibilityRole="button" onPress={() => dispatch(signOut())} style={{ padding: 12, alignItems: 'center' }}>
+        <TouchableOpacity accessibilityRole="button" onPress={handleSignOut} style={{ padding: 12, alignItems: 'center' }}>
           <Text style={{ color: '#555' }}>Sign out</Text>
         </TouchableOpacity>
       </ScrollView>

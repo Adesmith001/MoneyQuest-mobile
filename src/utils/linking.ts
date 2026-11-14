@@ -1,5 +1,6 @@
-import { Linking, Alert } from 'react-native';
+import { Linking } from 'react-native';
 import analyticsService from '../services/analytics';
+import { showErrorAlert } from '../services/errorAlerts';
 
 const FEEDBACK_FORM_URL = 'https://forms.office.com/r/hKQQsxFzij';
 
@@ -19,10 +20,10 @@ export const openFeedbackForm = async () => {
     if (supported) {
       await Linking.openURL(FEEDBACK_FORM_URL);
     } else {
-      Alert.alert("Error", `Don't know how to open this URL: ${FEEDBACK_FORM_URL}`);
+      showErrorAlert('Couldn’t open feedback form', 'Please try again.');
     }
   } catch (error) {
     console.error('Failed to open feedback form:', error);
-    Alert.alert("Error", "An error occurred while trying to open the feedback form.");
+    showErrorAlert('Couldn’t open feedback form', 'Please try again.');
   }
 };

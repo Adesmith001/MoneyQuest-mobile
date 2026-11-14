@@ -14,6 +14,7 @@ import {
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import * as Clipboard from 'expo-clipboard';
+import ErrorModal from './ErrorModal';
 
 const { width: screenWidth, height: screenHeight } = Dimensions.get('window');
 
@@ -49,9 +50,20 @@ const InviteFriendsModal: React.FC<Props> = ({
   onClose,
   inviteLink,
 }) => {
+  const [errorMessage, setErrorMessage] = React.useState('');
+
+  const close = () => {
+    setErrorMessage('');
+    onClose();
+  };
+
   const handleCopyLink = async () => {
-    await Clipboard.setStringAsync(inviteLink);
-    Alert.alert('Copied!', 'Invite link copied to clipboard.');
+    try {
+      await Clipboard.setStringAsync(inviteLink);
+      Alert.alert('Copied!', 'Invite link copied to clipboard.');
+    } catch {
+      setErrorMessage('Couldn’t copy the invite link. Please try again.');
+    }
   };
 
   const handleShare = async () => {
@@ -62,7 +74,7 @@ const InviteFriendsModal: React.FC<Props> = ({
         title: 'Join me on Money Quest!', // for Android
       });
     } catch (error: any) {
-      Alert.alert(error.message);
+      setErrorMessage(error.message || 'Couldn’t share the invite. Please try again.');
     }
   };
 
@@ -71,12 +83,12 @@ const InviteFriendsModal: React.FC<Props> = ({
       animationType="fade"
       transparent={true}
       visible={visible}
-      onRequestClose={onClose}
+      onRequestClose={close}
     >
       <TouchableOpacity
         style={styles.overlay}
         activeOpacity={1}
-        onPressOut={onClose}
+        onPressOut={close}
       >
         <View onStartShouldSetResponder={() => true}>
           <View style={styles.modalContainer}>
@@ -123,6 +135,9 @@ const InviteFriendsModal: React.FC<Props> = ({
           </View>
         </View>
       </TouchableOpacity>
+      {visible && errorMessage ? (
+        <ErrorModal title="Invite problem" message={errorMessage} onDismiss={() => setErrorMessage('')} />
+      ) : null}
     </Modal>
   );
 };

@@ -20,6 +20,8 @@ import { RootState, AppDispatch } from '../../store';
 import { Ionicons } from '@expo/vector-icons';
 import { getSupportCode } from '../../utils/supportCode';
 import { createLoginTrace } from '../../services/loginDiagnostics';
+import ErrorNotice from '../../components/ErrorNotice';
+import { showErrorAlert } from '../../services/errorAlerts';
 
 const LOGIN_COOLDOWN_STORAGE_KEY = 'moneyquest_login_rate_limit_until';
 
@@ -91,10 +93,7 @@ const LoginScreen: React.FC<Props> = ({ navigation }) => {
       if (!signIn.fulfilled.match(result)) {
         const failure = authFailure(result.payload, 'session_create');
         setDisabledAccountId(failure.accountId || null);
-        setFormError(authFailureMessage(failure) + (
-          ['offline', 'unavailable', 'timeout', 'unknown'].includes(failure.kind)
-            ? ' Support code: ' + failure.supportCode : ''
-        ));
+        setFormError(authFailureMessage(failure));
         if (failure.kind === 'active_session') {
           dispatch(checkAuthStatus());
         }
@@ -130,10 +129,10 @@ const LoginScreen: React.FC<Props> = ({ navigation }) => {
           Alert.alert('Success', 'Google login successful!');
         } else {
           const errorMessage = result.payload as string;
-          Alert.alert('Google Login Failed', errorMessage || 'Failed to login with Google');
+          showErrorAlert('Google Login Failed', errorMessage || 'Failed to login with Google');
         }
       } catch (error) {
-        Alert.alert('Error', 'Google login failed');
+        showErrorAlert('Google Login Failed', 'Google login failed');
       }
     } else {
       // Other providers coming soon
@@ -207,11 +206,16 @@ const LoginScreen: React.FC<Props> = ({ navigation }) => {
             >
               <Text style={styles.forgotPasswordText}>Forgot password?</Text>
             </TouchableOpacity>
-            {!!formError && (
-              <Text accessibilityRole="alert" style={{ color: '#B3261E', marginBottom: 16 }}>
-                {formError} Support code: {getSupportCode()}
-              </Text>
-            )}
+            <ErrorNotice
+              title="Sign-in problem"
+              message={formError && `${formError} Support code: ${getSupportCode()}`}
+              onDismiss={() => setFormError('')}
+              desktopContent={
+                <Text accessibilityRole="alert" style={{ color: '#B3261E', marginBottom: 16 }}>
+                  {formError} Support code: {getSupportCode()}
+                </Text>
+              }
+            />
             {disabledAccountId && (
               <TouchableOpacity
                 onPress={handleReactivate}

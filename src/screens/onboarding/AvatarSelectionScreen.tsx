@@ -14,6 +14,7 @@ import { RootState, AppDispatch } from '../../store';
 import { avatars, getAvatarById } from '../../utils/avatarUtils'; // Import from the new utility file
 import analyticsService from '../../services/analytics';
 import { authFailure, authFailureMessage, type AuthFailure } from '../../services/authFailure';
+import ErrorNotice from '../../components/ErrorNotice';
 
 interface Props {
   navigation: any;
@@ -133,10 +134,19 @@ const AvatarSelectionScreen: React.FC<Props> = ({ navigation, route }) => {
           {takingLong && <Text accessibilityLiveRegion="polite">Account setup is taking longer than expected.</Text>}
           {failure && (
             <View style={{ marginTop: 12 }}>
-              <Text accessibilityRole="alert" style={{ color: '#B3261E' }}>
-                {authFailureMessage(failure)} {secondsLeft > 0 ? "Try again in " + secondsLeft + "s." : ''}
-              </Text>
-              <Text>Support code: {failure.supportCode}</Text>
+              <ErrorNotice
+                title="Account setup problem"
+                occurrence={failure}
+                message={`${authFailureMessage(failure)}${secondsLeft > 0 ? ` Try again in ${secondsLeft}s.` : ''} Support code: ${failure.supportCode}`}
+                desktopContent={
+                  <>
+                    <Text accessibilityRole="alert" style={{ color: '#B3261E' }}>
+                      {authFailureMessage(failure)} {secondsLeft > 0 ? "Try again in " + secondsLeft + "s." : ''}
+                    </Text>
+                    <Text>Support code: {failure.supportCode}</Text>
+                  </>
+                }
+              />
               {(['setup_interrupted', 'timeout'].includes(failure.kind)) && (
                 <TouchableOpacity accessibilityRole="button" onPress={() => navigation.navigate('Login')}>
                   <Text style={{ color: '#B3261E', paddingVertical: 12 }}>Go to sign-in</Text>

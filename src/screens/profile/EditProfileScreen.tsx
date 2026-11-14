@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from "react";
+import { showErrorAlert } from '../../services/errorAlerts';
 import {
   View,
   Text,
@@ -77,20 +78,20 @@ const EditProfileScreen: React.FC<Props> = ({ navigation }) => {
         Alert.alert('Success', 'Notifications enabled! You will receive daily reminders.');
       } else {
         setNotificationEnabled(false);
-        Alert.alert(
+        showErrorAlert(
           'Permission Denied',
           'Please enable notifications in your device settings to receive reminders.',
-          [
-            { text: 'Cancel', style: 'cancel' },
-            { text: 'Open Settings', onPress: () => {
-              // Open app settings (platform specific)
+          {
+            cancelLabel: 'Cancel',
+            label: 'Open Settings',
+            onPress: () => {
               if (Platform.OS === 'ios') {
                 Linking.openURL('app-settings:');
               } else {
                 Linking.openSettings();
               }
-            }}
-          ]
+            },
+          }
         );
       }
     } else {
@@ -131,7 +132,7 @@ const EditProfileScreen: React.FC<Props> = ({ navigation }) => {
       navigation.goBack();
     } catch (error) {
       console.error("Failed to update profile:", error);
-      Alert.alert("Error", "Failed to update profile. Please try again.");
+      showErrorAlert("Couldn’t update profile", "Failed to update profile. Please try again.");
     }
   };
 
@@ -144,7 +145,7 @@ const EditProfileScreen: React.FC<Props> = ({ navigation }) => {
       await dispatch(signOut()).unwrap();
     } catch (error: any) {
       setIsLogoutModalVisible(false);
-      Alert.alert("Error", error?.message || "Failed to sign out. Please try again.");
+      showErrorAlert("Sign out failed", error?.message || "Failed to sign out. Please try again.");
     }
   };
 
