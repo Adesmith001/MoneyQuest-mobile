@@ -36,31 +36,9 @@ assert.doesNotMatch(
 );
 assert.match(serviceWorker, /registration\.unregister\(\)/);
 
-assert.doesNotMatch(
-  homeScreen,
-  /await checkForNewSectionsAvailability\(\)/,
-  'content-version compatibility checks must never block cached startup content'
-);
-assert.ok(
-  homeScreen.indexOf('cachedBackendApi.getSections()') <
-    homeScreen.indexOf('void checkForNewSectionsAvailability()'),
-  'the home screen renders cached learning data before checking versions in the background'
-);
-assert.match(
-  homeScreen,
-  /await cachedBackendApi\.forceRefreshLearningPath\(\);/,
-  'a changed backend content version refreshes persisted learning data automatically'
-);
-assert.doesNotMatch(
-  homeScreen,
-  /\}, \[activeSectionIndex, checkForNewSectionsAvailability,/,
-  'viewing another section must not reload the learning path'
-);
-assert.match(
-  homeScreen,
-  /if \(!hasInitiallyLoadedRef\.current && sectionsData\.length > 0\) \{\s+setSections\(\[\.\.\.sectionsData\]\);/,
-  'background refreshes must retain the complete visible section list until replacement data is ready'
-);
+assert.match(homeScreen, /cachedBackendApi\.getLearningPath\(fresh\)/);
+assert.doesNotMatch(homeScreen, /backendApi\.getRecapSection\(|cachedBackendApi\.getLevels\(/,
+  'Home loads one public snapshot and defers recap questions');
 assert.ok(
   vercelConfig.headers.some(
     (rule) => rule.source === '/' &&

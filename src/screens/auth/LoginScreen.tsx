@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import { 
   View, 
   Text, 
@@ -13,7 +13,8 @@ import {
   Alert,
 } from 'react-native';
 import { useDispatch, useSelector } from 'react-redux';
-import { signIn, signInWithGoogle, reactivateAccount } from '../../store/slices/authSlice';
+import { signIn, signInWithGoogle, reactivateAccount, checkAuthStatus } from '../../store/slices/authSlice';
+import { authFailure, authFailureMessage } from '../../services/authFailure';
 import AuthService from '../../services/auth';
 import { RootState, AppDispatch } from '../../store';
 import { Ionicons } from '@expo/vector-icons';
@@ -21,7 +22,6 @@ import { getSupportCode } from '../../utils/supportCode';
 import { createLoginTrace } from '../../services/loginDiagnostics';
 
 const LOGIN_COOLDOWN_STORAGE_KEY = 'moneyquest_login_rate_limit_until';
-const LOGIN_RATE_LIMIT_COOLDOWN_MS = 5 * 60 * 1000;
 
 const readLoginCooldown = () => {
   try {
@@ -37,6 +37,7 @@ interface Props {
 }
 
 const LoginScreen: React.FC<Props> = ({ navigation }) => {
+  const submitting = useRef(false);
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [showPassword, setShowPassword] = useState(false);
@@ -49,7 +50,7 @@ const LoginScreen: React.FC<Props> = ({ navigation }) => {
   const [cooldownSeconds, setCooldownSeconds] = useState(0);
   useEffect(() => {
     if (!isLoading) { setTakingLong(false); return; }
-    const timer = setTimeout(() => setTakingLong(true), 12000);
+    const timer = setTimeout(() => setTakingLong(true), 3000);
     return () => clearTimeout(timer);
   }, [isLoading]);
 
@@ -69,39 +70,43 @@ const LoginScreen: React.FC<Props> = ({ navigation }) => {
   }, [rateLimitUntil]);
 
   const handleLogin = async () => {
-    if (rateLimitUntil > Date.now()) return;
+    if (submitting.current || rateLimitUntil > Date.now()) return;
     setDisabledAccountId(null);
     if (!email || !password) {
-      createLoginTrace(email, Boolean(password)).finish('failed', { authStage: 'client_validation', code: 'missing_fields' });
+      createLoginTrace().finish('failed', { stage: 'client_validation', kind: 'missing_fields' });
       setFormError('Please enter your email and password.');
       return;
     }
 
     if (!email.includes('@')) {
-      createLoginTrace(email, Boolean(password)).finish('failed', { authStage: 'client_validation', code: 'invalid_email_format' });
+      createLoginTrace().finish('failed', { stage: 'client_validation', kind: 'invalid_email_format' });
       setFormError('Please enter a valid email address.');
       return;
     }
 
+    submitting.current = true;
     try {
       setFormError('');
       const result = await dispatch(signIn({ email, password }));
       if (!signIn.fulfilled.match(result)) {
-        const errorMessage = result.payload as string;
-        if (errorMessage?.startsWith('ACCOUNT_DISABLED:')) {
-          setDisabledAccountId(errorMessage.split(':')[1] || null);
-          setFormError('Your account is disabled. Reactivate it to continue.');
-        } else {
-          setFormError(errorMessage || 'Sign-in failed. Please try again.');
-          if (errorMessage?.toLowerCase().includes('too many login attempts')) {
-            const until = Date.now() + LOGIN_RATE_LIMIT_COOLDOWN_MS;
-            setRateLimitUntil(until);
-            try { window.sessionStorage.setItem(LOGIN_COOLDOWN_STORAGE_KEY, String(until)); } catch {}
-          }
+        const failure = authFailure(result.payload, 'session_create');
+        setDisabledAccountId(failure.accountId || null);
+        setFormError(authFailureMessage(failure) + (
+          ['offline', 'unavailable', 'timeout', 'unknown'].includes(failure.kind)
+            ? ' Support code: ' + failure.supportCode : ''
+        ));
+        if (failure.kind === 'active_session') {
+          dispatch(checkAuthStatus());
+        }
+        if (failure.retryAt) {
+          setRateLimitUntil(failure.retryAt);
+          try { window.sessionStorage.setItem(LOGIN_COOLDOWN_STORAGE_KEY, String(failure.retryAt)); } catch {}
         }
       }
     } catch {
       setFormError('Sign-in failed. Check your connection and try again.');
+    } finally {
+      submitting.current = false;
     }
   };
 
@@ -229,7 +234,7 @@ const LoginScreen: React.FC<Props> = ({ navigation }) => {
                     : 'Log in'}
               </Text>
             </TouchableOpacity>
-            {takingLong && <Text style={{ color: '#555', textAlign: 'center', marginBottom: 12 }}>Login is taking longer than expected. Check your connection. If it does not finish, reload and try again. Support code: {getSupportCode()}</Text>}
+            {takingLong && <Text style={{ color: '#555', textAlign: 'center', marginBottom: 12 }}>Sign-in is taking longer than expected. Checking your connection… Support code: {getSupportCode()}</Text>}
 
             {/* <View style={styles.divider}>
               <Text style={styles.dividerText}>OR LOGIN WITH</Text>

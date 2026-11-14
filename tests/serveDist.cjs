@@ -16,7 +16,7 @@ const contentTypes = {
 http.createServer(async (request, response) => {
   try {
     const pathname = decodeURIComponent(new URL(request.url, 'http://localhost').pathname);
-    const requestedPath = pathname === '/' ? '/index.html' : pathname;
+    const requestedPath = path.extname(pathname) ? pathname : '/index.html';
     const filePath = path.join(root, requestedPath);
     const body = await fs.readFile(filePath);
     response.writeHead(200, { 'Content-Type': contentTypes[path.extname(filePath)] || 'application/octet-stream' });

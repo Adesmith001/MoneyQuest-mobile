@@ -41,7 +41,7 @@ const rootReducer = (
   const previousUserId = state?.auth?.user?.$id ?? null;
   const reducedState = appReducer(state, action);
 
-  if (action.type === 'auth/signOut/fulfilled' || action.type === 'auth/signOut/rejected' || action.type === 'auth/logout') {
+  if (action.type === 'auth/signOut/fulfilled' || action.type === 'auth/logout') {
     return {
       ...reducedState,
       ...getInitialUserScopedState(),

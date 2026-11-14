@@ -19,7 +19,16 @@ const account = {
   get: async () => { if (accountError) throw accountError; return accountInfo; },
   deleteSession: async () => { deleted++; },
 };
+function loadAuthFailure() {
+  const code = ts.transpileModule(fs.readFileSync(path.join(__dirname, '../src/services/authFailure.ts'), 'utf8'), {
+    compilerOptions: { module: ts.ModuleKind.CommonJS },
+  }).outputText;
+  const exports = {};
+  new Function('exports', 'require', code)(exports, () => ({ getSupportCode: () => 'MQ-TEST' }));
+  return exports;
+}
 const mocks = {
+  './authFailure': loadAuthFailure(),
   './appwrite': { default: {}, account, databases: {}, storage: {}, DB_ID: 'db', COLLECTIONS: { USERS: 'users' }, STORAGE_BUCKET: 'bucket', Query: {} },
   'react-native-appwrite': { ID: { unique: () => 'id' }, OAuthProvider: {} },
   'react-native': { Platform: { OS: 'web' } },
@@ -63,10 +72,10 @@ const auth = moduleForTest.exports.default;
   console.error = () => {};
   try {
     accountError = Object.assign(new Error('account service unavailable'), { code: 503 });
-    await assert.rejects(auth.getCurrentUser(true), error => error.authStage === 'account_read');
+    await assert.rejects(auth.getCurrentUser(true), error => error.stage === 'account_read');
     accountError = null;
     profileError = Object.assign(new Error('profile service unavailable'), { code: 503 });
-    await assert.rejects(auth.getCurrentUser(true), error => error.authStage === 'profile_read');
+    await assert.rejects(auth.getCurrentUser(true), error => error.stage === 'profile_read');
   } finally {
     console.error = originalConsoleError;
   }

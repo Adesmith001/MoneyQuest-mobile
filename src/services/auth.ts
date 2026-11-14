@@ -20,27 +20,62 @@ import { buildUserDocumentData, findOrCreateUserDocument } from "./authProfile";
 import schoolEntitlementService from './schoolEntitlementService';
 import { getPasswordValidationError } from '../utils/passwordValidation';
 import { isMissingSessionError } from '../utils/authCheckPolicy';
+import { authDeadline, authFailure, authRequest } from './authFailure';
 import type { LoginStep } from './loginDiagnostics';
 
 class AuthService {
-  private pendingEmailSession: Promise<unknown> | null = null;
+  private sessionOperation: Promise<unknown> | null = null;
 
-  private async withAuthTimeout<T>(request: Promise<T>, stage: string): Promise<T> {
-    let timer: ReturnType<typeof setTimeout> | undefined;
+  private async changeSession<T>(start: () => Promise<T>, timeoutMs: number, stage: string): Promise<T> {
+    if (this.sessionOperation) throw authFailure({ code: 'auth_in_progress' }, stage);
+    const run = async () => {
+      try {
+        return await start();
+      } catch (error) {
+        throw authFailure(error, stage);
+      }
+    };
+    const locks = this.isWeb() && typeof navigator !== 'undefined' ? navigator.locks : undefined;
+    const operation = locks
+      ? locks.request('moneyquest-auth', { ifAvailable: true }, lock => {
+        if (!lock) throw authFailure({ code: 'auth_in_progress' }, stage);
+        return run();
+      })
+      : run();
+    this.sessionOperation = operation;
+    const release = () => {
+      if (this.sessionOperation === operation) this.sessionOperation = null;
+    };
+    void operation.then(release, release);
+    return authRequest(authDeadline(timeoutMs), () => operation, stage);
+  }
+
+  private async createEmailSession(email: string, password: string, deadline: ReturnType<typeof authDeadline>) {
+    let pending: ReturnType<typeof account.createEmailPasswordSession> | undefined;
     try {
-      return await Promise.race([
-        request,
-        new Promise<T>((_, reject) => {
-          timer = setTimeout(() => {
-            reject(Object.assign(new Error('Sign-in timed out. Check your connection and try again.'), {
-              code: 'timeout', authStage: stage,
-            }));
-          }, 15000);
-        }),
-      ]);
-    } finally {
-      if (timer) clearTimeout(timer);
+      return await authRequest(deadline, () => {
+        pending = account.createEmailPasswordSession({ email: email.trim(), password });
+        return pending;
+      }, 'session_create');
+    } catch (error) {
+      if (authFailure(error, 'session_create').kind === 'timeout' && pending) {
+        // Hold the session lock until this request settles. Delete only the session it created.
+        const session = await pending.catch(() => null);
+        if (session?.$id) await account.deleteSession(session.$id).catch(() => {});
+      }
+      throw error;
     }
+  }
+
+  clearLocalAuthCache() {
+    backendApi.clearAuthCache();
+  }
+
+  private publishWebAccount(accountId: string | null) {
+    if (!this.isWeb() || typeof window === 'undefined') return;
+    try {
+      window.localStorage.setItem('moneyquest_active_user_id', accountId ?? '');
+    } catch { /* storage can be disabled */ }
   }
 
   private isWeb(): boolean {
@@ -186,172 +221,93 @@ class AuthService {
   }
 
   // Sign in with email and password
-  async signIn(email: string, password: string, onStep?: (step: LoginStep) => void): Promise<any> {
-    let authStage = 'session_create';
-    let emailSessionCreated = false;
-    try {
-      // A timed-out Appwrite request cannot be aborted by the SDK. Do not
-      // allow a retry to race a still-running session-create request.
-      if (this.pendingEmailSession) {
-        const pendingError = Object.assign(
-          new Error('A sign-in request is still processing. Refresh this page before trying again.'),
-          { code: 'auth_in_progress', authStage: 'session_create' },
-        );
-        throw pendingError;
-      }
-
-      // Create email session. Keep ownership of the underlying request until
-      // it settles even if the UI deadline expires.
-      authStage = 'session_create';
+  async signIn(email: string, password: string, onStep?: (step: LoginStep) => void) {
+    const deadline = authDeadline(15000);
+    return this.changeSession(async () => {
       onStep?.('session_request_sent');
-      const sessionRequest = account.createEmailPasswordSession({ email: email.trim(), password });
-      this.pendingEmailSession = sessionRequest;
-      let sessionCreateTimedOut = false;
-      void sessionRequest.then(async () => {
-        if (sessionCreateTimedOut) {
-          // The user was already told this attempt timed out. Remove its late
-          // session so it cannot silently authenticate a later page state.
-          await account.deleteSession('current').catch(() => {});
-        }
-        if (this.pendingEmailSession === sessionRequest) this.pendingEmailSession = null;
-      }, () => {
-        if (this.pendingEmailSession === sessionRequest) this.pendingEmailSession = null;
-      });
-      try {
-        await this.withAuthTimeout(sessionRequest, authStage);
-      } catch (error) {
-        if ((error as { code?: unknown })?.code === 'timeout') sessionCreateTimedOut = true;
-        throw error;
-      }
-      emailSessionCreated = true;
+      const session = await this.createEmailSession(email, password, deadline);
       onStep?.('session_created');
 
-      // Check if account is disabled before proceeding
-      authStage = 'account_read';
-      onStep?.('account_request_sent');
-      const accountInfo = await this.withAuthTimeout(account.get(), authStage);
-      onStep?.('account_read');
-      authStage = 'profile_read';
-      onStep?.('profile_request_sent');
-      const userDoc = await this.withAuthTimeout(this.ensureUserDocument(accountInfo), authStage);
-      onStep?.('profile_read');
-      if (userDoc?.accountStatus === 'disabled') {
-        // Keep session alive so the user can reactivate from the login screen
-        throw new Error('ACCOUNT_DISABLED:' + accountInfo.$id);
-      }
-
-      return {
-        currentUser: {
-          ...userDoc,
-          $id: userDoc.$id,
-          email: accountInfo.email,
-          name: accountInfo.name,
-        },
-        userDocument: userDoc,
-      };
-    } catch (error) {
-      const errorMessage = error instanceof Error ? error.message : '';
-      if (emailSessionCreated && !errorMessage.startsWith('ACCOUNT_DISABLED:')) {
-        onStep?.('session_cleanup_started');
-        await account.deleteSession('current').catch(() => {});
-        onStep?.('session_cleanup_finished');
-        backendApi.clearAuthCache();
-      }
-      if (error && typeof error === 'object') Object.assign(error, { authStage });
-      console.error('Sign in error:', error);
-      throw error;
-    }
-  }
-
-  // Sign out
-  async signOut(): Promise<void> {
-    backendApi.clearAuthCache();
-    try {
-      await account.deleteSession("current");
-    } catch (error) {
-      // Expired or missing sessions are already signed out; other failures
-      // must reach the caller so it does not offer another login too early.
-      if (!isMissingSessionError(error)) {
-        console.error("Sign out error:", error);
+      try {
+        onStep?.('account_request_sent');
+        const accountInfo = await authRequest(deadline, () => account.get(), 'account_read');
+        onStep?.('account_read');
+        onStep?.('profile_request_sent');
+        const userDocument = await authRequest(deadline, () => this.ensureUserDocument(accountInfo), 'profile_read');
+        onStep?.('profile_read');
+        if (userDocument?.accountStatus === 'disabled') {
+          throw authFailure(new Error('ACCOUNT_DISABLED:' + accountInfo.$id), 'profile_read');
+        }
+        this.clearLocalAuthCache();
+        this.publishWebAccount(accountInfo.$id);
+        return { currentUser: { ...userDocument, email: accountInfo.email, name: accountInfo.name }, userDocument };
+      } catch (error) {
+        if (authFailure(error, 'profile_read').kind !== 'disabled' && session?.$id) {
+          onStep?.('session_cleanup_started');
+          await account.deleteSession(session.$id).catch(() => {});
+          onStep?.('session_cleanup_finished');
+          backendApi.clearAuthCache();
+        }
         throw error;
       }
-    }
+    }, 15000, 'session_create');
+  }
 
-    // Remove any SDK localStorage fallback after ending the Appwrite session.
-    this.clearWebSessionRemnants();
+  async signOut(expectedUserId?: string): Promise<void> {
+    await this.changeSession(async () => {
+      if (expectedUserId && this.isWeb() && typeof window !== 'undefined') {
+        let active: string | null = null;
+        try { active = window.localStorage.getItem('moneyquest_active_user_id'); } catch { /* storage can be disabled */ }
+        if (active && active !== expectedUserId) return;
+      }
+      backendApi.clearAuthCache();
+      try {
+        await account.deleteSession('current');
+      } catch (error) {
+        if (!isMissingSessionError(error)) throw error;
+      }
+      this.clearWebSessionRemnants();
+      this.publishWebAccount(null);
+    }, 15000, 'session_cleanup');
+  }
+
+  async restoreSession() {
+    const deadline = authDeadline(15000);
+    try {
+      const session = await authRequest(deadline, () => account.getSession('current'), 'session_read');
+      if (!session) return null;
+      const closeInvalidSession = () => this.changeSession(async () => {
+        try {
+          await account.deleteSession(session.$id);
+        } catch (error) {
+          if (!isMissingSessionError(error)) throw error;
+        }
+      }, 15000, 'session_cleanup');
+      if (session.provider === 'anonymous') {
+        await authRequest(deadline, closeInvalidSession, 'session_cleanup');
+        return null;
+      }
+      const info = await authRequest(deadline, () => account.get(), 'account_read');
+      if (session.userId && session.userId !== info.$id) throw authFailure({ code: 'auth_in_progress' }, 'session_read');
+      if (!info.email?.trim()) {
+        await authRequest(deadline, closeInvalidSession, 'session_cleanup');
+        return null;
+      }
+      const userDocument = await authRequest(deadline, () => this.ensureUserDocument(info), 'profile_read');
+      const currentUser = { ...userDocument, $id: info.$id, email: info.email, name: info.name } as User;
+      return { currentUser, userDocument };
+    } catch (error) {
+      const failure = authFailure(error, 'session_read');
+      if (failure.kind === 'expired') return null;
+      throw failure;
+    }
   }
 
   // Get current user
   async getCurrentUser(strict = false): Promise<any> {
-    let authStage = 'session_read';
     try {
-      // First check if there's an active session
-      let session;
-      try {
-        session = await account.getSession('current');
-      } catch (error) {
-        if (strict && !isMissingSessionError(error)) throw error;
-        return null;
-      }
-
-      if (!session) {
-        return null;
-      }
-
-      if (session.provider === 'anonymous') {
-        authStage = 'session_cleanup';
-        await this.signOut();
-        return null;
-      }
-
-      // Get the account info
-      authStage = 'account_read';
-      const account_info = await account.get();
-
-      if (!account_info.email?.trim()) {
-        authStage = 'session_cleanup';
-        await this.signOut();
-        return null;
-      }
-
-      // Ensure the Appwrite auth user has a corresponding profile document.
-      authStage = 'profile_read';
-      const userDoc = await this.ensureUserDocument(account_info);
-
-      if (!userDoc) {
-        return null;
-      }
-
-      return {
-        $id: userDoc.$id, // Use document ID
-        userId: userDoc.userId,
-        email: account_info.email,
-        name: account_info.name,
-        username: userDoc.username,
-        phoneNumber: userDoc.phoneNumber,
-        profilePicture: userDoc.profilePicture,
-        profilePictureId: userDoc.profilePictureId,
-        age: userDoc.age,
-        learningLimit: userDoc.learningLimit,
-        mainGoal: userDoc.mainGoal,
-        referralSource: userDoc.referralSource,
-        avatar: userDoc.avatar,
-        xp: userDoc.xp,
-        level: userDoc.level,
-        currentSection: userDoc.currentSection,
-        streak: userDoc.streak,
-        lastLoginDate: userDoc.lastLoginDate,
-        totalQuestionsAnswered: userDoc.totalQuestionsAnswered,
-        correctAnswers: userDoc.correctAnswers,
-        monthlyXP: userDoc.monthlyXP,
-        hasCompletedTutorial: userDoc.hasCompletedTutorial || false,
-        $createdAt: account_info.$createdAt,
-        $updatedAt: account_info.$updatedAt,
-      } as User;
-
+      return (await this.restoreSession())?.currentUser ?? null;
     } catch (error) {
-      if (error && typeof error === 'object') Object.assign(error, { authStage });
-      console.error('Get current user error:', error);
       if (strict) throw error;
       return null;
     }
@@ -580,113 +536,38 @@ class AuthService {
     referralSource: string;
     avatar: string;
   }): Promise<any> {
-    let newAccount: any = null;
-
+    const deadline = authDeadline(20000);
+    let accountCreated = false;
     try {
-      const passwordError = getPasswordValidationError(password);
-      if (passwordError) {
-        throw new Error(passwordError);
-      }
+      return await this.changeSession(async () => {
+        const passwordError = getPasswordValidationError(password);
+        if (passwordError) throw authFailure({ code: 400 }, 'signup_validation');
+        const newAccount = await account.create(ID.unique(), email.trim(), password, name).catch(error => {
+          throw authFailure(error, 'account_create');
+        });
+        accountCreated = true;
+        let session: Awaited<ReturnType<typeof account.createEmailPasswordSession>> | undefined;
 
-      // Step 1: Create the account
-      newAccount = await account.create(
-        ID.unique(),
-        email,
-        password,
-        name
-      );
-
-      // Step 2: Immediately sign in the user after account creation
-      await account.createEmailPasswordSession(email, password);
-
-      // Step 3: Now get the current user (session is established)
-      const user = await account.get();
-
-      // Step 4: Create or repair the user document with all onboarding data
-      const seededPayload = buildUserDocumentData(user, {
-        username,
-        schoolName,
-        phoneNumber,
-        age,
-        learningLimit,
-        mainGoal,
-        referralSource,
-        avatar,
-      });
-      const userDocument = await findOrCreateUserDocument({
-        databases,
-        dbId: DB_ID,
-        usersCollectionId: COLLECTIONS.USERS,
-        accountInfo: user,
-        profileSeed: seededPayload as any,
-      });
-
-      // Account, session, and profile are sufficient to enter the app.
-      // School entitlement and initial lesson progress can finish later.
-      schoolEntitlementService.claimByEmail().catch(error =>
-        console.warn('School entitlement claim will retry later:', error)
-      );
-
-      void (async () => {
         try {
-          const sections = await backendApi.getSections();
-          if (sections.length > 0) {
-            const firstSection = sections[0];
-            if (firstSection.section_id) {
-              const levels = await backendApi.getSectionLevels(firstSection.section_id);
-              if (levels.length > 0) {
-                const firstLevel = levels[0];
-                await databases.updateDocument(DB_ID, COLLECTIONS.USERS, user.$id, {
-                  currentSectionId: firstSection.section_id,
-                  currentLevelId: firstLevel.level_id,
-                });
-                userDocument.currentSectionId = firstSection.section_id;
-                userDocument.currentLevelId = firstLevel.level_id;
-              }
-            }
-          }
-        } catch (progressError) {
-          console.error('Failed to initialize user progress:', progressError);
+          session = await this.createEmailSession(email, password, deadline);
+          const user = await authRequest(deadline, () => account.get(), 'account_read');
+          if (user.$id !== newAccount.$id) throw new Error('The active account changed');
+          const userDocument = await authRequest(deadline, () => this.ensureUserDocument(user, {
+            username, schoolName, phoneNumber, age, learningLimit, mainGoal, referralSource, avatar,
+          }), 'profile_read');
+          this.clearLocalAuthCache();
+          this.publishWebAccount(user.$id);
+          void schoolEntitlementService.claimByEmail().catch(() => {});
+          return { currentUser: user, userDocument };
+        } catch (error) {
+          if (session?.$id) await account.deleteSession(session.$id).catch(() => {});
+          throw { ...authFailure(error, 'profile_read'), kind: 'setup_interrupted' };
         }
-      })();
-
-      // Step 5: Return the combined user data
-      return {
-        currentUser: user,
-        userDocument: {
-          $id: userDocument.$id, // Document ID (same as user ID)
-          email: user.email,
-          name: user.name,
-          username: userDocument.username,
-          schoolName: userDocument.schoolName,
-          phoneNumber: userDocument.phoneNumber,
-          profilePicture: userDocument.profilePicture,
-          profilePictureId: userDocument.profilePictureId,
-          age: userDocument.age,
-          learningLimit: userDocument.learningLimit,
-          mainGoal: userDocument.mainGoal,
-          referralSource: userDocument.referralSource,
-          avatar: userDocument.avatar,
-          xp: userDocument.xp,
-          level: userDocument.level,
-          currentSection: userDocument.currentSection,
-          streak: userDocument.streak,
-          lastLoginDate: userDocument.lastLoginDate,
-          totalQuestionsAnswered: userDocument.totalQuestionsAnswered,
-          correctAnswers: userDocument.correctAnswers,
-          monthlyXP: userDocument.monthlyXP,
-          $createdAt: user.$createdAt,
-          $updatedAt: user.$updatedAt,
-        }
-      };
-
-    } catch (error: any) {
-      console.error('Create account with onboarding error:', error);
-
-      if (newAccount?.$id) {
-        throw new Error('Your account was created, but setup was interrupted. Please sign in to finish setup.');
-      }
-      throw new Error(`Account creation failed: ${error.message}`);
+      }, 20000, 'account_create');
+    } catch (error) {
+      const failure = authFailure(error, 'account_create');
+      if (accountCreated && failure.kind === 'timeout') throw { ...failure, kind: 'setup_interrupted' };
+      throw failure;
     }
   }
 
@@ -733,49 +614,21 @@ class AuthService {
   // Send password recovery email
   // The user will reset their password on a web page and then login back in the app
   async sendPasswordRecovery(email: string): Promise<void> {
-    try {
-      // Using the school dashboard domain since it's already registered in Appwrite
-      const recoveryUrl = `https://moneyquestschooldashboard.vercel.app/reset-password`;
-      await account.createRecovery(email, recoveryUrl);
-    } catch (error: any) {
-      console.error("Send password recovery error:", error);
-      if (error.code === 404) {
-        throw new Error("No account found with this email address.");
-      } else if (error.code === 429) {
-        throw new Error("Too many requests. Please wait before trying again.");
-      } else if (error.code === 400 && error.message?.includes('Invalid `url` param')) {
-        throw new Error("Password reset is not properly configured. Please contact support.");
+    await this.changeSession(async () => {
+      try {
+        await account.createRecovery(email.trim(), 'https://moneyquest.nurtureehaven.com/reset-password');
+      } catch (error) {
+        // Match the successful response when the address is unknown.
+        if (Number((error as { code?: number })?.code) !== 404) throw error;
       }
-      throw new Error(error.message || "Failed to send recovery email. Please try again.");
-    }
+    }, 15000, 'recovery_send');
   }
 
-  // Complete password recovery (called from web page)
-  async completePasswordRecovery(
-    userId: string,
-    secret: string,
-    password: string,
-    confirmPassword: string
-  ): Promise<void> {
-    try {
-      if (password !== confirmPassword) {
-        throw new Error("Passwords do not match.");
-      }
-
-      if (password.length < 8) {
-        throw new Error("Password must be at least 8 characters long.");
-      }
-
-      await account.updateRecovery(userId, secret, password);
-    } catch (error: any) {
-      console.error("Complete password recovery error:", error);
-      if (error.code === 401) {
-        throw new Error("Invalid or expired recovery code. Please request a new password reset.");
-      } else if (error.code === 400) {
-        throw new Error("Invalid password format.");
-      }
-      throw new Error(error.message || "Failed to reset password. Please try again.");
+  async completePasswordRecovery(userId: string, secret: string, password: string, confirmPassword: string) {
+    if (password !== confirmPassword || password.length < 8) {
+      throw authFailure({ code: 400 }, 'recovery_complete');
     }
+    await this.changeSession(() => account.updateRecovery(userId, secret, password), 15000, 'recovery_complete');
   }
 
   // Create verification for email

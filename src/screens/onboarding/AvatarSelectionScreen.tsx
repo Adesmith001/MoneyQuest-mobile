@@ -7,14 +7,13 @@ import {
   TouchableOpacity,
   ScrollView,
   Image,
-  Alert,
 } from 'react-native';
 import { useDispatch, useSelector } from 'react-redux';
 import { signUpWithOnboarding } from '../../store/slices/authSlice';
 import { RootState, AppDispatch } from '../../store';
 import { avatars, getAvatarById } from '../../utils/avatarUtils'; // Import from the new utility file
 import analyticsService from '../../services/analytics';
-import { getSupportCode } from '../../utils/supportCode';
+import { authFailure, authFailureMessage, type AuthFailure } from '../../services/authFailure';
 
 interface Props {
   navigation: any;
@@ -25,15 +24,26 @@ const AvatarSelectionScreen: React.FC<Props> = ({ navigation, route }) => {
   const [selectedAvatar, setSelectedAvatar] = useState<string>('');
   const dispatch = useDispatch<AppDispatch>();
   const { isLoading } = useSelector((state: RootState) => state.auth);
+  const [failure, setFailure] = useState<AuthFailure | null>(null);
+  const [secondsLeft, setSecondsLeft] = useState(0);
+  useEffect(() => {
+    const update = () => setSecondsLeft(Math.max(0, Math.ceil(((failure?.retryAt ?? 0) - Date.now()) / 1000)));
+    update();
+    if (!failure?.retryAt) return;
+    const timer = setInterval(update, 1000);
+    return () => clearInterval(timer);
+  }, [failure?.retryAt]);
+
   const [takingLong, setTakingLong] = useState(false);
   useEffect(() => {
     if (!isLoading) { setTakingLong(false); return; }
-    const timer = setTimeout(() => setTakingLong(true), 12000);
+    const timer = setTimeout(() => setTakingLong(true), 3000);
     return () => clearTimeout(timer);
   }, [isLoading]);
 
   const handleContinue = async () => {
-    if (!selectedAvatar) return;
+    if (!selectedAvatar || isLoading || (failure?.retryAt ?? 0) > Date.now()) return;
+    setFailure(null);
     
     const { registrationData, age, learningLimit, mainGoal, referralSource } = route.params;
     analyticsService
@@ -55,16 +65,11 @@ const AvatarSelectionScreen: React.FC<Props> = ({ navigation, route }) => {
         },
       }));
       
-      if (signUpWithOnboarding.fulfilled.match(result)) {
-        // Success! The auth state will show the welcome screen automatically
-        // No need to navigate manually
-      } else {
-        // Handle error
-        const errorMessage = result.payload as string;
-        Alert.alert('Sign Up Failed', errorMessage || 'Failed to create account');
+      if (!signUpWithOnboarding.fulfilled.match(result)) {
+        setFailure(authFailure(result.payload, 'account_create'));
       }
     } catch (error) {
-      Alert.alert('Error', 'Failed to create your account. Please try again.');
+      setFailure(authFailure(error, 'account_create'));
     }
   };
 
@@ -116,16 +121,29 @@ const AvatarSelectionScreen: React.FC<Props> = ({ navigation, route }) => {
           <TouchableOpacity
             style={[
               styles.continueButton,
-              (!selectedAvatar || isLoading) && styles.disabledButton,
+              (!selectedAvatar || isLoading || secondsLeft > 0) && styles.disabledButton,
             ]}
             onPress={handleContinue}
-            disabled={!selectedAvatar || isLoading}
+            disabled={!selectedAvatar || isLoading || secondsLeft > 0}
           >
             <Text style={styles.continueButtonText}>
               {isLoading ? 'Creating Account...' : 'Continue'}
             </Text>
           </TouchableOpacity>
-          {takingLong && <Text style={{ color: '#555', textAlign: 'center', marginTop: 12 }}>Signup is taking longer than expected. If it does not finish, reload and sign in with the same email. Avoid submitting signup again. Support code: {getSupportCode()}</Text>}
+          {takingLong && <Text accessibilityLiveRegion="polite">Account setup is taking longer than expected.</Text>}
+          {failure && (
+            <View style={{ marginTop: 12 }}>
+              <Text accessibilityRole="alert" style={{ color: '#B3261E' }}>
+                {authFailureMessage(failure)} {secondsLeft > 0 ? "Try again in " + secondsLeft + "s." : ''}
+              </Text>
+              <Text>Support code: {failure.supportCode}</Text>
+              {(['setup_interrupted', 'timeout'].includes(failure.kind)) && (
+                <TouchableOpacity accessibilityRole="button" onPress={() => navigation.navigate('Login')}>
+                  <Text style={{ color: '#B3261E', paddingVertical: 12 }}>Go to sign-in</Text>
+                </TouchableOpacity>
+              )}
+            </View>
+          )}
         </View>
       </ScrollView>
     </SafeAreaView>

@@ -30,7 +30,9 @@ const state = {
   },
 };
 const store = { getState: () => state, dispatch: () => {} };
+const savedPath = { version: "v1", sections: [] };
 const backendApi = {
+  getLearningPath: () => never,
   getSections: () => never,
   getSectionLevels: () => never,
 };
@@ -41,6 +43,7 @@ const cacheService = {
   replaceLearningPathCache: async () => {},
 };
 const mocks = {
+  '@react-native-async-storage/async-storage': { getItem: async () => JSON.stringify(savedPath) },
   '../store': { store },
   '../config/environment': { ENV: { MONEYQUEST_CACHE_TTL_SECONDS: '1' } },
   '../store/slices/learningSlice': {
@@ -76,6 +79,7 @@ const withDeadline = promise => Promise.race([
 (async () => {
   assert.deepEqual(await withDeadline(cachedBackendApi.getSections()), staleSections);
   assert.deepEqual(await withDeadline(cachedBackendApi.getLevels('cached-section')), staleLevels);
+  assert.deepEqual(await withDeadline(cachedBackendApi.getLearningPath()), savedPath);
   console.log('cachedBackendApiReliability: passed');
 })().catch(error => {
   console.error(error);

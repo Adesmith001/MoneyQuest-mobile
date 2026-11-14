@@ -38,16 +38,12 @@ export default async ({ req, res, log, error }) => {
   const code = safeString(body.code, /^[a-z0-9_-]*$/i, 48);
   const type = safeString(body.type, /^[a-z0-9_-]*$/i, 64);
   const platform = safeString(body.platform, /^(web|ios|android)$/, 8);
-  const emailSubmitted = safeString(body.emailSubmitted, /^[^\s<>]{1,254}$/, 254);
-  const emailHadOuterWhitespace = body.emailHadOuterWhitespace === true;
-  const passwordProvided = body.passwordProvided === true;
   const durationMs = Number.isSafeInteger(body.durationMs) && body.durationMs >= 0
     ? Math.min(body.durationMs, 120000) : null;
   const occurredAt = safeString(body.occurredAt, /^[0-9TZ:.+-]+$/, 40);
 
   if (kind === 'started') {
     log(`Login started | attempt ${attemptId} | support ${supportCode} | ${platform} | ${occurredAt}`);
-    log(`Diagnostic body: ${JSON.stringify({ emailSubmitted, emailHadOuterWhitespace, passwordProvided })}`);
     return res.json({ ok: true });
   }
 
@@ -60,10 +56,10 @@ export default async ({ req, res, log, error }) => {
     )) return res.json({ ok: false }, 400);
 
     log(`LOGIN ${outcome.toUpperCase()} | attempt ${attemptId} | support ${supportCode} | ${platform} | ${durationMs}ms`);
-    log(`Diagnostic body: ${JSON.stringify({
-      emailSubmitted, emailHadOuterWhitespace, passwordProvided, outcome,
-      authStage, code, type, durationMs, timeline,
-    })}`);
+    log(JSON.stringify({
+      attemptId, supportCode, platform, occurredAt, outcome, authStage, code, type, durationMs, timeline,
+      appVersion: safeString(body.appVersion, /^[\w.\-]{1,32}$/, 32),
+    }));
     timeline.forEach((item, index) => log(`${index + 1}. +${item.elapsedMs}ms ${item.step}`));
     if (outcome === 'failed') {
       const failedAt = authStage || (timeline.at(-1)?.step || 'unknown');

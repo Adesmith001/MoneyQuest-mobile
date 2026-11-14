@@ -7,8 +7,8 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 import revenueCatService from '../../services/revenueCatService';
 import analyticsService from '../../services/analytics';
 import schoolEntitlementService from '../../services/schoolEntitlementService';
-import { shouldApplyAuthCheck, getSessionCheckMessage } from '../../utils/authCheckPolicy';
-import { getSupportCode } from '../../utils/supportCode';
+import { shouldApplyAuthCheck } from '../../utils/authCheckPolicy';
+import { authFailure, authFailureMessage } from '../../services/authFailure';
 import { createLoginTrace } from '../../services/loginDiagnostics';
 import { captureIncident, recordBreadcrumb } from '../../services/errorMonitor';
 
@@ -29,7 +29,7 @@ export const signIn = createAsyncThunk(
   'auth/signIn',
   async ({ email, password }: { email: string; password: string }, { rejectWithValue, dispatch }) => {
     const startedAt = Date.now();
-    const trace = createLoginTrace(email, Boolean(password));
+    const trace = createLoginTrace();
     recordBreadcrumb('login_submitted');
     try {
       const { currentUser, userDocument } = await AuthService.signIn(
@@ -58,33 +58,10 @@ export const signIn = createAsyncThunk(
       // Identify user with RevenueCat (non-blocking)
       revenueCatService.identifyUser(currentUser.$id).catch(() => {});
       return { currentUser, userDocument };
-    } catch (error: any) {
-      void captureIncident(error, {
-        flow: 'login', stage: String(error?.authStage || 'session_request'),
-        action: 'login_failed', severity: error?.type === 'user_invalid_credentials' ? 'warning' : 'error',
-        statusCode: Number.isInteger(Number(error?.code)) ? Number(error.code) : undefined,
-        errorType: String(error?.type || 'sign_in_failed'),
-      });
-      trace.finish('failed', error);
-      void analyticsService.trackEvent('login_failed', {
-        auth_provider: 'email',
-        reason: String(error?.code || error?.type || 'unknown'),
-        error_type: String(error?.type || ''),
-        auth_stage: String(error?.authStage || 'unknown'),
-        support_code: getSupportCode(),
-        attempt_id: trace.attemptId,
-        status_code: Number(error?.code) || 0,
-        duration_ms: Date.now() - startedAt,
-      }).catch(() => {});
-      return rejectWithValue(Number(error?.code) === 429
-        ? 'Too many login attempts. Wait a few minutes before trying again.'
-        : error?.code === 'timeout'
-          ? 'Sign-in timed out. Check your connection and try again.'
-            : error?.type === 'user_session_already_exists'
-              ? 'This browser already has an active account. Sign out before signing in with another account.'
-              : error?.type === 'user_invalid_credentials'
-                ? 'Email or password is incorrect.'
-            : error?.message || 'Sign-in failed. Please try again.');
+    } catch (error: unknown) {
+      const failure = authFailure(error, 'session_create');
+      trace.finish('failed', failure);
+      return rejectWithValue(failure);
     }
   }
 );
@@ -141,11 +118,12 @@ export const signUp = createAsyncThunk(
 
 export const signOut = createAsyncThunk(
   'auth/signOut',
-  async (_, { rejectWithValue, dispatch }) => {
+  async (_, { rejectWithValue, dispatch, getState }) => {
     recordBreadcrumb('signout_started');
     try {
       // Do not expose the login screen until Appwrite has ended this session.
-      await AuthService.signOut();
+      const { auth } = getState() as { auth: AuthState };
+      await AuthService.signOut(auth.user?.$id);
       analyticsService.identifyUser(null);
       void analyticsService.endSession('logout').catch(() => {});
       void AsyncStorage.removeItem('userId').catch(() => {});
@@ -269,25 +247,12 @@ export const getCurrentUser = createAsyncThunk(
 
 export const checkAuthStatus = createAsyncThunk(
   'auth/checkAuthStatus',
-  async (_, { rejectWithValue, dispatch }) => {
+  async (_, { rejectWithValue, dispatch, getState, requestId }) => {
     recordBreadcrumb('session_restore_started');
     try {
-      // Never hang on a slow network: the app always renders after this
-      // resolves, so cap the session check with a hard timeout.
-      const verified = await Promise.race([
-        (async () => {
-          const currentUser = await AuthService.getCurrentUser(true);
-          if (!currentUser) return null;
-          const userDocument = await AuthService.getUserDocument(currentUser.$id);
-          if (!userDocument) throw Object.assign(new Error('Profile unavailable'), {
-            authStage: 'profile_read', type: 'profile_unavailable',
-          });
-          return { currentUser, userDocument };
-        })(),
-        new Promise<never>((_, reject) =>
-          setTimeout(() => reject(new Error('Session check timed out. Please retry.')), 10000)
-        ),
-      ]);
+      const hadAccount = Boolean((getState() as { auth: AuthState }).auth.user?.$id);
+      const verified = await AuthService.restoreSession();
+      if (!shouldApplyAuthCheck(requestId, (getState() as { auth: AuthState }).auth.activeCheckRequestId)) return null;
 
       if (verified) {
         const { currentUser, userDocument } = verified;
@@ -295,7 +260,7 @@ export const checkAuthStatus = createAsyncThunk(
 
         // Block disabled accounts on session restore
         if (userDocument?.accountStatus === 'disabled') {
-          await AuthService.signOut();
+          await AuthService.signOut(currentUser.$id);
           return null;
         }
 
@@ -312,18 +277,15 @@ export const checkAuthStatus = createAsyncThunk(
         return { currentUser, userDocument };
       }
 
+      if (hadAccount) return rejectWithValue(authFailure({ code: 401 }, 'session_read'));
       return null;
-    } catch (error: any) {
-      void captureIncident(error, { flow: 'startup', stage: String(error?.authStage || 'session_check'),
-        action: 'session_restore_failed', severity: 'error',
-        statusCode: Number.isInteger(Number(error?.code)) && Number(error.code) > 0 ? Number(error.code) : undefined,
-        errorType: String(error?.type || 'session_check_failed') });
-      void analyticsService.trackEvent('app_error', {
-        stage: String(error?.authStage || 'session_check'),
-        support_code: getSupportCode(),
-        error_code: String(error?.code ?? error?.status ?? 'network'),
-      }).catch(() => {});
-      return rejectWithValue(getSessionCheckMessage(error));
+    } catch (error: unknown) {
+      const failure = authFailure(error, 'session_read');
+      void captureIncident(new Error(authFailureMessage(failure)), {
+        flow: 'startup', stage: failure.stage, action: 'session_restore_failed',
+        severity: 'error', errorType: failure.kind,
+      });
+      return rejectWithValue(failure);
     }
   }
 );
@@ -456,15 +418,13 @@ export const signUpWithOnboarding = createAsyncThunk(
       recordBreadcrumb('onboarding_step_completed');
       
       return result;
-    } catch (error: any) {
-      void captureIncident(error, { flow: 'signup', stage: 'onboarding_registration',
-        action: 'signup_failed', severity: 'error', errorType: String(error?.type || 'signup_failed') });
-      void analyticsService.trackEvent('sign_up_failed', {
-        auth_provider: 'email',
-        source: 'onboarding_registration',
-        reason: String(error?.code || error?.type || 'unknown'),
-      }).catch(() => {});
-      return rejectWithValue(error.message);
+    } catch (error: unknown) {
+      const failure = authFailure(error, 'account_create');
+      void captureIncident(new Error(authFailureMessage(failure)), {
+        flow: 'signup', stage: failure.stage, action: 'signup_failed',
+        severity: 'error', errorType: failure.kind,
+      });
+      return rejectWithValue(failure);
     }
   }
 );
@@ -561,7 +521,7 @@ const authSlice = createSlice({
         state.isLoading = false;
         state.isAuthenticated = false;
         state.user = null;
-        state.error = action.payload as string;
+        state.error = authFailureMessage(authFailure(action.payload, 'session_create'));
       })
       // Sign Up
       .addCase(signUp.pending, (state) => {
@@ -671,7 +631,7 @@ const authSlice = createSlice({
       .addCase(checkAuthStatus.rejected, (state, action) => {
         if (!shouldApplyAuthCheck(action.meta.requestId, state.activeCheckRequestId)) return;
         state.activeCheckRequestId = null;
-        state.sessionCheckError = String(action.payload || 'Could not verify your session.');
+        state.sessionCheckError = authFailure(action.payload, 'session_read');
         state.isCheckingSession = false;
         state.isLoading = false;
       })
@@ -706,7 +666,7 @@ const authSlice = createSlice({
         state.isLoading = false;
         state.isAuthenticated = false;
         state.user = null;
-        state.error = action.payload as string;
+        state.error = authFailureMessage(authFailure(action.payload, 'account_create'));
       })
       // Complete OAuth Onboarding
       .addCase(completeOAuthOnboarding.pending, (state) => {

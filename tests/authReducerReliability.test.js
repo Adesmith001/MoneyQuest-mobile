@@ -8,7 +8,16 @@ const source = fs.readFileSync(path.join(__dirname, '../src/store/slices/authSli
 const javascript = ts.transpileModule(source, {
   compilerOptions: { module: ts.ModuleKind.CommonJS, target: ts.ScriptTarget.ES2020, esModuleInterop: true },
 }).outputText;
+function loadAuthFailure() {
+  const code = ts.transpileModule(fs.readFileSync(path.join(__dirname, '../src/services/authFailure.ts'), 'utf8'), {
+    compilerOptions: { module: ts.ModuleKind.CommonJS },
+  }).outputText;
+  const exports = {};
+  new Function('exports', 'require', code)(exports, () => ({ getSupportCode: () => 'MQ-TEST' }));
+  return exports;
+}
 const mocks = {
+  '../../services/authFailure': loadAuthFailure(),
   '@reduxjs/toolkit': toolkit,
   '../../services/auth': { default: {} },
   '../../services/googleAuth': { default: {} },
@@ -42,14 +51,14 @@ assert.equal(state.isAuthenticated, true);
 assert.equal(state.showWelcomeScreen, true);
 
 state = reducer(state, checkAuthStatus.pending('network-check', undefined));
-state = reducer(state, checkAuthStatus.rejected(null, 'network-check', undefined, 'network')); 
+state = reducer(state, checkAuthStatus.rejected(null, 'network-check', undefined, { kind: 'offline', stage: 'session_read', supportCode: 'MQ-TEST' }));
 assert.equal(state.user.$id, 'student-a', 'network error preserves the current account');
-assert.match(state.sessionCheckError, /network/);
+assert.equal(state.sessionCheckError.kind, 'offline');
 assert.equal(state.isLoading, false);
 assert.equal(state.isCheckingSession, false);
 
 state = reducer(state, signOut.pending('recover-session', undefined));
-assert.match(state.sessionCheckError, /network/, 'recovery keeps the error screen visible while signing out');
+assert.equal(state.sessionCheckError.kind, 'offline', 'recovery keeps the error screen visible while signing out');
 state = reducer(state, signOut.rejected(null, 'recover-session', undefined, 'Sign out failed'));
-assert.match(state.sessionCheckError, /network/, 'failed sign-out keeps recovery available');
+assert.equal(state.sessionCheckError.kind, 'offline', 'failed sign-out keeps recovery available');
 console.log('authReducerReliability: passed');

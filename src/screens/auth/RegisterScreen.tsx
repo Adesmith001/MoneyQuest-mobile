@@ -35,6 +35,7 @@ const RegisterScreen: React.FC<Props> = ({ navigation }) => {
   const dispatch = useDispatch<AppDispatch>();
   const { isLoading, error } = useSelector((state: RootState) => state.auth);
   const debounceTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const [formError, setFormError] = useState('');
   const passwordError = getPasswordValidationError(password);
 
   // Debounced real-time username availability check
@@ -59,28 +60,29 @@ const RegisterScreen: React.FC<Props> = ({ navigation }) => {
   }, [username]);
 
   const handleSignUp = async () => {
+    setFormError("");
     if (!firstName || !lastName || !username || !email || !password) {
-      Alert.alert('Error', 'Please fill in all fields');
+      setFormError('Please fill in all fields');
       return;
     }
 
     if (usernameStatus === 'taken') {
-      Alert.alert('Error', 'That username is already taken. Please choose another.');
+      setFormError('That username is already taken. Please choose another.');
       return;
     }
 
     if (usernameStatus === 'checking') {
-      Alert.alert('Please wait', 'Still checking username availability...');
+      setFormError('Still checking username availability...');
       return;
     }
 
     if (!email.includes('@')) {
-      Alert.alert('Error', 'Please enter a valid email address');
+      setFormError('Please enter a valid email address');
       return;
     }
 
     if (passwordError) {
-      Alert.alert('Invalid password', passwordError);
+      setFormError(passwordError);
       return;
     }
 
@@ -205,6 +207,7 @@ const RegisterScreen: React.FC<Props> = ({ navigation }) => {
                 autoCapitalize="none"
                 showPasswordToggle={true}
               />
+              {!!formError && <Text accessibilityRole="alert" style={styles.passwordError}>{formError}</Text>}
               {passwordError ? (
                 <Text style={styles.passwordError}>{passwordError}</Text>
               ) : null}

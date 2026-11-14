@@ -14,15 +14,24 @@ let initializedLessons = 0;
 let profileFailure = false;
 let sessionError = null;
 let getSessionCalls = 0;
+let sessionCreates = 0;
 let accountGetCalls = 0;
 let profileCalls = 0;
 const account = {
   create: async () => ({ $id: 'student-a' }),
-  createEmailPasswordSession: async () => ({}),
+  createEmailPasswordSession: async () => { sessionCreates++; return { $id: 'session-a' }; },
   get: async () => { accountGetCalls++; return { $id: 'student-a', email: 'student@example.test', name: 'Student A' }; },
   getSession: async () => { getSessionCalls++; if (sessionError) throw sessionError; return { $id: 'session-a' }; },
   deleteSession: async () => { deletedSessions++; },
 };
+function loadAuthFailure() {
+  const code = ts.transpileModule(fs.readFileSync(path.join(__dirname, '../src/services/authFailure.ts'), 'utf8'), {
+    compilerOptions: { module: ts.ModuleKind.CommonJS },
+  }).outputText;
+  const exports = {};
+  new Function('exports', 'require', code)(exports, () => ({ getSupportCode: () => 'MQ-TEST' }));
+  return exports;
+}
 const pending = new Promise(() => {});
 const mocks = {
   './appwrite': { default: {}, account, databases: {}, storage: {}, DB_ID: 'db', COLLECTIONS: { USERS: 'users' }, STORAGE_BUCKET: 'bucket', Query: {} },
@@ -36,6 +45,7 @@ const mocks = {
   } },
   './levelProgress': { levelProgressService: {} },
   '../utils': { getCurrentMonthKey: () => '', shouldResetMonthlyXP: () => false },
+  './authFailure': loadAuthFailure(),
   './authProfile': {
     buildUserDocumentData: (_account, seed) => seed,
     findOrCreateUserDocument: async () => {
@@ -73,26 +83,34 @@ const registration = {
   ]);
   assert.equal(result.userDocument.$id, 'student-a');
   assert.equal(claimed, 1);
-  assert.equal(initializedLessons, 1);
+  assert.equal(initializedLessons, 0);
   assert.equal(deletedSessions, 0);
 
   getSessionCalls = 0;
+  sessionCreates = 0;
   accountGetCalls = 0;
   profileCalls = 0;
   const signedIn = await auth.signIn('student@example.test', 'password123');
   assert.equal(signedIn.currentUser.$id, 'student-a');
   assert.equal(signedIn.userDocument.$id, 'student-a');
-  assert.equal(getSessionCalls, 1, 'sign-in checks the prior session once');
+  assert.equal(sessionCreates, 1, 'sign-in creates exactly one session');
+  assert.equal(getSessionCalls, 0, 'sign-in avoids an unnecessary preliminary session check');
   assert.equal(accountGetCalls, 1, 'sign-in reads the Appwrite account once');
   assert.equal(profileCalls, 1, 'sign-in hydrates the profile once');
   deletedSessions = 0;
 
   profileFailure = true;
-  await assert.rejects(auth.createAccountWithOnboarding(registration), /account was created.*sign in/i);
-  assert.equal(deletedSessions, 0, 'interrupted profile setup keeps recovery possible');
+  await assert.rejects(auth.createAccountWithOnboarding(registration), error => error.kind === 'setup_interrupted');
+  assert.equal(deletedSessions, 1, 'clean up only the interrupted attempt session');
+  profileFailure = false;
+  assert.equal((await auth.signIn(registration.email, registration.password)).currentUser.$id, 'student-a');
+  profileCalls = 0;
+  assert.equal((await auth.restoreSession()).userDocument.$id, 'student-a');
+  assert.equal(profileCalls, 1, 'restore hydrates the profile once');
+  deletedSessions = 0;
 
   sessionError = { code: 503 };
-  await assert.rejects(auth.getCurrentUser(true), error => error.code === 503);
+  await assert.rejects(auth.getCurrentUser(true), error => error.kind === "unavailable");
   sessionError = { code: 401 };
   assert.equal(await auth.getCurrentUser(true), null, 'expired session is distinct from outage');
   activeOwner = 'student-b';
@@ -102,6 +120,6 @@ const registration = {
   activeOwner = 'student-a';
   await auth.signOut('student-a');
   assert.equal(deletedSessions, 1, 'explicit owner sign-out deletes its server session');
-  assert.equal(activeOwner, null);
+  assert.equal(activeOwner, '');
   console.log('signupCriticalPath: passed');
 })().catch(error => { console.error(error); process.exitCode = 1; });

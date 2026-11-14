@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef } from "react";
+import React, { useState, useEffect, useRef, useMemo } from "react";
 import {
   View,
   Text,
@@ -35,6 +35,7 @@ import FlagQuestionModal from "../../components/modals/FlagQuestionModal";
 import { RootState } from "../../store";
 import ProgressBar from "../../components/progressBar";
 import CustomButton from "../../components/CustomButton";
+import { QuizCheckpoint, readQuizAttempt } from "../../services/quizCheckpoint";
 import questionService from "../../services/questions";
 import { backendApi, ApiHttpError } from "../../services/backendApi";
 import cachedBackendApi from "../../services/cachedBackendApi";
@@ -324,7 +325,7 @@ const QuestionScreen: React.FC<Props> = ({ navigation, route }) => {
   }>({});
 
   const [viewMode, setViewMode] = useState<"article" | "quiz">("article");
-  const quizScrollRef = useRef<ScrollView>(null);
+  const quizScrollRef = useRef<React.ComponentRef<typeof ScrollView>>(null);
 
   useEffect(() => {
     if (viewMode === "quiz") {
@@ -356,6 +357,11 @@ const QuestionScreen: React.FC<Props> = ({ navigation, route }) => {
   
   // Track if level results are being submitted (final submission)
   const [isSubmittingLevel, setIsSubmittingLevel] = useState(false);
+  const submissionInFlight = useRef(false);
+  const [submissionFailed, setSubmissionFailed] = useState(false);
+  const [quizStartError, setQuizStartError] = useState<string | null>(null);
+  const checkpoint = useMemo(() => user?.$id ? new QuizCheckpoint(user.$id, levelId) : null,
+    [user?.$id, levelId]);
   // Track if waiting for next question (disables button after answer)
   const [isWaitingForNext, setIsWaitingForNext] = useState(false);
 
@@ -394,27 +400,7 @@ const QuestionScreen: React.FC<Props> = ({ navigation, route }) => {
 
       refreshUserLives();
 
-      // Return cleanup function - runs when screen loses focus
-      return () => {
-        // Sync progress to Appwrite when leaving the screen
-        if (user?.$id && viewMode === "quiz" && currentQuestionIndex > 0) {
-          // Fire and forget - don't await
-          databases.updateDocument(
-            DB_ID,
-            COLLECTIONS.USERS,
-            user.$id,
-            {
-              currentLevelId: levelId,
-              currentSectionId: sectionId,
-              updatedAt: new Date().toISOString(),
-            }
-          ).then(() => {
-          }).catch((error) => {
-            console.error("☁️ Background sync failed on screen exit:", error);
-          });
-        }
-      };
-    }, [user?.$id, dispatch, viewMode, currentQuestionIndex, levelId, sectionId])
+    }, [user?.$id, dispatch])
   );
 
   // Load level data and questions from backend
@@ -659,8 +645,14 @@ const QuestionScreen: React.FC<Props> = ({ navigation, route }) => {
               ]
             );
 
-            if (progressDocs.documents.length > 0) {
-              const progress = progressDocs.documents[0];
+            const savedAttempt = await readQuizAttempt(user.$id, levelId).catch(() => null);
+            if (progressDocs.documents.length > 0 || savedAttempt?.checkpoint || savedAttempt?.submission) {
+              const progress = savedAttempt?.checkpoint || progressDocs.documents[0] || {};
+              if (savedAttempt?.submission) {
+                setSubmissionFailed(true);
+                setViewMode('quiz');
+                setCurrentQuestionIndex(Math.max(0, loadedQuestions.length - 1));
+              }
               const savedAttemptsValue = await AsyncStorage.getItem(
                 getQuizAttemptsStorageKey(user.$id, levelId)
               );
@@ -757,93 +749,19 @@ const QuestionScreen: React.FC<Props> = ({ navigation, route }) => {
 
   // Save progress to Appwrite whenever question index changes
   useEffect(() => {
-    async function saveProgress() {
-      if (!user?.$id || viewMode !== "quiz" || isLoading) return;
-
-      recordBreadcrumb('progress_save_started');
-      try {
-        const attemptsStorageKey = getQuizAttemptsStorageKey(user.$id, levelId);
-        await AsyncStorage.setItem(attemptsStorageKey, String(totalAttempts));
-
-        const progressDocs = await databases.listDocuments(
-          DB_ID,
-          COLLECTIONS.USER_PROGRESS,
-          [
-            Query.equal("userId", user.$id),
-            Query.equal("level", levelId),
-            Query.equal("isCompleted", false),
-          ]
-        );
-
-        const progressData = {
-          userId: user.$id,
-          level: levelId,
-          section: 1, // Section number for tracking (not UUID)
-          currentQuestionIndex,
-          questionsAnswered: currentQuestionIndex + 1,
-          questionsCorrect: correctAnswersCount,
-          xpEarned: xpGained,
-          // NOTE: `attempts` is intentionally not persisted here — the
-          // user_progress collection has no such attribute, so sending it
-          // made every save fail with a 400 before the fallback retry.
-          // Attempts are kept in AsyncStorage instead.
-          isCompleted: false,
-          updatedAt: new Date().toISOString(),
-        };
-        const fallbackProgressData = {
-          userId: user.$id,
-          level: levelId,
-          section: 1,
-          currentQuestionIndex,
-          questionsAnswered: currentQuestionIndex + 1,
-          questionsCorrect: correctAnswersCount,
-          xpEarned: xpGained,
-          isCompleted: false,
-          updatedAt: progressData.updatedAt,
-        };
-
-        if (progressDocs.documents.length > 0) {
-          try {
-            await databases.updateDocument(
-              DB_ID,
-              COLLECTIONS.USER_PROGRESS,
-              progressDocs.documents[0].$id,
-              progressData
-            );
-          } catch (error) {
-            await databases.updateDocument(
-              DB_ID,
-              COLLECTIONS.USER_PROGRESS,
-              progressDocs.documents[0].$id,
-              fallbackProgressData
-            );
-          }
-        } else {
-          try {
-            await databases.createDocument(
-              DB_ID,
-              COLLECTIONS.USER_PROGRESS,
-              "unique()",
-              progressData
-            );
-          } catch (error) {
-            await databases.createDocument(
-              DB_ID,
-              COLLECTIONS.USER_PROGRESS,
-              "unique()",
-              fallbackProgressData
-            );
-          }
-        }
-      } catch (error) {
-        console.error("Failed to save progress:", error);
-        void captureIncident(error, { flow: 'progress', stage: 'save_question_progress',
-          action: 'progress_save_failed', severity: 'error', screen: 'Question' });
-      }
-    }
-
-    saveProgress();
-  }, [currentQuestionIndex, correctAnswersCount, xpGained, totalAttempts, viewMode]);
+    if (!checkpoint || viewMode !== 'quiz' || isLoading || isRetake || isSubmittingLevel || submissionFailed) return;
+    void checkpoint.checkpoint({
+      currentQuestionIndex,
+      questionsAnswered: currentQuestionIndex + 1,
+      questionsCorrect: correctAnswersCount,
+      xpEarned: xpGained,
+      attempts: totalAttempts,
+    }).catch(error => {
+      void captureIncident(error, { flow: 'progress', stage: 'save_question_progress',
+        action: 'progress_save_failed', severity: 'error', screen: 'Question' });
+    });
+  }, [checkpoint, currentQuestionIndex, correctAnswersCount, xpGained, totalAttempts, viewMode,
+    isLoading, isRetake, isSubmittingLevel, submissionFailed]);
 
   /**
    * Background sync function to ensure user progress is saved to Appwrite
@@ -870,7 +788,14 @@ const QuestionScreen: React.FC<Props> = ({ navigation, route }) => {
     }
   };
 
-  const handleStartQuiz = () => {
+  const handleStartQuiz = async () => {
+    try {
+      await checkpoint?.start();
+    } catch {
+      setQuizStartError('We couldn’t start this quiz. Try again.');
+      return;
+    }
+    setQuizStartError(null);
     setStartTime(Date.now());
     setViewMode("quiz");
     recordBreadcrumb('lesson_started');
@@ -901,7 +826,7 @@ const QuestionScreen: React.FC<Props> = ({ navigation, route }) => {
 
   const handleSubmit = async () => {
     const currentQuestion = questions[currentQuestionIndex];
-    if (!currentQuestion || !user) return;
+    if (!currentQuestion || !user || submissionFailed || submissionInFlight.current) return;
 
     // Prevent multiple submissions
     if (isWaitingForNext) return;
@@ -1098,7 +1023,7 @@ const QuestionScreen: React.FC<Props> = ({ navigation, route }) => {
     const currentLives = user?.lives || 0;
     
     // If lives is 0, user cannot continue
-    if (currentLives <= 0) {
+    if (currentLives <= 0 && !submissionFailed) {
       Alert.alert(
         "Out of Lives! ❤️",
         "You've run out of lives. Complete a level to earn another life.",
@@ -1115,42 +1040,43 @@ const QuestionScreen: React.FC<Props> = ({ navigation, route }) => {
       return;
     }
 
-    if (currentQuestionIndex < questions.length - 1) {
+    if (!submissionFailed && currentQuestionIndex < questions.length - 1) {
       soundService.playSound("buttonPress"); // Button press sound
       setCurrentQuestionIndex(currentQuestionIndex + 1);
       dispatch(nextQuestion());
     } else {
-      // Level completed - submit results
-      if (!user) return;
-
-      setIsSubmittingLevel(true); // Show loading screen
-
-      const timeSpentMinutes = Math.round((Date.now() - startTime) / 60000);
-      
+      if (!user || !checkpoint || submissionInFlight.current) return;
+      submissionInFlight.current = true;
+      setIsSubmittingLevel(true);
+      setSubmissionFailed(false);
       const accuracy = calculateQuizAccuracy(correctAnswersCount, totalAttempts);
 
       try {
-        // Submit level completion to backend — pass xpGained so Appwrite gets the real per-question XP
+        const attempt = await checkpoint.start();
+        const submission = attempt.submission ?? {
+          correct: correctAnswersCount,
+          total: questions.length,
+          minutes: Math.min(1440, Math.max(0, Math.round((Date.now() - startTime) / 60000))),
+          xp: xpGained,
+          completionTime: new Date().toISOString(),
+          lives: getLevelCompletionLives(user.lives ?? 5),
+        };
+        await checkpoint.persist({ ...attempt, submission });
         const result = await questionService.submitLevelQuiz(
-          user.$id,
-          levelId,
-          correctAnswersCount,
-          questions.length,
-          timeSpentMinutes,
-          xpGained            // <-- actual per-question XP accumulated this session
+          user.$id, levelId, submission.correct, submission.total, submission.minutes, attempt.id,
         );
 
         recordBreadcrumb('lesson_completed');
-        await analyticsService.trackLessonCompleted(levelId, sectionId, {
+        void analyticsService.trackLessonCompleted(levelId, sectionId, {
           passed: result.passed,
           accuracy,
-          time_spent_minutes: timeSpentMinutes,
+          time_spent_minutes: submission.minutes,
           xp_gained: xpGained,
           question_count: questions.length,
           questions_correct: correctAnswersCount,
           total_attempts: totalAttempts,
           is_retake: isRetake,
-        });
+        }).catch(() => {});
 
         // Use the XP values that were actually committed to Appwrite (fresh DB read + xpGained)
         const { xp: newXP, monthlyXP: newMonthlyXP, totalXP: newTotalXP } = result.writtenXP;
@@ -1163,89 +1089,13 @@ const QuestionScreen: React.FC<Props> = ({ navigation, route }) => {
           updatedAt: new Date().toISOString(),
         };
 
-        // Mark level as completed in User Progress collection
         if (result.passed) {
-          try {
-            const existingProgress = await databases.listDocuments(
-              DB_ID,
-              COLLECTIONS.USER_PROGRESS,
-              [
-                Query.equal("userId", user.$id),
-                Query.equal("level", levelId),
-                Query.equal("isCompleted", false),
-              ]
-            );
-
-            if (existingProgress.documents.length > 0) {
-              // Update existing progress
-              try {
-                await databases.updateDocument(
-                  DB_ID,
-                  COLLECTIONS.USER_PROGRESS,
-                  existingProgress.documents[0].$id,
-                  {
-                    isCompleted: true,
-                    completedAt: new Date().toISOString(),
-                    currentQuestionIndex: questions.length - 1,
-                    questionsAnswered: questions.length,
-                    questionsCorrect: correctAnswersCount,
-                    xpEarned: xpGained,
-                  }
-                );
-              } catch (error) {
-                await databases.updateDocument(
-                  DB_ID,
-                  COLLECTIONS.USER_PROGRESS,
-                  existingProgress.documents[0].$id,
-                  {
-                    isCompleted: true,
-                    completedAt: new Date().toISOString(),
-                    currentQuestionIndex: questions.length - 1,
-                    questionsAnswered: questions.length,
-                    questionsCorrect: correctAnswersCount,
-                    xpEarned: xpGained,
-                  }
-                );
-              }
-            } else {
-              // Create new progress record
-              try {
-                await databases.createDocument(
-                  DB_ID,
-                  COLLECTIONS.USER_PROGRESS,
-                  "unique()",
-                  {
-                    userId: user.$id,
-                    level: levelId,
-                    section: 1,
-                    questionsAnswered: questions.length,
-                    questionsCorrect: correctAnswersCount,
-                    xpEarned: xpGained,
-                    isCompleted: true,
-                    completedAt: new Date().toISOString(),
-                  }
-                );
-              } catch (error) {
-                await databases.createDocument(
-                  DB_ID,
-                  COLLECTIONS.USER_PROGRESS,
-                  "unique()",
-                  {
-                    userId: user.$id,
-                    level: levelId,
-                    section: 1,
-                    questionsAnswered: questions.length,
-                    questionsCorrect: correctAnswersCount,
-                    xpEarned: xpGained,
-                    isCompleted: true,
-                    completedAt: new Date().toISOString(),
-                  }
-                );
-              }
-            }
-          } catch (progressError) {
-            console.error("Failed to update progress:", progressError);
-          }
+          await checkpoint.complete({
+            currentQuestionIndex: submission.total - 1,
+            questionsAnswered: submission.total,
+            questionsCorrect: submission.correct,
+            xpEarned: submission.xp,
+          }, submission.completionTime);
         }
         if (result.passed && user?.$id) {
           // Add to local cache AND ensure it's persisted for cross-platform sync
@@ -1272,21 +1122,17 @@ const QuestionScreen: React.FC<Props> = ({ navigation, route }) => {
         const completedLevelsCount = cachedCompletedLevels.length;
 
         let nextLevelToUnlock: string | null = result.next_level_id ?? null;
-        let nextSectionId = sectionId;
+        let nextSectionId = levelData?.section?.section_id || sectionId;
         let nextSectionTitle: string | null = null;
 
         if (result.passed) {
           try {
-            const allSections = await cachedBackendApi.getSections();
-            const regularSections = await Promise.all(
-              allSections
-                .filter((section) => section.section_id)
-                .map(async (section) => ({
-                  id: section.section_id!,
-                  title: section.title,
-                  levelIds: (await cachedBackendApi.getLevels(section.section_id!)).map((level) => level.level_id),
-                }))
-            );
+            const { sections: allSections } = await cachedBackendApi.getLearningPath();
+            const regularSections = allSections.filter(section => section.section_id).map(section => ({
+              id: section.section_id!,
+              title: section.title,
+              levelIds: section.levels.map(level => level.level_id),
+            }));
             const fallbackSectionId = regularSections[0]?.id;
             const referenceSectionId = regularSections.some((section) => section.id === sectionId)
               ? sectionId
@@ -1322,9 +1168,8 @@ const QuestionScreen: React.FC<Props> = ({ navigation, route }) => {
           updateData.currentSectionId = nextSectionId;
 
           // Add 1 life on level completion (cap at 5)
-          const currentLivesValue = user.lives !== undefined && user.lives !== null ? user.lives : 5;
-          const newLives = getLevelCompletionLives(currentLivesValue);
-          const newLastLifeRegenTime = new Date().toISOString();
+          const newLives = submission.lives ?? getLevelCompletionLives(user.lives ?? 5);
+          const newLastLifeRegenTime = submission.completionTime;
           
           updateData.lives = newLives;
           updateData.lastLifeRegenTime = newLastLifeRegenTime;
@@ -1348,12 +1193,11 @@ const QuestionScreen: React.FC<Props> = ({ navigation, route }) => {
           // Level completed but no next level (end of all sections/course)
           // Keep current level ID so progress is maintained
           updateData.currentLevelId = levelId;
-          updateData.currentSectionId = sectionId;
+          updateData.currentSectionId = nextSectionId;
 
           // Add 1 life on level completion (cap at 5)
-          const currentLivesValue = user.lives !== undefined && user.lives !== null ? user.lives : 5;
-          const newLives = getLevelCompletionLives(currentLivesValue);
-          const newLastLifeRegenTime = new Date().toISOString();
+          const newLives = submission.lives ?? getLevelCompletionLives(user.lives ?? 5);
+          const newLastLifeRegenTime = submission.completionTime;
           
           updateData.lives = newLives;
           updateData.lastLifeRegenTime = newLastLifeRegenTime;
@@ -1363,7 +1207,7 @@ const QuestionScreen: React.FC<Props> = ({ navigation, route }) => {
           dispatch(
             updateUser({
               currentLevelId: levelId,
-              currentSectionId: sectionId,
+              currentSectionId: nextSectionId,
               lives: newLives,
               lastLifeRegenTime: newLastLifeRegenTime,
               xp: newXP,
@@ -1402,6 +1246,7 @@ const QuestionScreen: React.FC<Props> = ({ navigation, route }) => {
 
         // Silently refresh leaderboard so the user's new rank is visible immediately
         dispatch(fetchLeaderboard({ silent: true }) as any);
+        await checkpoint.clear();
         await AsyncStorage.removeItem(getQuizAttemptsStorageKey(user.$id, levelId));
 
         dispatch(nextLevel());
@@ -1431,13 +1276,10 @@ const QuestionScreen: React.FC<Props> = ({ navigation, route }) => {
         console.error("Error submitting level:", error);
         void captureIncident(error, { flow: 'progress', stage: 'level_submission',
           action: 'progress_save_failed', severity: 'error', screen: 'Question' });
-        await AsyncStorage.removeItem(getQuizAttemptsStorageKey(user.$id, levelId));
-        // Still navigate to completion screen even if submission fails
-        navigation.replace("LevelCompletion", {
-          xpGained: xpGained,
-          accuracy,
-          sectionId,
-        });
+        setSubmissionFailed(true);
+      } finally {
+        submissionInFlight.current = false;
+        setIsSubmittingLevel(false);
       }
     }
   };
@@ -1491,6 +1333,7 @@ const QuestionScreen: React.FC<Props> = ({ navigation, route }) => {
         </ScrollView>
 
         <View style={styles.footer}>
+          {quizStartError && <Text accessibilityRole="alert">{quizStartError}</Text>}
           <CustomButton title="Start Quiz" onPress={handleStartQuiz} />
         </View>
       </SafeAreaView>
@@ -1793,13 +1636,20 @@ const QuestionScreen: React.FC<Props> = ({ navigation, route }) => {
         <CustomButton
           title={"Next"}
           onPress={handleSubmit}
-          disabled={!canSubmit || isWaitingForNext}
+          disabled={!canSubmit || isWaitingForNext || submissionFailed || isSubmittingLevel}
           size="medium"
           style={isMatchingQuestionView ? styles.matchingNextButton : undefined}
         />
       </View>
 
       {/* Level completion loading screen */}
+      {submissionFailed && (
+        <View style={{ padding: 16 }}>
+          <Text accessibilityRole="alert">We couldn’t finish saving your result. Try again to finish.</Text>
+          <CustomButton title="Retry saving" onPress={handleContinue} />
+        </View>
+      )}
+
       {isSubmittingLevel && (
         <View style={styles.submittingOverlay}>
           <View style={styles.submittingCard}>

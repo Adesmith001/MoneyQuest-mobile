@@ -1,3 +1,4 @@
+import AsyncStorage from '@react-native-async-storage/async-storage';
 import { store } from '../store';
 import { ENV } from '../config/environment';
 import {
@@ -64,6 +65,43 @@ class CachedBackendApiService {
     this.sessionFetchedSections = false;
     this.sessionFetchedLevels.clear();
     this.sessionFetchedQuestions.clear();
+  }
+
+  private learningPathPending: ReturnType<typeof backendApi.getLearningPath> | null = null;
+  private lastLearningPathCheck = 0;
+  private lastLearningPathSuccess = 0;
+
+  getPendingLearningPath() {
+    return this.learningPathPending;
+  }
+
+  async isLearningPathStale() {
+    return Date.now() - this.lastLearningPathSuccess > getCacheTtlMs();
+  }
+
+  async getLearningPath(fresh = false) {
+    const key = '@moneyquest_learning_path_v1';
+    type Snapshot = Awaited<ReturnType<typeof backendApi.getLearningPath>>;
+    const saved = await AsyncStorage.getItem(key).then(value =>
+      value ? JSON.parse(value) as Snapshot : null
+    ).catch(() => null);
+    if (saved && !fresh && Date.now() - this.lastLearningPathCheck < 60000) return saved;
+    if (!this.learningPathPending) {
+      this.lastLearningPathCheck = Date.now();
+      this.learningPathPending = backendApi.getLearningPath().then(snapshot => {
+        if (!snapshot?.version || !Array.isArray(snapshot.sections) ||
+            !snapshot.sections.every(section => Array.isArray(section.levels))) {
+          throw new Error('Learning path response is invalid');
+        }
+        this.lastLearningPathSuccess = Date.now();
+        return AsyncStorage.setItem(key, JSON.stringify(snapshot)).catch(() => {}).then(() => snapshot);
+      }).finally(() => { this.learningPathPending = null; });
+    }
+    if (saved && !fresh) {
+      void this.learningPathPending.catch(() => {});
+      return saved;
+    }
+    return this.learningPathPending;
   }
 
   async getSections(): Promise<BackendSection[]> {

@@ -542,11 +542,10 @@ class QuestionService {
     questionsCorrect: number,
     totalQuestions: number,
     timeSpentMinutes: number,
-    xpEarned?: number          // pass xpGained from the game session
+    idempotencyKey: string
   ) {
     try {
       const score = Math.round((questionsCorrect / totalQuestions) * 100);
-      const idempotencyKey = `lesson-${userId}-${levelId}-${Date.now()}`;
 
       const backendResponse = await backendApi.submitLevelResults(
         userId,

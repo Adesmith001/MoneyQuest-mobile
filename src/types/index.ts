@@ -418,7 +418,7 @@ export interface AuthState {
   error: string | null;
   showWelcomeScreen: boolean;
   activeCheckRequestId: string | null;
-  sessionCheckError: string | null;
+  sessionCheckError: import('../services/authFailure').AuthFailure | null;
 }
 
 export interface GameState {

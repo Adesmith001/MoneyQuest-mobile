@@ -1,3 +1,4 @@
+import AuthService from '../services/auth';
 import React, { useState, useEffect, useRef } from 'react';
 import { NavigationContainer, LinkingOptions } from '@react-navigation/native';
 import { createStackNavigator } from '@react-navigation/stack';
@@ -6,10 +7,10 @@ import { RootState, AppDispatch } from '../store';
 import * as Linking from 'expo-linking';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
 import { Alert, ActivityIndicator, View, Text, Platform, TouchableOpacity } from 'react-native';
-import { checkAuthStatus, handleOAuthCallback, signOut } from '../store/slices/authSlice';
+import { checkAuthStatus, handleOAuthCallback, logout, signOut } from '../store/slices/authSlice';
 import revenueCatService from '../services/revenueCatService';
 import analyticsService from '../services/analytics';
-import { bootstrapGamification } from '../store/slices/gamificationSlice';
+import { authFailureMessage } from '../services/authFailure';
 import { getAppTourMode } from '../utils/tutorialBehavior';
 import { getSupportCode } from '../utils/supportCode';
 import { recordBreadcrumb } from '../services/errorMonitor';
@@ -163,7 +164,7 @@ const linking: LinkingOptions<any> = {
       Login: 'login',
       Register: 'register',
       ForgotPassword: {
-        path: 'reset-password/:userId?/:secret?',
+        path: 'reset-password',
         parse: {
           userId: (userId: string) => userId || '',
           secret: (secret: string) => secret || '',
@@ -233,6 +234,10 @@ const AppNavigator: React.FC = () => {
   };
 
   useEffect(() => {
+    if (Platform.OS === 'web' && typeof window !== 'undefined' && window.location.pathname === '/reset-password') {
+      const params = new URLSearchParams(window.location.search);
+      if (params.get('userId') && params.get('secret')) return;
+    }
     dispatch(checkAuthStatus());
   }, [dispatch]);
 
@@ -256,12 +261,36 @@ const AppNavigator: React.FC = () => {
     if (!isLoading && !sessionCheckError) analyticsService.identifyUser(user?.$id || null);
   }, [user?.$id, isLoading, isCheckingSession, sessionCheckError]);
 
-  // Bootstrap gamification state on auth (non-blocking, fails silently)
   useEffect(() => {
-    if (!isCheckingSession && !isLoading && !sessionCheckError && user?.$id) {
-      dispatch(bootstrapGamification(user.$id)).catch(() => {});
-    }
-  }, [dispatch, user?.$id, isLoading, isCheckingSession, sessionCheckError]);
+    if (Platform.OS !== 'web' || !user?.$id) return;
+    const accountId = user.$id;
+    const onStorage = (event: StorageEvent) => {
+      if (event.key === 'moneyquest_active_user_id' && event.newValue !== accountId) {
+        AuthService.clearLocalAuthCache();
+        dispatch(logout());
+      }
+    };
+    window.addEventListener('storage', onStorage);
+    return () => window.removeEventListener('storage', onStorage);
+  }, [dispatch, user?.$id]);
+
+  const [retrySeconds, setRetrySeconds] = useState(0);
+  useEffect(() => {
+    const retryAt = sessionCheckError?.retryAt ?? 0;
+    const update = () => setRetrySeconds(Math.max(0, Math.ceil((retryAt - Date.now()) / 1000)));
+    update();
+    if (!retryAt) return;
+    const timer = setInterval(update, 1000);
+    return () => clearInterval(timer);
+  }, [sessionCheckError?.retryAt]);
+
+  const [sessionWait, setSessionWait] = useState(false);
+  useEffect(() => {
+    setSessionWait(false);
+    if (!isCheckingSession) return;
+    const timer = setTimeout(() => setSessionWait(true), 3000);
+    return () => clearTimeout(timer);
+  }, [isCheckingSession]);
 
   // Handle OAuth callbacks
   useEffect(() => {
@@ -310,6 +339,22 @@ const AppNavigator: React.FC = () => {
     };
   }, [dispatch]);
 
+  if (Platform.OS === 'web' && typeof window !== 'undefined' && window.location.pathname === '/reset-password') {
+    const query = new URLSearchParams(window.location.search);
+    const userId = query.get('userId');
+    const secret = query.get('secret');
+    if (userId && secret) {
+      const returnToSignIn = async () => {
+        await AuthService.signOut(user?.$id).catch(() => {});
+        window.location.replace('/login');
+      };
+      return <SafeAreaProvider>
+        <ForgotPasswordScreen route={{ params: { userId, secret } }}
+          navigation={{ replace: returnToSignIn, navigate: returnToSignIn }} />
+      </SafeAreaProvider>;
+    }
+  }
+
   // ALWAYS show splash screen first when app opens
   if (showSplash) {
     return (
@@ -324,6 +369,7 @@ const AppNavigator: React.FC = () => {
     return (
       <SafeAreaProvider>
         <LoadingScreen />
+        {sessionWait && <Text accessibilityLiveRegion="polite" style={{ textAlign: 'center', padding: 12 }}>Checking your session is taking longer than expected.</Text>}
       </SafeAreaProvider>
     );
   }
@@ -333,15 +379,15 @@ const AppNavigator: React.FC = () => {
       <SafeAreaProvider>
         <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center', padding: 24, backgroundColor: '#fff' }}>
           <Text style={{ fontSize: 20, fontWeight: 'bold', textAlign: 'center' }}>Session problem</Text>
-          <Text style={{ textAlign: 'center', marginVertical: 16 }}>{sessionCheckError}</Text>
-          <Text style={{ textAlign: 'center', marginBottom: 12 }}>Support code: {getSupportCode()} · session check</Text>
+          <Text style={{ textAlign: 'center', marginVertical: 16 }}>{authFailureMessage(sessionCheckError)}</Text>
+          <Text style={{ textAlign: 'center', marginBottom: 12 }}>Support code: {sessionCheckError.supportCode} · session check</Text>
           {isLoggingOut && <ActivityIndicator color="#FF5722" />}
           {!!error && <Text accessibilityRole="alert" style={{ color: '#B3261E', textAlign: 'center', marginBottom: 12 }}>{error}</Text>}
-          <TouchableOpacity accessibilityRole="button" disabled={isLoggingOut} onPress={() => dispatch(checkAuthStatus())} style={{ backgroundColor: '#FF5722', padding: 14, borderRadius: 8, opacity: isLoggingOut ? 0.5 : 1 }}>
-            <Text style={{ color: '#fff', fontWeight: 'bold' }}>Retry session check</Text>
-          </TouchableOpacity>
-          <TouchableOpacity accessibilityRole="button" disabled={isLoggingOut} onPress={() => dispatch(signOut())} style={{ padding: 14, marginTop: 12 }}>
-            <Text style={{ color: '#333', fontWeight: 'bold' }}>{isLoggingOut ? 'Signing out...' : 'Sign out and log in'}</Text>
+          {sessionCheckError.kind !== 'expired' && <TouchableOpacity accessibilityRole="button" disabled={isLoggingOut || retrySeconds > 0} onPress={() => dispatch(checkAuthStatus())} style={{ backgroundColor: '#FF5722', padding: 14, borderRadius: 8, opacity: isLoggingOut ? 0.5 : 1 }}>
+            <Text style={{ color: '#fff', fontWeight: 'bold' }}>{retrySeconds ? "Try again in " + retrySeconds + "s" : "Retry session check"}</Text>
+          </TouchableOpacity>}
+          <TouchableOpacity accessibilityRole="button" disabled={isLoggingOut} onPress={() => sessionCheckError.kind === 'expired' ? dispatch(logout()) : dispatch(signOut())} style={{ padding: 14, marginTop: 12 }}>
+            <Text style={{ color: '#333', fontWeight: 'bold' }}>{isLoggingOut ? 'Signing out…' : sessionCheckError.kind === 'expired' ? 'Sign in again' : 'Sign out and log in'}</Text>
           </TouchableOpacity>
         </View>
       </SafeAreaProvider>

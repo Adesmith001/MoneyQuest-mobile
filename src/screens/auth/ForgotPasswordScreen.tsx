@@ -1,11 +1,10 @@
-import React, { useState } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import { 
   View, 
   Text, 
   StyleSheet, 
   SafeAreaView, 
   TouchableOpacity, 
-  Alert,
   KeyboardAvoidingView,
   Platform,
   ScrollView,
@@ -13,53 +12,120 @@ import {
 import { COLORS, FONT_SIZES, SPACING } from '../../constants';
 import AnimatedTextInput from '../../components/AnimatedTextInput';
 import CustomButton from '../../components/CustomButton';
+import { authFailure, authFailureMessage, type AuthFailure } from '../../services/authFailure';
+import { captureIncident } from '../../services/errorMonitor';
 import authService from '../../services/auth';
 
 interface Props {
   navigation: any;
+  route?: { params?: { userId?: string; secret?: string } };
 }
 
 type Stage = 'email' | 'sent';
 
-const ForgotPasswordScreen: React.FC<Props> = ({ navigation }) => {
+const ForgotPasswordScreen: React.FC<Props> = ({ navigation, route }) => {
   const [stage, setStage] = useState<Stage>('email');
   const [email, setEmail] = useState('');
   const [isLoading, setIsLoading] = useState(false);
 
-  const handleSendResetLink = async () => {
-    if (!email.trim()) {
-      Alert.alert('Error', 'Please enter your email address');
-      return;
-    }
+  const [failure, setFailure] = useState<AuthFailure | null>(null);
+  const [inlineMessage, setInlineMessage] = useState('');
+  const [slow, setSlow] = useState(false);
+  const [secondsLeft, setSecondsLeft] = useState(0);
+  const pending = useRef(false);
+  const [password, setPassword] = useState('');
+  const [confirmation, setConfirmation] = useState('');
+  const [reset, setReset] = useState(false);
+  const { userId, secret } = route?.params ?? {};
+  const report = (event: AuthFailure) => {
+    if (event.kind === 'validation' || event.kind === 'expired') return;
+    void captureIncident(new Error(authFailureMessage(event)), {
+      flow: 'account', stage: event.stage, action: 'request_failed', severity: 'warning',
+      errorType: event.kind, statusCode: event.status,
+    });
+  };
 
-    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
-    if (!emailRegex.test(email)) {
-      Alert.alert('Error', 'Please enter a valid email address');
-      return;
-    }
+  useEffect(() => {
+    setSlow(false);
+    if (!isLoading) return;
+    const timer = setTimeout(() => setSlow(true), 3000);
+    return () => clearTimeout(timer);
+  }, [isLoading]);
+  useEffect(() => {
+    const update = () => setSecondsLeft(Math.max(0, Math.ceil(((failure?.retryAt ?? 0) - Date.now()) / 1000)));
+    update();
+    if (!failure?.retryAt) return;
+    const timer = setInterval(update, 1000);
+    return () => clearInterval(timer);
+  }, [failure?.retryAt]);
 
+  const run = async (action: () => Promise<void>, authStage: string) => {
+    if (pending.current || (failure?.retryAt ?? 0) > Date.now()) return;
+    pending.current = true;
+    setFailure(null);
+    setInlineMessage('');
     setIsLoading(true);
     try {
-      await authService.sendPasswordRecovery(email);
-      setStage('sent');
-    } catch (error: any) {
-      Alert.alert('Error', error.message || 'Failed to send reset link');
+      await action();
+    } catch (error) {
+      const event = authFailure(error, authStage);
+      setFailure(event);
+      report(event);
     } finally {
+      pending.current = false;
       setIsLoading(false);
     }
   };
 
-  const handleResendLink = async () => {
-    setIsLoading(true);
-    try {
-      await authService.sendPasswordRecovery(email);
-      Alert.alert('Email Sent', 'A new password reset link has been sent to your email.');
-    } catch (error: any) {
-      Alert.alert('Error', error.message || 'Failed to resend link');
-    } finally {
-      setIsLoading(false);
+  const handleSendResetLink = () => run(async () => {
+    if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email.trim())) {
+      setInlineMessage('Enter a valid email address.');
+      return;
     }
-  };
+    await authService.sendPasswordRecovery(email);
+    setStage('sent');
+    setInlineMessage('If an account uses that email, a reset link is on its way.');
+  }, 'recovery_send');
+
+  const feedback = (
+    <>
+      {slow && <Text accessibilityLiveRegion="polite">This is taking longer than expected.</Text>}
+      {!!inlineMessage && <Text accessibilityLiveRegion="polite">{inlineMessage}</Text>}
+      {failure && <Text accessibilityRole="alert" style={{ color: '#B3261E' }}>
+        {authFailureMessage(failure)} {secondsLeft > 0 ? "Try again in " + secondsLeft + "s." : ''} Support code: {failure.supportCode}
+      </Text>}
+    </>
+  );
+
+  if (userId && secret) {
+    return (
+      <SafeAreaView style={styles.container}>
+        <ScrollView contentContainerStyle={styles.scrollContent}>
+          <Text style={styles.title}>{reset ? 'Password updated' : 'Reset your password'}</Text>
+          {!reset && <>
+            <AnimatedTextInput label="New password" value={password} onChangeText={setPassword} secureTextEntry />
+            <AnimatedTextInput label="Confirm password" value={confirmation} onChangeText={setConfirmation} secureTextEntry />
+            <CustomButton
+              title={isLoading ? 'Updating password…' : 'Update password'}
+              disabled={isLoading || secondsLeft > 0}
+              onPress={() => run(async () => {
+                if (password.length < 8 || password !== confirmation) {
+                  setInlineMessage('Use at least 8 characters and enter the same password twice.');
+                  return;
+                }
+                await authService.completePasswordRecovery(userId, secret, password, confirmation);
+                setPassword('');
+                setConfirmation('');
+                setReset(true);
+              }, 'recovery_complete')}
+            />
+          </>}
+          {feedback}
+          <CustomButton title="Back to sign-in" onPress={() => navigation.replace('Login')} />
+        </ScrollView>
+      </SafeAreaView>
+    );
+  }
 
   const renderEmailStage = () => (
     <ScrollView contentContainerStyle={styles.scrollContent}>
@@ -84,7 +150,7 @@ const ForgotPasswordScreen: React.FC<Props> = ({ navigation }) => {
         <CustomButton
           title={isLoading ? 'Sending...' : 'Send Reset Link'}
           onPress={handleSendResetLink}
-          disabled={isLoading}
+          disabled={isLoading || secondsLeft > 0}
           style={styles.primaryButton}
         />
       </View>
@@ -104,7 +170,7 @@ const ForgotPasswordScreen: React.FC<Props> = ({ navigation }) => {
         <Text style={styles.successIcon}>✉️</Text>
         <Text style={styles.title}>Check Your Email</Text>
         <Text style={styles.subtitle}>
-          We've sent a password reset link to{'\n'}
+          If your account uses this email, we’ll send a reset link to{'\n'}
           <Text style={styles.emailText}>{email}</Text>
           {'\n\n'}
           Click the link in the email to reset your password, then come back here to login.
@@ -120,8 +186,8 @@ const ForgotPasswordScreen: React.FC<Props> = ({ navigation }) => {
 
         <TouchableOpacity 
           style={styles.resendButton} 
-          onPress={handleResendLink}
-          disabled={isLoading}
+          onPress={handleSendResetLink}
+          disabled={isLoading || secondsLeft > 0}
         >
           <Text style={styles.resendText}>
             {isLoading ? 'Sending...' : "Didn't receive the email? Resend"}
@@ -147,6 +213,7 @@ const ForgotPasswordScreen: React.FC<Props> = ({ navigation }) => {
         <View style={styles.content}>
           {stage === 'email' && renderEmailStage()}
           {stage === 'sent' && renderSentStage()}
+          <View style={{ paddingHorizontal: 24 }}>{feedback}</View>
         </View>
       </KeyboardAvoidingView>
     </SafeAreaView>

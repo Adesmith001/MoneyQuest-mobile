@@ -223,6 +223,30 @@ class BackendApiService {
   /**
    * Get all available sections
    */
+  async getLearningPath(): Promise<{ version: string; sections: Array<BackendSection & { section_number?: number; levels: BackendLevel[] }> }> {
+    const key = 'public_learning_path';
+    const pending = this.pendingRequests.get(key);
+    if (pending) return pending;
+
+    const controller = new AbortController();
+    const timer = setTimeout(() => controller.abort(), 8000);
+    const request = fetch(this.baseUrl + '/content/learning-path', { signal: controller.signal })
+      .then(async (response) => {
+        if (!response.ok) throw new ApiHttpError({
+          message: 'Unable to load lessons.',
+          endpoint: '/content/learning-path',
+          status: response.status,
+        });
+        return response.json();
+      })
+      .finally(() => {
+        clearTimeout(timer);
+        this.pendingRequests.delete(key);
+      });
+    this.pendingRequests.set(key, request);
+    return request;
+  }
+
   async getSections(): Promise<BackendSection[]> {
     const key = 'sections';
     

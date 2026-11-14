@@ -20,7 +20,7 @@ import { Ionicons } from '@expo/vector-icons';
 import { useSelector, useDispatch } from "react-redux";
 import { RootState } from "../../store";
 import { getAvatarById } from "../../utils/avatarUtils";
-import { ApiHttpError, backendApi, getApiRecoveryMessage } from "../../services/backendApi";
+import { ApiHttpError, getApiRecoveryMessage } from "../../services/backendApi";
 import cachedBackendApi from "../../services/cachedBackendApi";
 import { databases, DB_ID, COLLECTIONS } from "../../services/appwrite";
 import { useFocusEffect } from "@react-navigation/native";
@@ -81,13 +81,6 @@ interface Section {
 const { width: screenWidth, height: screenHeight } = Dimensions.get("window");
 const SECTION_IDS_CACHE_KEY = '@moneyquest_last_section_ids';
 const NOTIFIED_SECTION_IDS_CACHE_KEY = '@moneyquest_notified_section_ids';
-const LAST_SECTIONS_VERSION_CHECK_KEY = '@moneyquest_last_sections_version_check_at';
-const LAST_KNOWN_SECTIONS_VERSION_KEY = '@moneyquest_last_known_sections_version';
-const NEXT_ALLOWED_SECTIONS_VERSION_CHECK_KEY = '@moneyquest_next_allowed_sections_version_check_at';
-const SECTIONS_VERSION_CHECK_INTERVAL_MS = Platform.OS === 'web'
-  ? 5 * 60 * 1000
-  : 60 * 60 * 1000;
-const SECTIONS_VERSION_CHECK_BACKOFF_MS = 6 * 60 * 60 * 1000;
 const WEB_DRAG_AXIS_THRESHOLD_PX = 6;
 
 const clampSectionIndex = (sectionIndex: number, sectionCount: number) =>
@@ -111,6 +104,7 @@ const HomeScreen: React.FC<Props> = ({ navigation }) => {
   const [isContentStale, setIsContentStale] = useState(false);
   const [isRefreshingContent, setIsRefreshingContent] = useState(false);
   const [hasNewSectionsAvailable, setHasNewSectionsAvailable] = useState(false);
+  const shownPathVersion = useRef<string | null>(null);
   const [startupError, setStartupError] = useState<string | null>(null);
   const [isSectionDropdownOpen, setIsSectionDropdownOpen] = useState(false);
   const [activeSectionIndex, setActiveSectionIndex] = useState(0);
@@ -136,7 +130,7 @@ const HomeScreen: React.FC<Props> = ({ navigation }) => {
   // Ref for horizontal scroll to scroll to user's current section
   const horizontalScrollRef = useRef<FlatList<Section>>(null);
   const horizontalScrollXRef = useRef(0);
-  const verticalScrollRefs = useRef<Record<string, ScrollView | null>>({});
+  const verticalScrollRefs = useRef<Record<string, React.ComponentRef<typeof ScrollView> | null>>({});
   const verticalScrollYRefs = useRef<Record<string, number>>({});
   const verticalMouseDragRef = useRef<{
     sectionId: string;
@@ -230,30 +224,12 @@ const HomeScreen: React.FC<Props> = ({ navigation }) => {
 
   const refreshStaleState = React.useCallback(async () => {
     try {
-      const stale = await cacheService.isSectionsCacheStale();
+      const stale = await cachedBackendApi.isLearningPathStale();
       setIsContentStale(stale);
     } catch {
       setIsContentStale(true);
     }
   }, []);
-
-  const markSectionsVersionCheckAt = React.useCallback(async (timestamp: number) => {
-    await AsyncStorage.setItem(LAST_SECTIONS_VERSION_CHECK_KEY, timestamp.toString());
-  }, []);
-
-  const persistKnownSectionsVersion = React.useCallback(async (version: string) => {
-    await Promise.all([
-      AsyncStorage.setItem(LAST_KNOWN_SECTIONS_VERSION_KEY, version),
-      AsyncStorage.removeItem(NEXT_ALLOWED_SECTIONS_VERSION_CHECK_KEY),
-      markSectionsVersionCheckAt(Date.now()),
-    ]);
-  }, [markSectionsVersionCheckAt]);
-
-  const syncKnownSectionsVersion = React.useCallback(async () => {
-    const contentVersion = await backendApi.getSectionsContentVersion();
-    await persistKnownSectionsVersion(contentVersion.version);
-    return contentVersion.version;
-  }, [persistKnownSectionsVersion]);
 
   const notifyOnNewSections = React.useCallback(
     async (backendSections: Array<{ section_id?: string; title: string }>) => {
@@ -293,76 +269,11 @@ const HomeScreen: React.FC<Props> = ({ navigation }) => {
     []
   );
 
-  const checkForNewSectionsAvailability = React.useCallback(async (): Promise<string | null> => {
-    if (!user?.$id) {
-      return null;
-    }
-
-    try {
-      const now = Date.now();
-      const [lastCheckedAtRaw, nextAllowedCheckRaw, lastKnownVersion] = await Promise.all([
-        AsyncStorage.getItem(LAST_SECTIONS_VERSION_CHECK_KEY),
-        AsyncStorage.getItem(NEXT_ALLOWED_SECTIONS_VERSION_CHECK_KEY),
-        AsyncStorage.getItem(LAST_KNOWN_SECTIONS_VERSION_KEY),
-      ]);
-
-      const nextAllowedCheckAt = nextAllowedCheckRaw
-        ? Number.parseInt(nextAllowedCheckRaw, 10)
-        : 0;
-
-      if (
-        Number.isFinite(nextAllowedCheckAt) &&
-        nextAllowedCheckAt > now
-      ) {
-        return null;
-      }
-
-      const lastCheckedAt = lastCheckedAtRaw ? Number.parseInt(lastCheckedAtRaw, 10) : 0;
-
-      if (
-        Number.isFinite(lastCheckedAt) &&
-        lastCheckedAt > 0 &&
-        now - lastCheckedAt < SECTIONS_VERSION_CHECK_INTERVAL_MS
-      ) {
-        return null;
-      }
-
-      const contentVersion = await backendApi.getSectionsContentVersion();
-
-      if (!lastKnownVersion) {
-        await persistKnownSectionsVersion(contentVersion.version);
-        return null;
-      }
-
-      await markSectionsVersionCheckAt(now);
-      const changedVersion = contentVersion.version !== lastKnownVersion
-        ? contentVersion.version
-        : null;
-      setHasNewSectionsAvailable(Boolean(changedVersion));
-      return changedVersion;
-    } catch (error) {
-      if (error instanceof ApiHttpError && error.status === 429) {
-        const retryAt = Date.now() + SECTIONS_VERSION_CHECK_BACKOFF_MS;
-        await Promise.all([
-          AsyncStorage.setItem(
-            NEXT_ALLOWED_SECTIONS_VERSION_CHECK_KEY,
-            retryAt.toString()
-          ),
-          markSectionsVersionCheckAt(Date.now()),
-        ]);
-        return null;
-      }
-      await markSectionsVersionCheckAt(Date.now());
-      console.warn('Failed to check for new sections:', error);
-      return null;
-    }
-  }, [markSectionsVersionCheckAt, persistKnownSectionsVersion, user?.$id]);
-
   // ─────────────────────────────────────────────────────────────────────────
   // Main data-fetch function — stable useCallback so it can be used in both
   // useEffect (initial / user-change load) and useFocusEffect (focus refresh)
   // ─────────────────────────────────────────────────────────────────────────
-  const fetchLearningPath = React.useCallback(async () => {
+  const fetchLearningPath = React.useCallback(async (fresh = false) => {
     // Don't fetch if user isn't hydrated yet — wait for Redux Persist
     if (!user?.$id) return;
 
@@ -371,6 +282,8 @@ const HomeScreen: React.FC<Props> = ({ navigation }) => {
     isFetchingRef.current = true;
     setStartupError(null);
     const fetchStartedAt = Date.now();
+    const pathRequest = cachedBackendApi.getLearningPath(fresh);
+    void pathRequest.catch(() => {});
 
     try {
         // Show loading spinner only on first-ever load
@@ -442,49 +355,26 @@ const HomeScreen: React.FC<Props> = ({ navigation }) => {
           // ✨ Update state with latest completed levels BEFORE building sections
           setCompletedLevels(latestCompletedLevels);
 
-          // Get all sections (documents) from backend with caching
-          const backendSections = await Promise.race([
-            cachedBackendApi.getSections(),
-            new Promise<never>((_, reject) => setTimeout(() => reject(new Error('Sections request timed out')), 8000)),
-          ]);
-          void notifyOnNewSections(backendSections).catch(() => {});
-
-          if (user?.$id) {
-            notificationService.syncAdminBroadcasts(user.$id).catch(() => {});
-          }
+          const { sections: backendSections, version } = await pathRequest;
+          shownPathVersion.current = version;
+          void cachedBackendApi.getPendingLearningPath()?.then(next => {
+            if (shownPathVersion.current === version) setHasNewSectionsAvailable(next.version !== version);
+          }).catch(() => {});
+          void notifyOnNewSections(backendSections);
+          void notificationService.syncAdminBroadcasts(user.$id).catch(() => {});
 
           const sectionsData: Section[] = [];
           let regularSectionsProcessed = 0;
-          const levelsDeadline = Date.now() + 12000;
-
-          // Process regular sections and insert recap sections after every 9th section
-          for (let batchStart = 0; batchStart < backendSections.length; batchStart += 4) {
-            if (Date.now() >= levelsDeadline) break;
-            const batch = backendSections.slice(batchStart, batchStart + 4);
-            const batchTimeout = Math.max(1000, Math.min(8000, levelsDeadline - Date.now()));
-            const batchLevels = await Promise.all(batch.map(section =>
-              section.section_id
-                ? Promise.race([
-                    cachedBackendApi.getLevels(section.section_id),
-                    new Promise<never>((_, reject) => setTimeout(() => reject(new Error('Levels request timed out')), batchTimeout)),
-                  ]).catch(error => {
-                    console.warn(`Levels unavailable for ${section.section_id}:`, error);
-                    return [];
-                  })
-                : Promise.resolve([])
-            ));
-          for (let i = batchStart; i < Math.min(batchStart + 4, backendSections.length); i++) {
-            const section = backendSections[i];
-
+          for (const section of backendSections) {
             try {
               // Skip sections without a valid section_id
-              if (!section.section_id) {
+              if (!section.section_id || section.title.startsWith("Recap Section ")) {
                 console.warn(`Section "${section.title}" has no section_id, skipping...`);
                 continue;
               }
 
               // Fetch levels for this section using section_id with caching
-              const levels = batchLevels[i - batchStart];
+              const levels = section.levels;
               if (levels.length === 0) continue;
 
               const levelNodes: LevelNode[] = levels.map((level, levelIndex) => {
@@ -524,76 +414,52 @@ const HomeScreen: React.FC<Props> = ({ navigation }) => {
               // Recap 10 reviews sections 1-9, recap 20 reviews 11-19, etc.
               const recapSectionNumber = getRecapSectionNumberForCompletedRegularSections(regularSectionsProcessed);
               if (recapSectionNumber !== null) {
-                try {
-                  const recapData = await Promise.race([
-                    backendApi.getRecapSection(recapSectionNumber, 10, true),
-                    new Promise<never>((_, reject) => setTimeout(() => reject(new Error('Recap request timed out')), 5000)),
-                  ]);
-
-                  // Create level nodes for recap section
-                  // Each source section becomes a "level" in the recap
-                  const recapLevelIds = recapData.source_sections.map(
-                    (sourceSection) => `recap_${recapSectionNumber}_source_${sourceSection.section_number}`
-                  );
-
-                  const recapLevelNodes: LevelNode[] = recapData.source_sections.map((sourceSection, recapLevelIndex) => {
-                    const recapLevelId = `recap_${recapSectionNumber}_source_${sourceSection.section_number}`;
-                    const sourceLevelIds = resolveRecapSourceLevelIds({
-                      sourceSectionId: sourceSection.section_id,
-                      sourceSectionNumber: sourceSection.section_number,
-                      sourceSectionTitle: sourceSection.section_title,
-                      builtSections: sectionsData,
-                    });
-                    const progress = getRecapLevelProgressState({
-                      recapSectionId: recapData.recap_section_id,
-                      recapLevelId,
-                      recapLevelIndex,
+                const sourceSections = sectionsData.filter(entry => entry.regularSectionNumber).slice(-9);
+                const existingRecap = backendSections.find(entry => entry.section_number === recapSectionNumber &&
+                  entry.title.startsWith('Recap Section '));
+                const recapSectionId = existingRecap?.section_id || 'recap_' + recapSectionNumber;
+                const recapLevelIds = sourceSections.map(entry =>
+                  'recap_' + recapSectionNumber + '_source_' + (backendSections.find(item => item.section_id === entry.id)?.section_number ?? entry.regularSectionNumber)
+                );
+                const title = existingRecap?.title || 'Review & Practice';
+                sectionsData.push({
+                  id: recapSectionId,
+                  title,
+                  levels: sourceSections.map((source, index) => ({
+                    id: recapLevelIds[index],
+                    sectionTitle: title,
+                    levelTitle: 'Review: ' + source.title,
+                    sectionId: recapSectionId,
+                    levelId: recapLevelIds[index],
+                    ...getRecapLevelProgressState({
+                      recapSectionId,
+                      recapLevelId: recapLevelIds[index],
+                      recapLevelIndex: index,
                       recapLevelIds,
-                      sourceLevelIds,
+                      sourceLevelIds: resolveRecapSourceLevelIds({
+                        sourceSectionId: source.id,
+                        sourceSectionNumber: source.regularSectionNumber!,
+                        sourceSectionTitle: source.title,
+                        builtSections: sectionsData,
+                      }),
                       completedLevelIds: latestCompletedLevels,
                       currentSectionId: user?.currentSectionId,
                       currentLevelId: user?.currentLevelId,
-                    });
-
-                    return {
-                      id: recapLevelId,
-                      sectionTitle: recapData.recap_section_title,
-                      levelTitle: `Review: ${sourceSection.section_title}`,
-                      ...progress,
-                      sectionId: recapData.recap_section_id,
-                      levelId: recapLevelId,
-                    };
-                  });
-
-                  sectionsData.push({
-                    id: recapData.recap_section_id,
-                    title: recapData.recap_section_title,
-                    levels: recapLevelNodes,
-                  });
-                } catch (recapError: any) {
-                  // If recap section doesn't exist or fails, just log and continue
-                  // This is expected for section 10 if only 3 sections exist
-                  console.warn(`Could not fetch recap section ${recapSectionNumber}:`, recapError.message || recapError);
-                }
+                    }),
+                  })),
+                });
               }
             } catch (error) {
               console.error(`Failed to fetch levels for section ${section.title}:`, error);
             }
           }
 
-            if (!hasInitiallyLoadedRef.current && sectionsData.length > 0) {
-              setSections([...sectionsData]);
-              if (!hasInitiallyLoadedRef.current) {
-                void analyticsService.trackEvent('feature_used', {
-                  stage: 'home_first_content',
-                  duration_ms: Date.now() - fetchStartedAt,
-                  support_code: getSupportCode(),
-                }).catch(() => {});
-              }
-              hasInitiallyLoadedRef.current = true;
-              setHasInitiallyLoaded(true);
-              setIsLoading(false);
-            }
+          if (!hasInitiallyLoadedRef.current && sectionsData.length > 0) {
+            void analyticsService.trackEvent('feature_used', {
+              stage: 'home_first_content',
+              duration_ms: Date.now() - fetchStartedAt,
+              support_code: getSupportCode(),
+            }).catch(() => {});
           }
 
           // Reset retry counter on success (or final attempt)
@@ -638,43 +504,23 @@ const HomeScreen: React.FC<Props> = ({ navigation }) => {
           setStartupError(getApiRecoveryMessage(error));
           hasInitiallyLoadedRef.current = true;
           setHasInitiallyLoaded(true);
+          if (fresh) throw error;
         } finally {
           setIsLoading(false);
           void refreshStaleState().catch(() => {});
           isFetchingRef.current = false;
-          void checkForNewSectionsAvailability().then(async contentChanged => {
-            if (!contentChanged) return;
-            try {
-              await cachedBackendApi.forceRefreshLearningPath();
-              cachedBackendApi.resetSessionTracking();
-              await persistKnownSectionsVersion(contentChanged);
-              setHasNewSectionsAvailable(false);
-            } catch (error) {
-              console.warn('Automatic content refresh failed:', error);
-            }
-          });
+
         }
-  }, [checkForNewSectionsAvailability, dispatch, notifyOnNewSections, persistKnownSectionsVersion, refreshStaleState, user?.$id, user?.currentLevelId, user?.currentSectionId]);
+  }, [dispatch, notifyOnNewSections, refreshStaleState, user?.$id, user?.currentLevelId, user?.currentSectionId]);
 
   const handleManualRefresh = React.useCallback(async () => {
-    if (isRefreshingContent || !user?.$id) {
+    if (isRefreshingContent || isFetchingRef.current || !user?.$id) {
       return;
     }
 
     setIsRefreshingContent(true);
     try {
-      await cachedBackendApi.forceRefreshLearningPath();
-      cachedBackendApi.resetSessionTracking();
-      isFetchingRef.current = false;
-      retryCountRef.current = 0;
-      await fetchLearningPath();
-      await markSectionsVersionCheckAt(Date.now());
-      try {
-        await syncKnownSectionsVersion();
-      } catch (versionError) {
-        console.warn('Failed to sync sections version after manual refresh:', versionError);
-      }
-      await notificationService.syncAdminBroadcasts(user.$id);
+      await fetchLearningPath(true);
       setHasNewSectionsAvailable(false);
       Alert.alert('Updated', 'Content is now up to date.');
     } catch (error) {
@@ -684,7 +530,7 @@ const HomeScreen: React.FC<Props> = ({ navigation }) => {
       setIsRefreshingContent(false);
       await refreshStaleState();
     }
-  }, [fetchLearningPath, isRefreshingContent, markSectionsVersionCheckAt, refreshStaleState, syncKnownSectionsVersion, user?.$id]);
+  }, [fetchLearningPath, isRefreshingContent, refreshStaleState, user?.$id]);
 
   const handleWebHorizontalWheel = React.useCallback((event: any) => {
     if (Platform.OS !== 'web') {
@@ -1366,7 +1212,7 @@ const HomeScreen: React.FC<Props> = ({ navigation }) => {
         {/* Scrollable Levels with scroll tracking */}
         <Animated.ScrollView
           ref={(ref) => {
-            verticalScrollRefs.current[section.id] = ref as unknown as ScrollView | null;
+            verticalScrollRefs.current[section.id] = ref as React.ComponentRef<typeof ScrollView> | null;
           }}
           style={[
             styles.sectionScrollView,
@@ -1430,7 +1276,7 @@ const HomeScreen: React.FC<Props> = ({ navigation }) => {
           />
           <Text style={styles.emptyStateTitle}>No Learning Content Available</Text>
           <Text style={styles.emptyStateMessage}>
-            {startupError || 'We could not load the learning content. Check your connection and retry.'}
+            {startupError ? 'You’re signed in. We couldn’t load your lessons. ' + startupError : 'You’re signed in. We couldn’t load your lessons.'}
           </Text>
           <Text style={{ textAlign: 'center', marginBottom: 12 }}>Support code: {getSupportCode()} · lessons</Text>
           <TouchableOpacity
@@ -1443,7 +1289,7 @@ const HomeScreen: React.FC<Props> = ({ navigation }) => {
               setHasInitiallyLoaded(false);
               hasInitiallyLoadedRef.current = false;
               isFetchingRef.current = false;
-              fetchLearningPath();
+              void fetchLearningPath(true).catch(() => {});
             }}
           >
             <Text style={styles.emptyStateButtonText}>Retry</Text>
