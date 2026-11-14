@@ -4,6 +4,7 @@ import { backendApi } from './backendApi';
 import cachedBackendApi from './cachedBackendApi';
 import { livesService } from './lives';
 import { getCurrentMonthKey, shouldResetMonthlyXP } from '../utils';
+import { calculateQuizAccuracy } from '../utils/quizProgress';
 
 /**
  * Question Service
@@ -535,6 +536,7 @@ class QuestionService {
    * @param questionsCorrect - Number of correct answers
    * @param totalQuestions - Total number of questions
    * @param timeSpentMinutes - Time spent on the level
+   * @param idempotencyKey - Stable key for the quiz attempt
    */
   async submitLevelQuiz(
     userId: string,
@@ -544,30 +546,20 @@ class QuestionService {
     timeSpentMinutes: number,
     idempotencyKey: string
   ) {
-    try {
-      const score = Math.round((questionsCorrect / totalQuestions) * 100);
+    const score = calculateQuizAccuracy(questionsCorrect, totalQuestions);
+    const backendResponse = await backendApi.submitLevelResults(
+      userId, levelId, score, timeSpentMinutes, idempotencyKey,
+    );
+    const userDoc = await databases.getDocument(DB_ID, COLLECTIONS.USERS, userId);
 
-      const backendResponse = await backendApi.submitLevelResults(
-        userId,
-        levelId,
-        score,
-        timeSpentMinutes,
-        idempotencyKey
-      );
-      const userDoc = await databases.getDocument(DB_ID, COLLECTIONS.USERS, userId);
-
-      return {
-        ...backendResponse,
-        writtenXP: {
-          xp: Number(userDoc.xp || 0),
-          monthlyXP: Number(userDoc.monthlyXP || 0),
-          totalXP: Number(userDoc.totalXP || 0),
-        },
-      };
-    } catch (error) {
-      console.error('Submit level quiz error:', error);
-      throw error;
-    }
+    return {
+      ...backendResponse,
+      writtenXP: {
+        xp: Number(userDoc.xp || 0),
+        monthlyXP: Number(userDoc.monthlyXP || 0),
+        totalXP: Number(userDoc.totalXP || 0),
+      },
+    };
   }
 
   /**

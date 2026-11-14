@@ -96,6 +96,26 @@ const { backendApi, ApiHttpError, ApiRequestError, getApiRecoveryMessage } = mod
       getApiRecoveryMessage(error).includes('7 seconds'),
   );
 
+  nextResponse = new Response(JSON.stringify({ detail: [
+    { loc: ['body', 'score'], msg: 'Input should be less than or equal to 100', input: 125 },
+  ] }), { status: 422 });
+  await assert.rejects(
+    backendApi.submitLevelResults('user', 'level', 100, 1),
+    error => error instanceof ApiHttpError && error.status === 422 &&
+      error.message === 'score: Input should be less than or equal to 100',
+  );
+
+  await backendApi.submitLevelResults('user', 'level', 125, 1441);
+  const { score, time_spent_minutes } = JSON.parse(fetchCalls.at(-1).options.body);
+  assert.equal(score, 100, 'a resumed quiz cannot submit a score above 100');
+  assert.equal(time_spent_minutes, 1440, 'a quiz left open for days still submits a valid duration');
+
+  global.fetch = async () => { throw new TypeError('Network request failed'); };
+  await assert.rejects(
+    backendApi.submitLevelResults('user', 'level', 100, 1),
+    error => error instanceof ApiRequestError && /could not reach the learning service/i.test(error.message),
+  );
+
   const originalSetTimeout = global.setTimeout;
   const originalClearTimeout = global.clearTimeout;
   global.setTimeout = callback => {

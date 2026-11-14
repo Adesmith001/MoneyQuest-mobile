@@ -24,6 +24,22 @@ import { captureIncident, recordBreadcrumb } from './errorMonitor';
 const REQUEST_TIMEOUT_MS = 15000;
 const JWT_TIMEOUT_MS = 2000;
 const JWT_CACHE_MS = 10 * 60 * 1000;
+const CONNECTION_ERROR_MESSAGE = 'Could not reach the learning service. Check your connection and retry.';
+
+const getHttpErrorMessage = (body: unknown, response: Response): string => {
+  const { detail, message } = (body ?? {}) as { detail?: unknown; message?: unknown };
+  if (typeof detail === 'string' && detail.trim()) return detail;
+  if (Array.isArray(detail)) {
+    const validationMessages = detail.flatMap(issue => {
+      if (typeof issue?.msg !== 'string') return [];
+      const field = Array.isArray(issue.loc) ? issue.loc.slice(1).join('.') : '';
+      return [field ? `${field}: ${issue.msg}` : issue.msg];
+    });
+    if (validationMessages.length) return validationMessages.join(', ');
+  }
+  if (typeof message === 'string' && message.trim()) return message;
+  return `API Error: ${response.status} ${response.statusText}`.trim();
+};
 
 export class ApiHttpError extends Error {
   status: number;
@@ -54,7 +70,7 @@ export const getApiRecoveryMessage = (error: unknown): string => {
   if (error instanceof ApiRequestError) {
     return error.code === 'timeout'
       ? 'The request timed out. Please retry.'
-      : 'You appear to be offline. Check your connection and retry.';
+      : CONNECTION_ERROR_MESSAGE;
   }
   if (error instanceof ApiHttpError) {
     if (error.status === 429) {
@@ -80,7 +96,7 @@ export class ApiRequestError extends Error {
   endpoint: string;
 
   constructor(code: 'timeout' | 'offline', endpoint: string) {
-    super(code === 'timeout' ? 'The request timed out. Please try again.' : 'You appear to be offline. Check your connection and retry.');
+    super(code === 'timeout' ? 'The request timed out. Please try again.' : CONNECTION_ERROR_MESSAGE);
     this.name = 'ApiRequestError';
     this.code = code;
     this.endpoint = endpoint;
@@ -181,14 +197,10 @@ class BackendApiService {
       });
 
       if (!response.ok) {
-        const errorData = await response.json().catch(() => null);
-        const errorMessage =
-          (errorData as any)?.detail ||
-          (errorData as any)?.message ||
-          `API Error: ${response.status} ${response.statusText}`;
+        const errorData: unknown = await response.json().catch(() => null);
 
         throw new ApiHttpError({
-          message: errorMessage,
+          message: getHttpErrorMessage(errorData, response),
           status: response.status,
           endpoint,
           responseBody: errorData,
@@ -587,8 +599,8 @@ class BackendApiService {
       body: JSON.stringify({
         user_id: userId,
         level_id: levelId,
-        score: score,
-        time_spent_minutes: timeSpentMinutes,
+        score: Math.min(100, Math.max(0, Math.round(Number.isFinite(score) ? score : 0))),
+        time_spent_minutes: Math.min(1440, Math.max(0, Math.round(Number.isFinite(timeSpentMinutes) ? timeSpentMinutes : 0))),
         idempotency_key: idempotencyKey,
       }),
     });

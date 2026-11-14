@@ -37,7 +37,7 @@ import ProgressBar from "../../components/progressBar";
 import CustomButton from "../../components/CustomButton";
 import { QuizCheckpoint, readQuizAttempt } from "../../services/quizCheckpoint";
 import questionService from "../../services/questions";
-import { backendApi, ApiHttpError } from "../../services/backendApi";
+import { backendApi, ApiHttpError, ApiRequestError } from "../../services/backendApi";
 import cachedBackendApi from "../../services/cachedBackendApi";
 import learningService from "../../services/learningService";
 import { databases, DB_ID, COLLECTIONS, Query } from "../../services/appwrite";
@@ -358,7 +358,7 @@ const QuestionScreen: React.FC<Props> = ({ navigation, route }) => {
   // Track if level results are being submitted (final submission)
   const [isSubmittingLevel, setIsSubmittingLevel] = useState(false);
   const submissionInFlight = useRef(false);
-  const [submissionFailed, setSubmissionFailed] = useState(false);
+  const [submissionError, setSubmissionError] = useState<string | null>(null);
   const [quizStartError, setQuizStartError] = useState<string | null>(null);
   const checkpoint = useMemo(() => user?.$id ? new QuizCheckpoint(user.$id, levelId) : null,
     [user?.$id, levelId]);
@@ -649,7 +649,7 @@ const QuestionScreen: React.FC<Props> = ({ navigation, route }) => {
             if (progressDocs.documents.length > 0 || savedAttempt?.checkpoint || savedAttempt?.submission) {
               const progress = savedAttempt?.checkpoint || progressDocs.documents[0] || {};
               if (savedAttempt?.submission) {
-                setSubmissionFailed(true);
+                setSubmissionError("Finish saving your quiz result.");
                 setViewMode('quiz');
                 setCurrentQuestionIndex(Math.max(0, loadedQuestions.length - 1));
               }
@@ -749,7 +749,7 @@ const QuestionScreen: React.FC<Props> = ({ navigation, route }) => {
 
   // Save progress to Appwrite whenever question index changes
   useEffect(() => {
-    if (!checkpoint || viewMode !== 'quiz' || isLoading || isRetake || isSubmittingLevel || submissionFailed) return;
+    if (!checkpoint || viewMode !== 'quiz' || isLoading || isRetake || isSubmittingLevel || submissionError) return;
     void checkpoint.checkpoint({
       currentQuestionIndex,
       questionsAnswered: currentQuestionIndex + 1,
@@ -761,7 +761,7 @@ const QuestionScreen: React.FC<Props> = ({ navigation, route }) => {
         action: 'progress_save_failed', severity: 'error', screen: 'Question' });
     });
   }, [checkpoint, currentQuestionIndex, correctAnswersCount, xpGained, totalAttempts, viewMode,
-    isLoading, isRetake, isSubmittingLevel, submissionFailed]);
+    isLoading, isRetake, isSubmittingLevel, submissionError]);
 
   /**
    * Background sync function to ensure user progress is saved to Appwrite
@@ -826,7 +826,7 @@ const QuestionScreen: React.FC<Props> = ({ navigation, route }) => {
 
   const handleSubmit = async () => {
     const currentQuestion = questions[currentQuestionIndex];
-    if (!currentQuestion || !user || submissionFailed || submissionInFlight.current) return;
+    if (!currentQuestion || !user || submissionError || submissionInFlight.current) return;
 
     // Prevent multiple submissions
     if (isWaitingForNext) return;
@@ -1023,7 +1023,7 @@ const QuestionScreen: React.FC<Props> = ({ navigation, route }) => {
     const currentLives = user?.lives || 0;
     
     // If lives is 0, user cannot continue
-    if (currentLives <= 0 && !submissionFailed) {
+    if (currentLives <= 0 && !submissionError) {
       Alert.alert(
         "Out of Lives! ❤️",
         "You've run out of lives. Complete a level to earn another life.",
@@ -1040,7 +1040,7 @@ const QuestionScreen: React.FC<Props> = ({ navigation, route }) => {
       return;
     }
 
-    if (!submissionFailed && currentQuestionIndex < questions.length - 1) {
+    if (!submissionError && currentQuestionIndex < questions.length - 1) {
       soundService.playSound("buttonPress"); // Button press sound
       setCurrentQuestionIndex(currentQuestionIndex + 1);
       dispatch(nextQuestion());
@@ -1048,7 +1048,7 @@ const QuestionScreen: React.FC<Props> = ({ navigation, route }) => {
       if (!user || !checkpoint || submissionInFlight.current) return;
       submissionInFlight.current = true;
       setIsSubmittingLevel(true);
-      setSubmissionFailed(false);
+      setSubmissionError(null);
       const accuracy = calculateQuizAccuracy(correctAnswersCount, totalAttempts);
 
       try {
@@ -1273,10 +1273,16 @@ const QuestionScreen: React.FC<Props> = ({ navigation, route }) => {
           currentStreak: result.gamification?.streak?.current_streak,
         });
       } catch (error) {
-        console.error("Error submitting level:", error);
+        if (error instanceof ApiHttpError) {
+          console.warn("Could not save quiz result:", error.status, error.message, error.requestId);
+        } else {
+          console.warn("Could not save quiz result:", error);
+        }
         void captureIncident(error, { flow: 'progress', stage: 'level_submission',
           action: 'progress_save_failed', severity: 'error', screen: 'Question' });
-        setSubmissionFailed(true);
+        setSubmissionError(error instanceof ApiRequestError
+          ? error.message
+          : "We couldn’t finish saving your result. Try again to finish.");
       } finally {
         submissionInFlight.current = false;
         setIsSubmittingLevel(false);
@@ -1636,19 +1642,19 @@ const QuestionScreen: React.FC<Props> = ({ navigation, route }) => {
         <CustomButton
           title={"Next"}
           onPress={handleSubmit}
-          disabled={!canSubmit || isWaitingForNext || submissionFailed || isSubmittingLevel}
+          disabled={!canSubmit || isWaitingForNext || Boolean(submissionError) || isSubmittingLevel}
           size="medium"
           style={isMatchingQuestionView ? styles.matchingNextButton : undefined}
         />
       </View>
 
       {/* Level completion loading screen */}
-      {submissionFailed && (
+      {submissionError ? (
         <View style={{ padding: 16 }}>
-          <Text accessibilityRole="alert">We couldn’t finish saving your result. Try again to finish.</Text>
+          <Text accessibilityRole="alert">{submissionError}</Text>
           <CustomButton title="Retry saving" onPress={handleContinue} />
         </View>
-      )}
+      ) : null}
 
       {isSubmittingLevel && (
         <View style={styles.submittingOverlay}>
