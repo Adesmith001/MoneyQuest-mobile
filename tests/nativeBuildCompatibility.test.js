@@ -14,7 +14,9 @@ assert.equal(filesystem.version.split('.')[0], sdk['expo-file-system'].match(/\d
 const configModule = { exports: {} };
 vm.runInNewContext(fs.readFileSync(path.join(root, 'metro.config.js'), 'utf8'), {
   module: configModule, __dirname: root, process: { env: {} },
-  require: () => ({ getDefaultConfig: () => ({ resolver: {} }) }),
+  require: name => name === 'expo/metro-config'
+    ? { getDefaultConfig: () => ({ resolver: {}, server: {} }) }
+    : require(name),
 });
 const resolve = configModule.exports.resolver.resolveRequest;
 assert.equal(typeof resolve, 'function', 'Appwrite needs its legacy filesystem API');
