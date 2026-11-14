@@ -9,8 +9,6 @@ import {
   ActivityIndicator,
   Image,
   Alert,
-  Modal,
-  TextInput,
   Platform,
   useWindowDimensions,
   StyleProp,
@@ -32,6 +30,7 @@ import { fetchLeaderboard } from "../../store/slices/leaderboardSlice";
 import CorrectAnswerModal from "../../components/modals/CorrectAnswerModal";
 import IncorrectAnswerModal from "../../components/modals/IncorrectAnswerModal";
 import FlagQuestionModal from "../../components/modals/FlagQuestionModal";
+import QuizErrorModal from "../../components/modals/QuizErrorModal";
 import { RootState } from "../../store";
 import ProgressBar from "../../components/progressBar";
 import CustomButton from "../../components/CustomButton";
@@ -293,7 +292,8 @@ const QuestionScreen: React.FC<Props> = ({ navigation, route }) => {
   // without flex-shrink, so it grows to the screen's content height and the
   // internal ScrollView never becomes scrollable. Constrain the screen to the
   // viewport height on web (native keeps normal flex layout).
-  const { height: windowHeight } = useWindowDimensions();
+  const { height: windowHeight, width: windowWidth } = useWindowDimensions();
+  const usesModalErrors = Platform.OS !== "web" || windowWidth < 768;
   const screenContainerStyle: StyleProp<ViewStyle> = [
     styles.container,
     Platform.OS === 'web'
@@ -358,7 +358,10 @@ const QuestionScreen: React.FC<Props> = ({ navigation, route }) => {
   // Track if level results are being submitted (final submission)
   const [isSubmittingLevel, setIsSubmittingLevel] = useState(false);
   const submissionInFlight = useRef(false);
-  const [submissionError, setSubmissionError] = useState<string | null>(null);
+  const [submissionError, setSubmissionError] = useState<{
+    message: string;
+    dismissed?: boolean;
+  } | null>(null);
   const [quizStartError, setQuizStartError] = useState<string | null>(null);
   const checkpoint = useMemo(() => user?.$id ? new QuizCheckpoint(user.$id, levelId) : null,
     [user?.$id, levelId]);
@@ -649,7 +652,7 @@ const QuestionScreen: React.FC<Props> = ({ navigation, route }) => {
             if (progressDocs.documents.length > 0 || savedAttempt?.checkpoint || savedAttempt?.submission) {
               const progress = savedAttempt?.checkpoint || progressDocs.documents[0] || {};
               if (savedAttempt?.submission) {
-                setSubmissionError("Finish saving your quiz result.");
+                setSubmissionError({ message: "Finish saving your quiz result." });
                 setViewMode('quiz');
                 setCurrentQuestionIndex(Math.max(0, loadedQuestions.length - 1));
               }
@@ -789,13 +792,13 @@ const QuestionScreen: React.FC<Props> = ({ navigation, route }) => {
   };
 
   const handleStartQuiz = async () => {
+    setQuizStartError(null);
     try {
       await checkpoint?.start();
     } catch {
       setQuizStartError('We couldn’t start this quiz. Try again.');
       return;
     }
-    setQuizStartError(null);
     setStartTime(Date.now());
     setViewMode("quiz");
     recordBreadcrumb('lesson_started');
@@ -1280,9 +1283,11 @@ const QuestionScreen: React.FC<Props> = ({ navigation, route }) => {
         }
         void captureIncident(error, { flow: 'progress', stage: 'level_submission',
           action: 'progress_save_failed', severity: 'error', screen: 'Question' });
-        setSubmissionError(error instanceof ApiRequestError
-          ? error.message
-          : "We couldn’t finish saving your result. Try again to finish.");
+        setSubmissionError({
+          message: error instanceof ApiRequestError
+            ? error.message
+            : "We couldn’t finish saving your result. Try again to finish.",
+        });
       } finally {
         submissionInFlight.current = false;
         setIsSubmittingLevel(false);
@@ -1339,9 +1344,18 @@ const QuestionScreen: React.FC<Props> = ({ navigation, route }) => {
         </ScrollView>
 
         <View style={styles.footer}>
-          {quizStartError && <Text accessibilityRole="alert">{quizStartError}</Text>}
+          {!usesModalErrors && quizStartError && <Text accessibilityRole="alert">{quizStartError}</Text>}
           <CustomButton title="Start Quiz" onPress={handleStartQuiz} />
         </View>
+        {usesModalErrors && quizStartError && (
+          <QuizErrorModal
+            title="Couldn’t start quiz"
+            message={quizStartError}
+            retryLabel="Try again"
+            onRetry={handleStartQuiz}
+            onDismiss={() => setQuizStartError(null)}
+          />
+        )}
       </SafeAreaView>
     );
   }
@@ -1365,6 +1379,7 @@ const QuestionScreen: React.FC<Props> = ({ navigation, route }) => {
 
   const progress = ((currentQuestionIndex + 1) / questions.length) * 100;
   const isMatchingQuestionView = currentQuestion.question_type === "matching";
+  const canRetrySubmission = usesModalErrors && Boolean(submissionError);
 
   // Determine if user can submit based on question type
   let canSubmit = false;
@@ -1640,21 +1655,23 @@ const QuestionScreen: React.FC<Props> = ({ navigation, route }) => {
 
       <View style={[styles.footer, isMatchingQuestionView && styles.matchingFooter]}>
         <CustomButton
-          title={"Next"}
-          onPress={handleSubmit}
-          disabled={!canSubmit || isWaitingForNext || Boolean(submissionError) || isSubmittingLevel}
+          title={canRetrySubmission ? "Retry saving" : "Next"}
+          onPress={canRetrySubmission ? handleContinue : handleSubmit}
+          disabled={
+            isSubmittingLevel ||
+            (!canRetrySubmission && (!canSubmit || isWaitingForNext || Boolean(submissionError)))
+          }
           size="medium"
           style={isMatchingQuestionView ? styles.matchingNextButton : undefined}
         />
       </View>
 
-      {/* Level completion loading screen */}
-      {submissionError ? (
+      {!usesModalErrors && submissionError && (
         <View style={{ padding: 16 }}>
-          <Text accessibilityRole="alert">{submissionError}</Text>
+          <Text accessibilityRole="alert">{submissionError.message}</Text>
           <CustomButton title="Retry saving" onPress={handleContinue} />
         </View>
-      ) : null}
+      )}
 
       {isSubmittingLevel && (
         <View style={styles.submittingOverlay}>
@@ -1708,7 +1725,7 @@ const QuestionScreen: React.FC<Props> = ({ navigation, route }) => {
 
       {/* Coach marks for first-time question experience */}
       <CoachMark
-        visible={showCoachMarks}
+        visible={showCoachMarks && !submissionError && !isSubmittingLevel}
         steps={QUESTION_COACH_STEPS}
         currentStep={coachStep}
         onNext={() => setCoachStep((prev) => prev + 1)}
@@ -1721,6 +1738,15 @@ const QuestionScreen: React.FC<Props> = ({ navigation, route }) => {
           setCoachStep(0);
         }}
       />
+      {usesModalErrors && submissionError && !submissionError.dismissed && (
+        <QuizErrorModal
+          title="Save quiz result"
+          message={submissionError.message}
+          retryLabel="Retry saving"
+          onRetry={handleContinue}
+          onDismiss={() => setSubmissionError(current => current && { ...current, dismissed: true })}
+        />
+      )}
     </SafeAreaView>
   );
 };
