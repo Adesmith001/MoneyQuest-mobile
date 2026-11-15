@@ -385,13 +385,6 @@ const AppNavigator: React.FC = () => {
             title="Session problem"
             message={`${error || authFailureMessage(sessionCheckError)} Support code: ${sessionCheckError.supportCode}.`}
             occurrence={error ? undefined : sessionCheckError}
-            desktopContent={
-              <>
-                <Text style={{ textAlign: 'center', marginVertical: 16 }}>{authFailureMessage(sessionCheckError)}</Text>
-                <Text style={{ textAlign: 'center', marginBottom: 12 }}>Support code: {sessionCheckError.supportCode} · session check</Text>
-                {!!error && <Text accessibilityRole="alert" style={{ color: '#B3261E', textAlign: 'center', marginBottom: 12 }}>{error}</Text>}
-              </>
-            }
           />
           {isLoggingOut && <ActivityIndicator color="#FF5722" />}
           {sessionCheckError.kind !== 'expired' && <TouchableOpacity accessibilityRole="button" disabled={isLoggingOut || retrySeconds > 0} onPress={() => dispatch(checkAuthStatus())} style={{ backgroundColor: '#FF5722', padding: 14, borderRadius: 8, opacity: isLoggingOut ? 0.5 : 1 }}>

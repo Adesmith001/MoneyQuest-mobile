@@ -147,7 +147,6 @@ const PaymentPendingScreen: React.FC = () => {
         <ErrorNotice
           title="Payment failed"
           message={errorMessage || 'Unable to process payment'}
-          desktopContent={<Text style={styles.subtitle}>{errorMessage || 'Unable to process payment'}</Text>}
         />
         <TouchableOpacity style={styles.retryButton} onPress={handleContinue}>
           <Text style={styles.buttonText}>Try Again</Text>

@@ -10,6 +10,7 @@ import {
   Image,
   ScrollView,
   ActivityIndicator,
+  useWindowDimensions,
 } from 'react-native';
 import { useDispatch, useSelector } from 'react-redux';
 import { signUp, signInWithGoogle } from '../../store/slices/authSlice';
@@ -17,7 +18,7 @@ import { RootState, AppDispatch } from '../../store';
 import AnimatedTextInput from '../../components/AnimatedTextInput';
 import authService from '../../services/auth';
 import { getPasswordValidationError } from '../../utils/passwordValidation';
-import ErrorNotice, { useMobileErrorModal } from '../../components/ErrorNotice';
+import ErrorNotice from '../../components/ErrorNotice';
 import { showErrorAlert } from '../../services/errorAlerts';
 
 interface Props {
@@ -38,8 +39,9 @@ const RegisterScreen: React.FC<Props> = ({ navigation }) => {
   const debounceTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const [formError, setFormError] = useState('');
   const passwordError = getPasswordValidationError(password);
-  const useModalErrors = useMobileErrorModal();
-  const signUpDisabled = isLoading || (!useModalErrors && Boolean(passwordError));
+  const { width } = useWindowDimensions();
+  const showInlineValidation = Platform.OS === 'web' && width >= 768;
+  const signUpDisabled = isLoading || (showInlineValidation && Boolean(passwordError));
 
   // Debounced real-time username availability check
   useEffect(() => {
@@ -173,7 +175,7 @@ const RegisterScreen: React.FC<Props> = ({ navigation }) => {
                   <Text style={[styles.usernameStatusText, { color: '#4CAF50' }]}>✓ Username is available</Text>
                 </View>
               )}
-              {!useModalErrors && usernameStatus === 'taken' && (
+              {showInlineValidation && usernameStatus === 'taken' && (
                 <View style={styles.usernameStatus}>
                   <Text style={[styles.usernameStatusText, { color: '#F44336' }]}>✗ Username is already taken</Text>
                 </View>
@@ -214,9 +216,8 @@ const RegisterScreen: React.FC<Props> = ({ navigation }) => {
                 title="Signup problem"
                 message={formError}
                 onDismiss={() => setFormError('')}
-                desktopContent={<Text accessibilityRole="alert" style={styles.passwordError}>{formError}</Text>}
               />
-              {!useModalErrors && passwordError ? (
+              {showInlineValidation && passwordError ? (
                 <Text style={styles.passwordError}>{passwordError}</Text>
               ) : null}
 

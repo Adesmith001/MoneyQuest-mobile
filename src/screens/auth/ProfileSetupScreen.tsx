@@ -89,7 +89,6 @@ const ProfileSetupScreen = () => {
           title="Profile setup problem"
           message={error}
           onDismiss={() => setError('')}
-          desktopContent={<Text accessibilityRole="alert" style={styles.error}>{error}</Text>}
         />
         <TouchableOpacity accessibilityRole="button" onPress={save} disabled={saving} style={styles.button}>
           <Text style={styles.buttonText}>{saving ? 'Saving…' : 'Continue'}</Text>
@@ -112,7 +111,6 @@ const styles = StyleSheet.create({
   choices: { flexDirection: 'row', flexWrap: 'wrap', gap: 8 },
   choice: { padding: 8, borderWidth: 1, borderColor: '#bbb', borderRadius: 8 },
   selected: { borderColor: '#ff5722', backgroundColor: '#fff2ed' },
-  error: { color: '#b00020' },
   button: { backgroundColor: '#ff5722', padding: 16, borderRadius: 8, alignItems: 'center', marginTop: 8 },
   buttonText: { color: '#fff', fontWeight: 'bold' },
 });

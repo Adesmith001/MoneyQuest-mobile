@@ -502,7 +502,6 @@ const PremiumScreen: React.FC = () => {
               title="Card payment problem"
               message={korapayError}
               onDismiss={() => setKorapayError(null)}
-              desktopContent={<Text style={styles.korapayErrorText}>{korapayError}</Text>}
             />
 
             {/* ── Restore Purchases ────────────────────────────────────────── */}
@@ -512,7 +511,6 @@ const PremiumScreen: React.FC = () => {
                   key={selectedPlan}
                   title="Store plan unavailable"
                   message={unavailablePlanMessage}
-                  desktopContent={<Text style={styles.storeErrorText}>{unavailablePlanMessage}</Text>}
                 />
               <TouchableOpacity
                 style={styles.restoreButton}
@@ -780,11 +778,6 @@ const styles = StyleSheet.create({
     color: "#FFF4D6",
     lineHeight: 18,
   },
-  storeErrorText: {
-    fontSize: 12,
-    color: "#FFE7A8",
-    lineHeight: 18,
-  },
   korapayButton: {
     flexDirection: "row",
     alignItems: "center",
@@ -800,12 +793,6 @@ const styles = StyleSheet.create({
     fontSize: 17,
     fontWeight: "bold",
     color: "#1A1A1A",
-  },
-  korapayErrorText: {
-    fontSize: 13,
-    color: "#FFF4D6",
-    textAlign: "center",
-    lineHeight: 18,
   },
   schoolCodeButton: {
     flexDirection: "row",

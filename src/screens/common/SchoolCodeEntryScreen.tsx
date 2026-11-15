@@ -255,7 +255,6 @@ const SchoolCodeEntryScreen: React.FC = () => {
             title="School enrollment problem"
             message={error}
             onDismiss={() => setError('')}
-            desktopContent={<Text accessibilityRole="alert" style={styles.errorText}>{error}</Text>}
           />
 
           <TouchableOpacity
@@ -321,12 +320,6 @@ const SchoolCodeEntryScreen: React.FC = () => {
               title="School code problem"
               message={error}
               onDismiss={() => setError('')}
-              desktopContent={
-                <View style={styles.errorContainer}>
-                  <Ionicons name="alert-circle" size={16} color="#FF6B6B" />
-                  <Text accessibilityRole="alert" style={styles.errorText}>{error}</Text>
-                </View>
-              }
             />
           </Animated.View>
 
@@ -435,18 +428,6 @@ const styles = StyleSheet.create({
   },
   inputError: {
     borderColor: '#FF6B6B',
-  },
-  errorContainer: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
-    marginTop: 12,
-    gap: 6,
-  },
-  errorText: {
-    color: '#FF6B6B',
-    fontSize: 14,
-    textAlign: 'center',
   },
   validateButton: {
     backgroundColor: '#4ECDC4',

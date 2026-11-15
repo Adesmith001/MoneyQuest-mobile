@@ -30,7 +30,7 @@ import CorrectAnswerModal from "../../components/modals/CorrectAnswerModal";
 import IncorrectAnswerModal from "../../components/modals/IncorrectAnswerModal";
 import FlagQuestionModal from "../../components/modals/FlagQuestionModal";
 import ErrorModal from "../../components/modals/ErrorModal";
-import ErrorNotice, { useMobileErrorModal } from "../../components/ErrorNotice";
+import ErrorNotice from "../../components/ErrorNotice";
 import { showErrorAlert } from "../../services/errorAlerts";
 import { RootState } from "../../store";
 import ProgressBar from "../../components/progressBar";
@@ -294,7 +294,6 @@ const QuestionScreen: React.FC<Props> = ({ navigation, route }) => {
   // internal ScrollView never becomes scrollable. Constrain the screen to the
   // viewport height on web (native keeps normal flex layout).
   const { height: windowHeight } = useWindowDimensions();
-  const usesModalErrors = useMobileErrorModal();
   const screenContainerStyle: StyleProp<ViewStyle> = [
     styles.container,
     Platform.OS === 'web'
@@ -1331,10 +1330,9 @@ const QuestionScreen: React.FC<Props> = ({ navigation, route }) => {
         </ScrollView>
 
         <View style={styles.footer}>
-          {!usesModalErrors && quizStartError && <Text accessibilityRole="alert">{quizStartError}</Text>}
           <CustomButton title="Start Quiz" onPress={handleStartQuiz} />
         </View>
-        {usesModalErrors && quizStartError && (
+        {!!quizStartError && (
           <ErrorModal
             title="Couldn’t start quiz"
             message={quizStartError}
@@ -1357,7 +1355,6 @@ const QuestionScreen: React.FC<Props> = ({ navigation, route }) => {
           <ErrorNotice
             title="Questions unavailable"
             message="No questions available for this level."
-            desktopContent={<Text style={styles.questionText}>No questions available for this level.</Text>}
           />
           <CustomButton title="Go Back" onPress={() => navigation.goBack()} />
         </View>
@@ -1367,7 +1364,7 @@ const QuestionScreen: React.FC<Props> = ({ navigation, route }) => {
 
   const progress = ((currentQuestionIndex + 1) / questions.length) * 100;
   const isMatchingQuestionView = currentQuestion.question_type === "matching";
-  const canRetrySubmission = usesModalErrors && Boolean(submissionError);
+  const canRetrySubmission = Boolean(submissionError);
 
   // Determine if user can submit based on question type
   let canSubmit = false;
@@ -1647,19 +1644,12 @@ const QuestionScreen: React.FC<Props> = ({ navigation, route }) => {
           onPress={canRetrySubmission ? handleContinue : handleSubmit}
           disabled={
             isSubmittingLevel ||
-            (!canRetrySubmission && (!canSubmit || isWaitingForNext || Boolean(submissionError)))
+            (!canRetrySubmission && (!canSubmit || isWaitingForNext))
           }
           size="medium"
           style={isMatchingQuestionView ? styles.matchingNextButton : undefined}
         />
       </View>
-
-      {!usesModalErrors && submissionError && (
-        <View style={{ padding: 16 }}>
-          <Text accessibilityRole="alert">{submissionError.message}</Text>
-          <CustomButton title="Retry saving" onPress={handleContinue} />
-        </View>
-      )}
 
       {isSubmittingLevel && (
         <View style={styles.submittingOverlay}>
@@ -1726,7 +1716,7 @@ const QuestionScreen: React.FC<Props> = ({ navigation, route }) => {
           setCoachStep(0);
         }}
       />
-      {usesModalErrors && submissionError && !submissionError.dismissed && (
+      {submissionError && !submissionError.dismissed && (
         <ErrorModal
           title="Save quiz result"
           message={submissionError.message}

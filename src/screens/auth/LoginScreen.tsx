@@ -210,13 +210,8 @@ const LoginScreen: React.FC<Props> = ({ navigation }) => {
               title="Sign-in problem"
               message={formError && `${formError} Support code: ${getSupportCode()}`}
               onDismiss={() => setFormError('')}
-              desktopContent={
-                <Text accessibilityRole="alert" style={{ color: '#B3261E', marginBottom: 16 }}>
-                  {formError} Support code: {getSupportCode()}
-                </Text>
-              }
             />
-            {disabledAccountId && (
+            {!!disabledAccountId && (
               <TouchableOpacity
                 onPress={handleReactivate}
                 disabled={isLoading}

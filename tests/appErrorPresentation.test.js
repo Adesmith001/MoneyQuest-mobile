@@ -15,7 +15,7 @@ for (const file of [
   'main/HomeScreen',
 ]) {
   assert.ok(readSource('src/screens/' + file + '.tsx').includes('<ErrorNotice'),
-    file + ' uses the shared responsive error notice');
+    file + ' uses the shared error notice');
 }
 assert.ok(readSource('src/navigation/AppNavigator.tsx').includes('<ErrorNotice'), 'Session recovery uses the shared error notice');
 assert.ok(readSource('App.tsx').includes('<ErrorAlertHost'), 'The app can show imperative error alerts');

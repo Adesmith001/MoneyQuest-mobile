@@ -65,12 +65,6 @@ const ErrorFallback = () => (
     <ErrorNotice
       title="Something went wrong"
       message={`MoneyQuest could not finish loading. Please restart the app. Support code: ${getSupportCode()}.`}
-      desktopContent={
-        <>
-          <Text style={errorStyles.message}>MoneyQuest could not finish loading. Please retry.</Text>
-          <Text style={errorStyles.hint}>Support code: {getSupportCode()} · app startup</Text>
-        </>
-      }
     />
     {Platform.OS === 'web' && (
       <TouchableOpacity accessibilityRole="button" onPress={() => window.location.reload()} style={{ backgroundColor: '#FF5722', padding: 14, borderRadius: 8, marginTop: 20 }}>
@@ -93,16 +87,6 @@ const errorStyles = StyleSheet.create({
     fontWeight: 'bold',
     color: '#FF5722',
     marginBottom: 10,
-  },
-  message: {
-    fontSize: 14,
-    color: '#666',
-    textAlign: 'center',
-    marginBottom: 20,
-  },
-  hint: {
-    fontSize: 12,
-    color: '#999',
   },
 });
 

@@ -1281,14 +1281,6 @@ const HomeScreen: React.FC<Props> = ({ navigation }) => {
           <ErrorNotice
             title="Couldn’t load lessons"
             message={`You’re signed in. We couldn’t load your lessons.${startupError ? ' ' + startupError : ''} Support code: ${getSupportCode()}.`}
-            desktopContent={
-              <>
-                <Text style={styles.emptyStateMessage}>
-                  {startupError ? 'You’re signed in. We couldn’t load your lessons. ' + startupError : 'You’re signed in. We couldn’t load your lessons.'}
-                </Text>
-                <Text style={{ textAlign: 'center', marginBottom: 12 }}>Support code: {getSupportCode()} · lessons</Text>
-              </>
-            }
           />
           <TouchableOpacity
             style={styles.emptyStateButton}
@@ -1772,13 +1764,6 @@ const styles = StyleSheet.create({
     color: '#FF6B35',
     textAlign: 'center',
     marginBottom: 16,
-  },
-  emptyStateMessage: {
-    fontSize: 16,
-    color: '#666',
-    textAlign: 'center',
-    lineHeight: 24,
-    marginBottom: 32,
   },
   emptyStateButton: {
     backgroundColor: '#FF6B35',

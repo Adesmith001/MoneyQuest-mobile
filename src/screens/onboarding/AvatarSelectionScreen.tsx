@@ -138,14 +138,6 @@ const AvatarSelectionScreen: React.FC<Props> = ({ navigation, route }) => {
                 title="Account setup problem"
                 occurrence={failure}
                 message={`${authFailureMessage(failure)}${secondsLeft > 0 ? ` Try again in ${secondsLeft}s.` : ''} Support code: ${failure.supportCode}`}
-                desktopContent={
-                  <>
-                    <Text accessibilityRole="alert" style={{ color: '#B3261E' }}>
-                      {authFailureMessage(failure)} {secondsLeft > 0 ? "Try again in " + secondsLeft + "s." : ''}
-                    </Text>
-                    <Text>Support code: {failure.supportCode}</Text>
-                  </>
-                }
               />
               {(['setup_interrupted', 'timeout'].includes(failure.kind)) && (
                 <TouchableOpacity accessibilityRole="button" onPress={() => navigation.navigate('Login')}>
