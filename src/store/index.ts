@@ -7,8 +7,9 @@ import gameReducer from './slices/gameSlice';
 import leaderboardReducer from './slices/leaderboardSlice';
 import streakReducer from './slices/streakSlice';
 import learningReducer from './slices/learningSlice';
-import tutorialReducer, { normalizeTutorialState, TutorialState } from './slices/tutorialSlice';
+import tutorialReducer, { normalizeTutorialState } from './slices/tutorialSlice';
 import gamificationReducer from './slices/gamificationSlice';
+import { watchTutorialProgress } from './tutorialPersistence';
 import { AuthState } from '../types';
 import {
   getAuthenticatedActionUserId,
@@ -30,7 +31,6 @@ type RootReducerState = ReturnType<typeof appReducer>;
 const getInitialUserScopedState = () => ({
   game: gameReducer(undefined, { type: '@@moneyquest/INIT_USER_SCOPED_STATE' }),
   streak: streakReducer(undefined, { type: '@@moneyquest/INIT_USER_SCOPED_STATE' }),
-  tutorial: tutorialReducer(undefined, { type: '@@moneyquest/INIT_USER_SCOPED_STATE' }),
   gamification: gamificationReducer(undefined, { type: '@@moneyquest/INIT_USER_SCOPED_STATE' }),
 });
 
@@ -40,10 +40,13 @@ const rootReducer = (
 ): RootReducerState => {
   const previousUserId = state?.auth?.user?.$id ?? null;
   const reducedState = appReducer(state, action);
+  const nextState = previousUserId === (reducedState.auth.user?.$id ?? null)
+    ? reducedState
+    : { ...reducedState, tutorial: normalizeTutorialState(undefined) };
 
   if (action.type === 'auth/signOut/fulfilled' || action.type === 'auth/logout') {
     return {
-      ...reducedState,
+      ...nextState,
       ...getInitialUserScopedState(),
     };
   }
@@ -51,12 +54,12 @@ const rootReducer = (
   const nextUserId = getAuthenticatedActionUserId(action);
   if (shouldResetUserScopedState(previousUserId, nextUserId)) {
     return {
-      ...reducedState,
+      ...nextState,
       ...getInitialUserScopedState(),
     };
   }
 
-  return reducedState;
+  return nextState;
 };
 
 const authStateTransform = createTransform<AuthState, AuthState, RootReducerState>(
@@ -85,17 +88,11 @@ const authStateTransform = createTransform<AuthState, AuthState, RootReducerStat
   { whitelist: ['auth'] }
 );
 
-const tutorialStateTransform = createTransform<TutorialState, TutorialState, RootReducerState>(
-  (inboundState) => normalizeTutorialState(inboundState),
-  (outboundState) => normalizeTutorialState(outboundState),
-  { whitelist: ['tutorial'] }
-);
-
 const persistConfig: PersistConfig<RootReducerState> = {
   key: 'root',
   storage: AsyncStorage,
-  transforms: [authStateTransform, tutorialStateTransform],
-  whitelist: ['auth', 'game', 'streak', 'learning', 'tutorial', 'gamification'], // Persist auth, game, streak, learning, tutorial, and gamification state
+  transforms: [authStateTransform],
+  whitelist: ['auth', 'game', 'streak', 'learning', 'gamification'],
 };
 
 const persistedReducer = persistReducer(persistConfig, rootReducer);
@@ -117,6 +114,7 @@ export const store = configureStore({
     }),
 });
 
+watchTutorialProgress(store, AsyncStorage);
 export const persistor = persistStore(store);
 
 export type RootState = ReturnType<typeof store.getState>;

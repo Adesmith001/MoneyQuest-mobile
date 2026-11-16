@@ -215,7 +215,7 @@ function getActiveRouteName(state: any): string | null {
 
 const AppNavigator: React.FC = () => {
   const { isAuthenticated, isLoading, isCheckingSession, isLoggingOut, error, showWelcomeScreen, user, sessionCheckError } = useSelector((state: RootState) => state.auth);
-  const { hasCompletedAppTour, latestFeatureTourVersionSeen } = useSelector(
+  const { accountId: tutorialAccountId, hasCompletedAppTour, latestFeatureTourVersionSeen } = useSelector(
     (state: RootState) => state.tutorial
   );
   const dispatch = useDispatch<AppDispatch>();
@@ -430,6 +430,14 @@ const AppNavigator: React.FC = () => {
             <Stack.Screen name="ProfileSetup" component={ProfileSetupScreen} />
           </Stack.Navigator>
         </NavigationContainer>
+      </SafeAreaProvider>
+    );
+  }
+
+  if (isAuthenticated && user?.$id && tutorialAccountId !== user.$id) {
+    return (
+      <SafeAreaProvider>
+        <LoadingScreen />
       </SafeAreaProvider>
     );
   }

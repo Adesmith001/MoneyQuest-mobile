@@ -32,7 +32,7 @@ const SchoolCodeEntryScreen: React.FC = () => {
   const [validatedCode, setValidatedCode] = useState<SchoolCode | null>(null);
   const [validatedSchool, setValidatedSchool] = useState<School | null>(null);
   const [showConfirmation, setShowConfirmation] = useState(false);
-  const [isLegacyCode, setIsLegacyCode] = useState(false);
+  const [isRosterInvite, setIsRosterInvite] = useState(false);
   
   const shakeAnimation = useRef(new Animated.Value(0)).current;
   const successAnimation = useRef(new Animated.Value(0)).current;
@@ -55,7 +55,8 @@ const SchoolCodeEntryScreen: React.FC = () => {
   };
 
   const handleValidateCode = async () => {
-    if (!code.trim()) {
+    const normalizedCode = code.trim().toUpperCase();
+    if (!normalizedCode) {
       setError('Please enter a code');
       shake();
       return;
@@ -65,29 +66,25 @@ const SchoolCodeEntryScreen: React.FC = () => {
     setError('');
 
     try {
-      const result = await schoolEntitlementService.previewCode(code);
-      
-      if (result.ok && result.code && result.school) {
-        setIsLegacyCode(false);
+      const isPersonalInvite = normalizedCode.startsWith('MQS-');
+      const result = isPersonalInvite
+        ? await schoolEntitlementService.previewCode(normalizedCode)
+        : await schoolService.validateCode(normalizedCode);
+
+      if (result.isValid && result.code && result.school) {
+        setIsRosterInvite(isPersonalInvite);
         setValidatedCode(result.code);
         setValidatedSchool(result.school);
         setShowConfirmation(true);
         showSuccess();
       } else {
-        const legacyResult = await schoolService.validateCode(code);
-        if (legacyResult.isValid && legacyResult.code && legacyResult.school) {
-          setIsLegacyCode(true);
-          setValidatedCode(legacyResult.code);
-          setValidatedSchool(legacyResult.school);
-          setShowConfirmation(true);
-          showSuccess();
-        } else {
-          setError(result.message || legacyResult.errorMessage || 'Invalid code');
-          shake();
-        }
+        setError(result.errorMessage || 'Invalid code');
+        shake();
       }
     } catch (err: any) {
-      setError(err.message || 'Failed to validate code');
+      setError(err.type === 'function_not_found'
+        ? 'School invite validation is temporarily unavailable. Please contact your school.'
+        : err.message || 'Failed to validate code');
       shake();
     } finally {
       setIsValidating(false);
@@ -101,7 +98,7 @@ const SchoolCodeEntryScreen: React.FC = () => {
     setError('');
 
     try {
-      if (isLegacyCode) {
+      if (!isRosterInvite) {
         const legacyResult = await schoolService.enrollStudent(
           user.$id,
           validatedCode.$id!,
@@ -121,7 +118,7 @@ const SchoolCodeEntryScreen: React.FC = () => {
         return;
       }
 
-      const result = await schoolEntitlementService.claimByCode(code);
+      const result = await schoolEntitlementService.claimByCode(validatedCode.code);
 
       if (result.ok && result.claimed) {
         // Navigate to success screen or main app
@@ -150,7 +147,7 @@ const SchoolCodeEntryScreen: React.FC = () => {
       setShowConfirmation(false);
       setValidatedCode(null);
       setValidatedSchool(null);
-      setIsLegacyCode(false);
+      setIsRosterInvite(false);
       successAnimation.setValue(0);
     } else {
       navigation.goBack();
@@ -314,7 +311,7 @@ const SchoolCodeEntryScreen: React.FC = () => {
               }}
               autoCapitalize="characters"
               autoCorrect={false}
-              maxLength={12}
+              maxLength={14}
             />
             <ErrorNotice
               title="School code problem"
