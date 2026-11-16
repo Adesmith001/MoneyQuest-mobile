@@ -100,6 +100,7 @@ Create an Appwrite Function named `school-entitlements` using:
 - Entrypoint: `src/index.js`
 - Install command: `npm install`
 - Execute permission: authenticated users
+- Function key scopes: `users.read`, `documents.read`, and `documents.write`
 - Timeout: at least 60 seconds for roster imports
 
 Deploy the contents of:
@@ -108,21 +109,18 @@ Deploy the contents of:
 appwrite/functions/school-entitlements
 ```
 
-Set these Function environment variables:
+Set `APPWRITE_DATABASE_ID` to the school database ID. The function uses Appwrite’s runtime endpoint, project ID, and per-execution API key. The following collection variables are optional overrides for the default collection IDs:
 
 ```text
-APPWRITE_ENDPOINT=https://cloud.appwrite.io/v1
-APPWRITE_PROJECT_ID=<project-id>
-APPWRITE_API_KEY=<server-api-key>
-APPWRITE_DATABASE_ID=<database-id>
 APPWRITE_USERS_COLLECTION_ID=users
 APPWRITE_SCHOOLS_COLLECTION_ID=schools
 APPWRITE_SCHOOL_BATCHES_COLLECTION_ID=school_seat_batches
 APPWRITE_SCHOOL_INVITES_COLLECTION_ID=school_invites
 APPWRITE_SCHOOL_STUDENTS_COLLECTION_ID=school_students
+APPWRITE_SCHOOL_CODES_COLLECTION_ID=school_codes
 ```
 
-The API key must be a server key with only the database/users scopes required by this Function. Never put it in the mobile app or dashboard `.env` files.
+Extend and Revoke require an Appwrite version that supports document transactions. Shared-code enrollments use the existing `school_students` and `school_codes` collections. Roster enrollments also update their matching invite and batch.
 
 ## School ownership
 

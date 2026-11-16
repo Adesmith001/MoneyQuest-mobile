@@ -420,8 +420,8 @@ export const schoolInvitesApi = {
     if (!response.ok) throw new Error(response.message || 'Could not revoke student');
   },
 
-  async extendStudent(schoolId: string, studentId: string, expiresAt: string): Promise<void> {
-    const response = await executeSchoolEntitlements({ action: 'extend_student', schoolId, studentId, expiresAt });
+  async extendStudent(schoolId: string, studentId: string, expectedExpiresAt: string): Promise<void> {
+    const response = await executeSchoolEntitlements({ action: 'extend_student', schoolId, studentId, expectedExpiresAt });
     if (!response.ok) throw new Error(response.message || 'Could not extend student');
   },
 };

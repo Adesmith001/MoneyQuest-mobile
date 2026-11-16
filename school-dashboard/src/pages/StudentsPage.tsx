@@ -37,25 +37,32 @@ export default function StudentsPage() {
     }: {
       studentId: string;
     }) => schoolInvitesApi.revokeStudent(school!.$id, studentId),
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["students"] });
-      queryClient.invalidateQueries({ queryKey: ["codes"] });
+    onSuccess: async () => {
+      await Promise.all([
+        queryClient.invalidateQueries({ queryKey: ["students", school?.$id] }),
+        queryClient.invalidateQueries({ queryKey: ["codes", school?.$id] }),
+        queryClient.invalidateQueries({ queryKey: ["dashboard-stats", school?.$id] }),
+        queryClient.invalidateQueries({ queryKey: ["code-students"] }),
+      ]);
       toast.success("Student access revoked");
     },
-    onError: () => {
-      toast.error("Failed to revoke access");
-    },
+    onError: (error) => toast.error(error.message || "Failed to revoke access"),
   });
 
   const extendMutation = useMutation({
-    mutationFn: ({ studentId, expiresAt }: { studentId: string; expiresAt: string }) =>
-      schoolInvitesApi.extendStudent(school!.$id, studentId, expiresAt),
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["students", school?.$id] });
+    mutationFn: ({ studentId, expectedExpiresAt }: { studentId: string; expectedExpiresAt: string }) =>
+      schoolInvitesApi.extendStudent(school!.$id, studentId, expectedExpiresAt),
+    onSuccess: async () => {
+      await Promise.all([
+        queryClient.invalidateQueries({ queryKey: ["students", school?.$id] }),
+        queryClient.invalidateQueries({ queryKey: ["code-students"] }),
+      ]);
       toast.success("Student access extended");
     },
-    onError: () => toast.error("Failed to extend access"),
+    onError: (error) => toast.error(error.message || "Failed to extend access"),
   });
+
+  const isUpdatingAccess = revokeMutation.isPending || extendMutation.isPending;
 
   const getCodeInfo = (codeId: string) => {
     return codes?.find((c) => c.$id === codeId);
@@ -260,12 +267,8 @@ export default function StudentsPage() {
                             <Button
                               variant="outline"
                               size="sm"
-                              onClick={() => {
-                                const date = new Date(student.expiresAt);
-                                date.setMonth(date.getMonth() + 1);
-                                extendMutation.mutate({ studentId: student.$id, expiresAt: date.toISOString() });
-                              }}
-                              disabled={extendMutation.isPending}
+                              onClick={() => extendMutation.mutate({ studentId: student.$id, expectedExpiresAt: student.expiresAt })}
+                              disabled={isUpdatingAccess}
                             >
                               Extend
                             </Button>
@@ -273,7 +276,7 @@ export default function StudentsPage() {
                               variant="ghost"
                               size="sm"
                               onClick={() => revokeMutation.mutate({ studentId: student.$id })}
-                              disabled={revokeMutation.isPending}
+                              disabled={isUpdatingAccess}
                             >
                               <UserX className="w-4 h-4 text-red-400" />
                               Revoke
