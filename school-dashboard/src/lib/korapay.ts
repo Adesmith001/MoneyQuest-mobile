@@ -13,7 +13,7 @@ interface KoraPayConfig {
   };
   metadata?: Record<string, any>;
   notification_url?: string;
-  onClose: () => void;
+  onClose: (data?: { message?: string } | null) => void;
   onSuccess: (data: KoraPaySuccessData) => void;
   onFailed: (data: KoraPayFailedData) => void;
 }
@@ -38,7 +38,7 @@ interface KoraPayFailedData {
 declare global {
   interface Window {
     Korapay?: {
-      initialize: (config: KoraPayConfig) => void;
+      initialize: (config: KoraPayConfig) => Promise<unknown>;
     };
   }
 }
@@ -97,7 +97,7 @@ export interface InitializePaymentParams {
   rosterBatchId?: string;
   onSuccess: (data: KoraPaySuccessData) => void;
   onFailed: (data: KoraPayFailedData) => void;
-  onClose: () => void;
+  onClose: KoraPayConfig['onClose'];
 }
 
 export async function initializeKoraPayCheckout(params: InitializePaymentParams): Promise<void> {
@@ -107,7 +107,7 @@ export async function initializeKoraPayCheckout(params: InitializePaymentParams)
     throw new Error('KoraPay not available');
   }
 
-  window.Korapay.initialize({
+  await window.Korapay.initialize({
     key: config.korapay.publicKey,
     reference: params.reference,
     amount: params.amount,

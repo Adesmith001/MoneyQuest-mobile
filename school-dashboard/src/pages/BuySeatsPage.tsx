@@ -114,12 +114,14 @@ export default function BuySeatsPage() {
           
           setIsProcessing(false);
         },
-        onClose: () => {
-          // User closed the payment modal
-          if (isProcessing) {
+        onClose: (data) => {
+          if (isCreatingCode.current) return;
+
+          setIsProcessing(false);
+          if (data?.message) {
+            toast.error(data.message);
+          } else {
             toast('Payment cancelled');
-            setIsProcessing(false);
-            isCreatingCode.current = false;
           }
         },
       });
