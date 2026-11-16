@@ -126,7 +126,7 @@ class SchoolService {
 
       const now = new Date().toISOString();
 
-      // Create enrollment record
+      // Reuse the student's unique enrollment row after a revoke/expiry.
       const enrollment: Omit<SchoolStudent, '$id'> = {
         userId,
         schoolId,
@@ -138,16 +138,23 @@ class SchoolService {
         updatedAt: now,
       };
 
-      const response = await databases.createDocument(
-        APPWRITE_DATABASE_ID,
-        SCHOOL_STUDENTS_COLLECTION_ID,
-        ID.unique(),
-        enrollment,
-        [
-          Permission.read(Role.user(userId)),
-          Permission.update(Role.user(userId)),
-        ]
-      );
+      const response = existingEnrollment
+        ? await databases.updateDocument(
+            APPWRITE_DATABASE_ID,
+            SCHOOL_STUDENTS_COLLECTION_ID,
+            existingEnrollment.$id!,
+            enrollment,
+          )
+        : await databases.createDocument(
+            APPWRITE_DATABASE_ID,
+            SCHOOL_STUDENTS_COLLECTION_ID,
+            ID.unique(),
+            enrollment,
+            [
+              Permission.read(Role.user(userId)),
+              Permission.update(Role.user(userId)),
+            ]
+          );
 
       // Increment seats used on the code
       await this.incrementSeatsUsed(codeId);
