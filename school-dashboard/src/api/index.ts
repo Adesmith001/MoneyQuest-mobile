@@ -1,3 +1,4 @@
+import { AppwriteException } from 'appwrite';
 import { databases, account, functions, ID, Query } from '../lib/appwrite';
 import { config, SchoolPlanType } from '../config';
 import { SchoolCode, SchoolPayment, DashboardStats, SchoolStudent, School } from '../types';
@@ -165,6 +166,8 @@ export const studentsApi = {
             name: userDoc.name || 'Unknown',
             email: userDoc.email || '',
             avatar: userDoc.avatar,
+            xp: userDoc.xp,
+            streak: userDoc.streak,
           };
         } catch (error) {
           console.error('Failed to fetch user for student:', doc.userId, error);
@@ -400,9 +403,16 @@ export const schoolInvitesApi = {
   },
 
   async listStudents(schoolId: string): Promise<SchoolStudent[]> {
-    const response = await executeSchoolEntitlements({ action: 'list_students', schoolId });
-    if (!response.ok) throw new Error(response.message || 'Could not load students');
-    return response.students || [];
+    try {
+      const response = await executeSchoolEntitlements({ action: 'list_students', schoolId });
+      if (!response.ok) throw new Error(response.message || 'Could not load students');
+      return response.students || [];
+    } catch (error) {
+      if (error instanceof AppwriteException && error.type === 'function_not_found') {
+        return studentsApi.getAll(schoolId);
+      }
+      throw error;
+    }
   },
 
   async revokeStudent(schoolId: string, studentId: string): Promise<void> {

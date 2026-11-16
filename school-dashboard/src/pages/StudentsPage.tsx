@@ -18,10 +18,11 @@ export default function StudentsPage() {
     "all" | "active" | "expired" | "revoked"
   >("all");
 
-  const { data: students, isLoading } = useQuery({
+  const { data: students, isLoading, isError, isFetching, refetch } = useQuery({
     queryKey: ["students", school?.$id],
     queryFn: () => schoolInvitesApi.listStudents(school!.$id),
     enabled: !!school?.$id,
+    staleTime: 0,
   });
 
   const { data: codes } = useQuery({
@@ -85,6 +86,19 @@ export default function StudentsPage() {
     );
   }
 
+  if (isError && !students) {
+    return (
+      <div className="p-8">
+        <Card className="text-center py-12">
+          <h1 className="text-xl font-semibold text-white mb-4">Couldn’t load students</h1>
+          <Button onClick={() => void refetch()} isLoading={isFetching}>
+            Retry
+          </Button>
+        </Card>
+      </div>
+    );
+  }
+
   return (
     <div className="p-8">
       {/* Header */}
@@ -93,7 +107,16 @@ export default function StudentsPage() {
           <h1 className="text-2xl font-bold text-white">Students</h1>
           <p className="text-white/50 mt-1">Manage enrolled students</p>
         </div>
+        <Button variant="outline" onClick={() => void refetch()} isLoading={isFetching}>
+          Refresh
+        </Button>
       </div>
+
+      {isError && (
+        <p role="alert" className="mb-4 text-sm text-red-400">
+          Couldn’t refresh students. Showing the last loaded list.
+        </p>
+      )}
 
       {/* Stats */}
       <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-8">
