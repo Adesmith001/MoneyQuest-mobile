@@ -15,6 +15,7 @@ export type TutorialReplayKey =
   | 'hasSeenProfileGuide';
 
 export interface TutorialState {
+  accountId: string | null;
   // Per-screen coach mark flags
   hasSeenHomeTour: boolean;
   hasSeenQuestionGuide: boolean;
@@ -22,7 +23,7 @@ export interface TutorialState {
   hasSeenProfileGuide: boolean;
   // Post-onboarding guided tour
   hasCompletedAppTour: boolean;
-  // Latest one-time feature announcement completed on this install
+  // Latest feature announcement completed by this account on this install
   latestFeatureTourVersionSeen: number;
   // Whether the tour is actively showing
   isTourActive: boolean;
@@ -33,6 +34,7 @@ export interface TutorialState {
 type TutorialStateLike = Partial<TutorialState> | undefined;
 
 const initialState: TutorialState = {
+  accountId: null,
   hasSeenHomeTour: false,
   hasSeenQuestionGuide: false,
   hasSeenStreakGuide: false,
@@ -54,6 +56,7 @@ const tutorialSlice = createSlice({
   name: 'tutorial',
   initialState,
   reducers: {
+    restoreTutorialProgress: (_state, action: PayloadAction<TutorialState>) => action.payload,
     markHomeTourSeen: (state) => {
       state.hasSeenHomeTour = true;
     },
@@ -124,6 +127,7 @@ const tutorialSlice = createSlice({
 });
 
 export const {
+  restoreTutorialProgress,
   markHomeTourSeen,
   markQuestionGuideSeen,
   markStreakGuideSeen,
